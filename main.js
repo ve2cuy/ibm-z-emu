@@ -2,11 +2,11 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=77e85c5f';
-import { initMemo } from './memo.js?v=77e85c5f';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=77e85c5f';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=e8d56daf';
+import { initMemo } from './memo.js?v=e8d56daf';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=e8d56daf';
 
-const VERSION = '0.1.3';
+const VERSION = '0.1.4';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -605,6 +605,69 @@ async function ipl() {
 
 let shuttingDown = false;
 
+// --- fenêtre de l'arrêt propre : étapes cochées, durée, fin claire (« vous pouvez fermer
+// la page » seulement quand les volumes sont écrits et refermés).
+const sd = $('sd');
+const SD_STEPS = ['request', 'tso', 'tasks', 'jes2', 'eod', 'quiesce', 'save'];
+let sdStart = 0;
+let sdClock = 0;
+
+function sdMark(step) {
+  const at = SD_STEPS.indexOf(step);
+  for (const li of sd.querySelectorAll('#sd-steps li')) {
+    const i = SD_STEPS.indexOf(li.dataset.step);
+    li.classList.toggle('done', i < at);
+    li.classList.toggle('active', i === at);
+  }
+}
+
+function sdOpen() {
+  sdStart = performance.now();
+  $('sd-tso').textContent = t('sd.tso');
+  $('sd-result').textContent = '';
+  $('sd-result').className = 'sd-result';
+  $('sd-warning').hidden = false;
+  $('sd-close').hidden = true;
+  $('sd-hide').hidden = false;
+  sdMark('request');
+  clearInterval(sdClock);
+  sdClock = setInterval(() => {
+    $('sd-time').textContent = t('sd.elapsed', { s: Math.round((performance.now() - sdStart) / 1000) });
+  }, 500);
+  if (!sd.open) sd.showModal();
+}
+
+function sdPhase({ phase, users, wait }) {
+  if (!sdStart) sdOpen();
+  if (phase === 'started') sdMark('tso');
+  else if (phase === 'tso') {
+    $('sd-tso').textContent = users === 0 ? t('sd.tso.none')
+      : users > 0 ? t('sd.tso.some', { n: users, s: Math.round(wait / 1000) }) : t('sd.tso.unknown');
+    sdMark('tso');
+  } else sdMark(phase);
+}
+
+function sdStopped(reason) {
+  if (!sdStart) return;
+  clearInterval(sdClock);
+  const s = Math.round((performance.now() - sdStart) / 1000);
+  sdStart = 0;
+  const ok = reason === 'shutdown';
+  if (ok) sdMark('end');
+  for (const li of sd.querySelectorAll('#sd-steps li')) if (ok) li.classList.add('done');
+  $('sd-warning').hidden = true;
+  $('sd-result').textContent = t(ok ? 'sd.done' : 'sd.other', { s });
+  $('sd-result').classList.toggle('ok', ok);
+  $('sd-result').classList.toggle('error', !ok);
+  $('sd-time').textContent = '';
+  $('sd-hide').hidden = true;
+  $('sd-close').hidden = false;
+  if (!sd.open) sd.showModal();
+}
+
+$('sd-hide').addEventListener('click', () => sd.close());
+$('sd-close').addEventListener('click', () => sd.close());
+
 function stopMachine() {
   if (!running) return;
   if (!shuttingDown) {
@@ -613,6 +676,7 @@ function stopMachine() {
       shuttingDown = true;
       worker.postMessage({ type: 'shutdown' });
       showStatus('power.shutting');
+      sdOpen();
       return;
     }
   }
@@ -677,6 +741,7 @@ function onWorkerMessage({ data }) {
     case 'shutdown':
       shuttingDown = true;
       showStatus('power.shutting');
+      sdPhase(data);
       break;
     case 'relay':
       relayState = data;
@@ -712,6 +777,7 @@ function onWorkerMessage({ data }) {
       updateButtons();
       renderVolumes();
       volMachineChanged();
+      sdStopped(data.reason);
       break;
     case 'closed':
       break;

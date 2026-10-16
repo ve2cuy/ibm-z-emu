@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=77e85c5f">
+  <link rel="stylesheet" href="style.css?v=e8d56daf">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -343,6 +343,28 @@
       </div>
     </main>
   </div>
+  <!-- Arrêt propre de MVS : étapes -->
+  <dialog id="sd" class="dialog sd" aria-labelledby="sd-title">
+    <h2 id="sd-title" data-i18n="sd.title">Shutting MVS down</h2>
+    <p id="sd-warning" class="sd-warning" data-i18n="sd.warning">Do not close the page: MVS is still writing to the volumes.</p>
+    <ol id="sd-steps" class="sd-steps">
+      <li data-step="request"><span data-i18n="sd.request">Shutdown requested (S SHUTDOWN)</span></li>
+      <li data-step="tso"><span id="sd-tso" data-i18n="sd.tso">TSO users</span></li>
+      <li data-step="tasks"><span data-i18n="sd.tasks">Tasks stopping (F BSPPILOT,SHUTNOW)</span></li>
+      <li data-step="jes2"><span data-i18n="sd.jes2">JES2 stopping ($PJES2)</span></li>
+      <li data-step="eod"><span data-i18n="sd.eod">End of the system log (Z EOD)</span></li>
+      <li data-step="quiesce"><span data-i18n="sd.quiesce">Processor stopped (QUIESCE)</span></li>
+      <li data-step="save"><span data-i18n="sd.save">Volumes written and closed</span></li>
+    </ol>
+    <p id="sd-result" class="sd-result" role="status"></p>
+    <div class="dialog-actions">
+      <span id="sd-time" class="hint"></span>
+      <span class="grow"></span>
+      <button id="sd-hide" type="button" class="secondary" data-i18n="sd.hide">Hide</button>
+      <button id="sd-close" type="button" data-i18n="memo.close" hidden>Close</button>
+    </div>
+  </dialog>
+
   <!-- Gestionnaire de volumes (volumes.js) -->
   <dialog id="vm" class="dialog vm" aria-labelledby="vm-title">
     <div class="memo-head">
@@ -499,6 +521,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=77e85c5f"></script>
+  <script type="module" src="main.js?v=e8d56daf"></script>
 </body>
 </html>

@@ -11,11 +11,11 @@
 // lecture par les images que la machine tient).
 // Messages envoyés : ready, started {volumes: [{addr, info}]}, console {text},
 // screen {addr, data}, printer {addr, text}, stats {mips, psw, wait, io, simMs},
-// shutdown {phase} (arrêt de TK5 en cours), relay {state, url, clients: [{addr, ttype}]},
+// shutdown {phase: started | tso {users, wait} | tasks | jes2 | eod | quiesce} (arrêt de TK5), relay {state, url, clients: [{addr, ttype}]},
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=77e85c5f';
+import init, { Emulator } from './pkg/ibmz_web.js?v=e8d56daf';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;
@@ -40,6 +40,7 @@ let activity = 0;       // voyants d'activité : classes d'unités servies depui
 let activityTime = 0;
 
 const SLICE_MS = 12;
+const FAST_IDLE_MS = 500;   // temps simulé d'une tranche quand les attentes sont sautées
 const MAX_LAG_MS = 200;
 
 function post(msg, transfer) {
@@ -247,11 +248,16 @@ function sendRemotes() {
 }
 
 // Opérateur automatique de l'arrêt de TK5 (comme les règles « hao » de Hercules) : la
-// procédure SHUTDOWN de MVS demande « script scripts/shutdown » par DIAGNOSE X'008'.
+// procédure SHUTDOWN de MVS demande « script scripts/shutdown » par DIAGNOSE X'008'. Le
+// script de TK5 attend alors 30 s pour laisser les usagers de TSO se déconnecter; ici,
+// D TS,L compte d'abord les usagers connectés : sans usager, pas d'attente. Chaque étape
+// est annoncée à la page (message shutdown {phase}).
 let autoShutdown = false;
 let autoSeen = '';
-const AUTO_RULES = [['$HASP099', '$PJES2'], ['$HASP085', 'Z EOD'], ['IEE334I', 'QUIESCE']];
+const AUTO_RULES = [['$HASP099', '$PJES2', 'jes2'], ['$HASP085', 'Z EOD', 'eod'], ['IEE334I', 'QUIESCE', 'quiesce']];
 let autoDone = new Set();
+let tsoUsers = null;    // usagers de TSO comptés par D TS,L (null : pas encore de réponse)
+let tsoTimer = 0;
 
 // TK5 a fini de démarrer (message MVS038J) : avant, son script de démarrage ignore la
 // demande d'arrêt; celle-ci attend donc ce message.
@@ -276,18 +282,39 @@ function autoOperator(text) {
       autoSeen = '';
       initDone = true;
       autoDone = new Set();
+      tsoUsers = null;
       post({ type: 'shutdown', phase: 'started' });
-      operatorLater('F BSPPILOT,SHUTNOW', 30000);
+      operatorLater('D TS,L', 500);
+      // Pas de réponse : l'attente de TK5 (30 s) est gardée.
+      tsoTimer = setTimeout(() => shutnow(-1), 8000);
     }
   }
   if (!autoShutdown || !text) return;
   autoSeen = (autoSeen + text).slice(-20000);
-  for (const [msg, cmd] of AUTO_RULES) {
+  const m = tsoUsers === null && /(\d+)\s+TIME SHARING USERS/.exec(autoSeen);
+  if (m) shutnow(Number(m[1]));
+  for (const [msg, cmd, phase] of AUTO_RULES) {
     if (!autoDone.has(msg) && autoSeen.includes(msg)) {
       autoDone.add(msg);
-      operatorLater(cmd, 3000);
+      operatorLater(cmd, 1000);
+      post({ type: 'shutdown', phase });
     }
   }
+}
+
+/** Arrêt des tâches (F BSPPILOT,SHUTNOW) : tout de suite sans usager de TSO, 30 s sinon. */
+function shutnow(users) {
+  if (tsoUsers !== null) return;
+  clearTimeout(tsoTimer);
+  tsoUsers = users;
+  const wait = users === 0 ? 500 : 30000;
+  post({ type: 'shutdown', phase: 'tso', users, wait });
+  setTimeout(() => {
+    if (emu && running) {
+      emu.console_type(CONSOLE, 'F BSPPILOT,SHUTNOW');
+      post({ type: 'shutdown', phase: 'tasks' });
+    }
+  }, wait);
 }
 
 /** Sorties de la machine : console, écrans changés, imprimantes. */
@@ -321,7 +348,12 @@ function tick() {
     target = simBase + (t0 - realBase);
   }
   let ms = Math.max(0, target - now);
-  if (turbo && !emu.waiting()) ms = Math.max(ms, SLICE_MS * 4);
+  // Rapide : pendant l'arrêt, et pendant l'IPL en Turbo, les attentes du processeur sont
+  // sautées (le temps simulé court jusqu'au prochain événement). Pas en marche ordinaire :
+  // l'horloge de MVS filerait et les délais de TSO et des travaux expireraient.
+  const fast = autoShutdown || (turbo && !initDone);
+  if (fast && emu.waiting()) ms = Math.max(ms, FAST_IDLE_MS);
+  else if (turbo && !emu.waiting()) ms = Math.max(ms, SLICE_MS * 4);
   const maxInst = Math.round(mips * 1000 * SLICE_MS);
   let state = 'run';
   if (ms > 0) {
@@ -335,7 +367,7 @@ function tick() {
       emu.set_ns_per_inst(1000 / mips);
     }
   }
-  if (turbo && emu.now_ms() > target) {
+  if ((turbo || fast) && emu.now_ms() > target) {
     // En rafale : le temps simulé a pris de l'avance, la base suit.
     simBase += emu.now_ms() - target;
   }
