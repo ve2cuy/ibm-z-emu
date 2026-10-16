@@ -12,7 +12,7 @@
 // shutdown {phase} (arrêt de TK5 en cours),
 // stopped {reason}, closed, error {msg}, cards {left}.
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=36325a67';
+import init, { Emulator } from './pkg/ibmz_web.js?v=ce8cbebc';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;
