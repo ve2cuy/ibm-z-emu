@@ -1,3 +1,5 @@
+/* @ts-self-types="./ibmz_web.d.ts" */
+
 export class Emulator {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;

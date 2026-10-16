@@ -2,7 +2,7 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=edd7b5c8';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -30,7 +30,7 @@ const prefs = {
   fontSize: 16,
   showPanel: true,
   showKeys: null,
-  depot: 'https://ve2cuy.com/ibmz',
+  depot: 'https://ve2cuy.com/vax/ibmz',
   turbo: false,
   printer: 0x00E,
   ...readPrefs(),
@@ -351,7 +351,7 @@ async function keepStorage() {
 const depotUrl = $('depot-url');
 depotUrl.value = prefs.depot;
 depotUrl.addEventListener('change', () => {
-  prefs.depot = depotUrl.value.trim().replace(/\/+$/, '') || 'https://ve2cuy.com/ibmz';
+  prefs.depot = depotUrl.value.trim().replace(/\/+$/, '') || 'https://ve2cuy.com/vax/ibmz';
   depotUrl.value = prefs.depot;
   savePrefs();
   loadDepot();
