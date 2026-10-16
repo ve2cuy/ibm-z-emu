@@ -83,7 +83,10 @@ d'origine.
 
 - Le **gestionnaire de volumes** (icône du **dossier**, barre du haut) : parcourir les
   volumes, leurs fichiers et les membres des bibliothèques, afficher un membre en texte ou
-  en hexadécimal, l'exporter vers le PC (machine arrêtée ou MVS en marche).
+  en hexadécimal, l'exporter vers le PC; modifier, créer, importer, renommer ou supprimer
+  des membres (machine arrêtée : directement dans le volume; MVS en marche : par des
+  travaux, dont la sortie paraît dans la fenêtre); créer, renommer, supprimer et
+  compresser des fichiers (MVS en marche); créer un volume vierge.
 - L'**aide-mémoire** (bouton **?** de la barre du haut) : commandes de l'opérateur et de
   TSO, volumes et fichiers de TK5, script de connexion, compilation en COBOL et en C (chaque
   travail s'ouvre dans le lecteur de cartes).

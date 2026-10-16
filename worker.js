@@ -14,7 +14,7 @@
 // shutdown {phase} (arrêt de TK5 en cours), relay {state, url, clients: [{addr, ttype}]},
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error}.
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=088d4ad6';
+import init, { Emulator } from './pkg/ibmz_web.js?v=59102d35';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;

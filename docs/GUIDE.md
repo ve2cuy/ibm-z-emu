@@ -76,8 +76,10 @@ To start over, the **Repository** menu downloads the original volumes again.
 ## 7. Going further
 
 - The **volume manager** (the **folder** icon, top bar): browse the volumes, their data
-  sets and library members, show a member as text or in hexadecimal, export it to the PC
-  (machine stopped or MVS running).
+  sets and library members, show a member as text or in hexadecimal, export it to the PC;
+  edit, create, import, rename or delete members (machine stopped: directly in the
+  volume; MVS running: through jobs whose output shows in the window); create, rename,
+  delete and compress data sets (MVS running); create a blank volume.
 - The **cheat sheet** (the **?** button in the top bar): operator and TSO commands, TK5
   volumes and data sets, logon script, COBOL and C compilation (each job opens in the card
   reader).

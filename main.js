@@ -2,9 +2,9 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=088d4ad6';
-import { initMemo } from './memo.js?v=088d4ad6';
-import { initVolumes, openVolumes, volSettle } from './volumes.js?v=088d4ad6';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=59102d35';
+import { initMemo } from './memo.js?v=59102d35';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=59102d35';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -37,6 +37,8 @@ const prefs = {
   printer: 0x00E,
   relay: false,
   relayUrl: 'ws://127.0.0.1:8370',
+  jobUser: 'HERC01',      // gestionnaire de volumes : travaux et statistiques ISPF
+  jobPassword: 'CUL8TR',
   ...readPrefs(),
 };
 
@@ -558,6 +560,7 @@ async function ipl() {
   for (const k of Object.keys(printers)) delete printers[k];
   showPrinter();
   running = true;
+  volMachineChanged();
   setLight('lt-load', true);
   updateButtons();
   renderVolumes();
@@ -620,6 +623,7 @@ function onWorkerMessage({ data }) {
       break;
     case 'console':
       appendConsole(data.text);
+      volConsole(data.text);
       break;
     case 'screen':
       screens.set(data.addr, data.data);
@@ -627,6 +631,7 @@ function onWorkerMessage({ data }) {
       else markTab(`t${data.addr}`);
       break;
     case 'printer':
+      if (data.addr === 0x00F) volPrinter(data.text);
       printers[data.addr] = (printers[data.addr] ?? '') + data.text;
       if (printers[data.addr].length > 2_000_000) printers[data.addr] = printers[data.addr].slice(-1_500_000);
       if (currentTab === 'printer') showPrinter();
@@ -672,6 +677,7 @@ function onWorkerMessage({ data }) {
       else showStatus(data.reason === 'user' ? 'power.stopped' : `stop.${data.reason}`);
       updateButtons();
       renderVolumes();
+      volMachineChanged();
       break;
     case 'closed':
       break;
@@ -1242,6 +1248,16 @@ languageListeners.push(initVolumes({
   running: () => running,
   worker: () => worker,
   version: V,
+  prefs,
+  savePrefs,
+  // Travaux du gestionnaire (MVS en marche) : cartes pour le lecteur 00C.
+  submit: (text) => worker?.postMessage({ type: 'submit', text }),
+  // Volume vierge : rangé dans l'OPFS comme un volume du dépôt.
+  addVolume: async (name, bytes) => {
+    await writeVolume(name, new Blob([bytes]).stream());
+    await keepStorage();
+    await renderVolumes();
+  },
 }));
 $('vm-button').addEventListener('click', () => openVolumes());
 

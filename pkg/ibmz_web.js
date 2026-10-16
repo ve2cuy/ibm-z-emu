@@ -451,6 +451,28 @@ export class Emulator {
         return v3;
     }
     /**
+     * Écriture directe, machine en marche : refusée (MVS réécrirait par-dessus).
+     * @returns {string}
+     */
+    vol_write() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.emulator_vol_write(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * Le processeur attend (PSW d'attente).
      * @returns {boolean}
      */
@@ -537,8 +559,73 @@ export class VolumeImage {
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v3;
     }
+    /**
+     * @param {string} op
+     * @param {string} dsn
+     * @param {string} member
+     * @param {string} text
+     * @param {string} to
+     * @param {string} user
+     * @param {number} changed
+     * @param {Uint16Array} stamp
+     * @param {Uint8Array} bin
+     * @returns {string}
+     */
+    write(op, dsn, member, text, to, user, changed, stamp, bin) {
+        let deferred10_0;
+        let deferred10_1;
+        try {
+            const ptr0 = passStringToWasm0(op, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(dsn, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ptr2 = passStringToWasm0(member, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len2 = WASM_VECTOR_LEN;
+            const ptr3 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len3 = WASM_VECTOR_LEN;
+            const ptr4 = passStringToWasm0(to, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len4 = WASM_VECTOR_LEN;
+            const ptr5 = passStringToWasm0(user, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len5 = WASM_VECTOR_LEN;
+            const ptr6 = passArray16ToWasm0(stamp, wasm.__wbindgen_malloc);
+            const len6 = WASM_VECTOR_LEN;
+            const ptr7 = passArray8ToWasm0(bin, wasm.__wbindgen_malloc);
+            const len7 = WASM_VECTOR_LEN;
+            const ret = wasm.volumeimage_write(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, changed, ptr6, len6, ptr7, len7);
+            var ptr9 = ret[0];
+            var len9 = ret[1];
+            if (ret[3]) {
+                ptr9 = 0; len9 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred10_0 = ptr9;
+            deferred10_1 = len9;
+            return getStringFromWasm0(ptr9, len9);
+        } finally {
+            wasm.__wbindgen_free(deferred10_0, deferred10_1, 1);
+        }
+    }
 }
 if (Symbol.dispose) VolumeImage.prototype[Symbol.dispose] = VolumeImage.prototype.free;
+
+/**
+ * Volume vierge (VOL1, VTOC) : image CCKD de `cyls` cylindres pour 3390, 3380 ou 3350.
+ * @param {number} devtype
+ * @param {number} cyls
+ * @param {string} volser
+ * @returns {Uint8Array}
+ */
+export function blank_volume(devtype, cyls, volser) {
+    const ptr0 = passStringToWasm0(volser, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.blank_volume(devtype, cyls, ptr0, len0);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -551,6 +638,10 @@ function __wbg_get_imports() {
         },
         __wbg_flush_e8ae6dfd2f75a0ea: function(arg0) {
             arg0.flush();
+        },
+        __wbg_now_94c7d0d20fe206d0: function() {
+            const ret = Date.now();
+            return ret;
         },
         __wbg_read_29fc9eb7022ba922: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
@@ -596,12 +687,27 @@ function getStringFromWasm0(ptr, len) {
     return decodeText(ptr >>> 0, len);
 }
 
+let cachedUint16ArrayMemory0 = null;
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
+}
+
 let cachedUint8ArrayMemory0 = null;
 function getUint8ArrayMemory0() {
     if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray16ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 2, 2) >>> 0;
+    getUint16ArrayMemory0().set(arg, ptr / 2);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArray8ToWasm0(arg, malloc) {
@@ -688,6 +794,7 @@ function __wbg_finalize_init(instance, module) {
     wasmInstance = instance;
     wasm = instance.exports;
     wasmModule = module;
+    cachedUint16ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;

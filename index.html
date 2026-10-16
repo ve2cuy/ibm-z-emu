@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=088d4ad6">
+  <link rel="stylesheet" href="style.css?v=59102d35">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -47,6 +47,7 @@
       <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
       <symbol id="i-card" viewBox="0 0 24 24"><path d="M6 4h12l2 2v14H4V6z"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></symbol>
       <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
       <symbol id="i-memo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></symbol>
@@ -342,14 +343,30 @@
         <select id="vm-volume" autocomplete="off"></select></label>
       <label class="vm-field grow"><span data-i18n="vm.filter">Filter</span>
         <input id="vm-filter" type="search" spellcheck="false" autocomplete="off" class="mono" placeholder="HERC01.*" data-i18n-placeholder="vm.filter.ph"></label>
+      <button id="vm-newvol-button" type="button" class="small-button secondary" data-i18n="vm.nv.button">New volume…</button>
       <button id="vm-refresh" type="button" class="icon-button" title="Read again" data-i18n-title="vm.refresh" aria-label="Read again" data-i18n-aria="vm.refresh">
         <svg class="icon"><use href="#i-refresh"/></svg></button>
     </div>
     <p class="vm-info"><span id="vm-summary"></span> <span id="vm-mode" class="vm-mode"></span></p>
     <nav id="vm-path" class="vm-path" aria-label="Path"></nav>
     <div class="vm-body">
-      <div id="vm-datasets" class="vm-pane"><table id="vm-ds-table" class="vm-table"></table></div>
-      <div id="vm-members" class="vm-pane" hidden><table id="vm-mem-table" class="vm-table"></table></div>
+      <div id="vm-datasets" class="vm-pane vm-list">
+        <div id="vm-ds-tools" class="vm-tools" hidden>
+          <button id="vm-ds-new" type="button" class="small-button" data-i18n="vm.new.dataset">New data set…</button>
+          <button id="vm-ds-catalog" type="button" class="small-button secondary" data-i18n="vm.catalog">Catalog</button>
+          <span id="vm-ds-hint" class="hint" data-i18n="vm.hint.stopped"></span>
+        </div>
+        <div class="vm-scroll"><table id="vm-ds-table" class="vm-table"></table></div>
+      </div>
+      <div id="vm-members" class="vm-pane vm-list" hidden>
+        <div id="vm-mem-tools" class="vm-tools" hidden>
+          <button id="vm-mem-new" type="button" class="small-button" data-i18n="vm.new.member">New member…</button>
+          <label class="button secondary small-button"><span data-i18n="vm.import">Import…</span>
+            <input id="vm-mem-file" type="file" multiple hidden></label>
+          <button id="vm-mem-compress" type="button" class="small-button secondary" data-i18n="vm.compress">Compress</button>
+        </div>
+        <div class="vm-scroll"><table id="vm-mem-table" class="vm-table"></table></div>
+      </div>
       <div id="vm-viewer" class="vm-pane vm-viewer" hidden>
         <div class="vm-tools">
           <div class="vm-seg" role="group">
@@ -358,6 +375,11 @@
           </div>
           <label id="vm-cols" class="check"><input id="vm-cols80" type="checkbox"><span data-i18n="vm.cols80">Columns 73-80</span></label>
           <span class="grow"></span>
+          <button id="vm-edit" type="button" class="small-button" data-i18n="vm.edit">Edit</button>
+          <label id="vm-view-import" class="button secondary small-button"><span data-i18n="vm.import">Import…</span>
+            <input id="vm-view-file" type="file" hidden></label>
+          <label id="vm-view-binimport" class="button secondary small-button" title="XMIT…" data-i18n-title="vm.binimport.tip"><span data-i18n="vm.binimport">Import binary…</span>
+            <input id="vm-view-bin" type="file" hidden></label>
           <button id="vm-copy" type="button" class="small-button secondary" data-i18n="memo.copy">Copy</button>
           <button id="vm-export-text" type="button" class="small-button secondary" data-i18n="vm.export.text">Export text</button>
           <button id="vm-export-bin" type="button" class="small-button secondary" data-i18n="vm.export.bin">Export binary</button>
@@ -365,8 +387,90 @@
         <p id="vm-view-info" class="hint"></p>
         <pre id="vm-text" class="vm-text mono" tabindex="0"></pre>
       </div>
+      <div id="vm-editor" class="vm-pane vm-viewer" hidden>
+        <div class="vm-tools">
+          <label class="check"><input id="vm-caps" type="checkbox"><span data-i18n="vm.caps">Upper case</span></label>
+          <label id="vm-num-box" class="vm-inline"><span data-i18n="vm.num">Columns 73-80</span>
+            <select id="vm-num">
+              <option value="keep" data-i18n="vm.num.keep">keep</option>
+              <option value="clear" data-i18n="vm.num.clear">clear</option>
+              <option value="renum" data-i18n="vm.num.renum">renumber</option>
+            </select></label>
+          <span class="grow"></span>
+          <button id="vm-edit-cancel" type="button" class="small-button secondary" data-i18n="vm.cancel">Cancel</button>
+          <button id="vm-edit-save" type="button" class="small-button" data-i18n="vm.save">Save</button>
+        </div>
+        <p id="vm-edit-info" class="hint"></p>
+        <textarea id="vm-edit-text" class="vm-text vm-edit mono" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+      </div>
+      <div id="vm-job" class="vm-pane vm-viewer" hidden>
+        <div class="vm-tools">
+          <button id="vm-job-back" type="button" class="small-button secondary" data-i18n="vm.back">Back</button>
+          <strong id="vm-job-title"></strong>
+          <span class="grow"></span>
+          <button id="vm-job-copy" type="button" class="small-button secondary" data-i18n="memo.copy">Copy</button>
+        </div>
+        <pre id="vm-job-text" class="vm-text vm-1403" tabindex="0"></pre>
+      </div>
     </div>
-    <p class="vm-foot"><span id="vm-count" class="hint"></span><span id="vm-status" class="vm-status" role="status"></span></p>
+    <div id="vm-jobbar" class="vm-jobbar" hidden><span id="vm-jobbar-text"></span>
+      <button id="vm-jobbar-show" type="button" class="small-button secondary" data-i18n="vm.job.show">Show the output</button></div>
+    <div class="vm-foot"><span id="vm-count" class="hint"></span><span id="vm-status" class="vm-status" role="status"></span>
+      <details class="vm-settings"><summary data-i18n="vm.settings">Jobs</summary>
+        <label class="vm-inline"><span data-i18n="vm.user">User</span><input id="vm-user" type="text" maxlength="8" class="mono" autocomplete="off" spellcheck="false"></label>
+        <label class="vm-inline"><span data-i18n="vm.pass">Password</span><input id="vm-pass" type="password" maxlength="8" class="mono" autocomplete="off"></label>
+        <p class="hint" data-i18n="vm.settings.hint"></p>
+      </details>
+    </div>
+  </dialog>
+
+  <!-- Nouveau volume (gestionnaire de volumes) -->
+  <dialog id="vm-newvol" class="dialog vm-new" aria-labelledby="vm-nv-title">
+    <h2 id="vm-nv-title" data-i18n="vm.nv.title">New volume</h2>
+    <p class="hint" data-i18n-html="vm.nv.hint"></p>
+    <div class="vm-grid three">
+      <label class="field"><span data-i18n="vm.nv.volser">Volume serial</span><input id="vm-nv-volser" type="text" maxlength="6" class="mono" spellcheck="false" autocomplete="off"></label>
+      <label class="field"><span data-i18n="vm.nv.model">Device</span><select id="vm-nv-model">
+        <option value="3390-1">3390-1 (1114 cyl)</option><option value="3390-2">3390-2 (2227 cyl)</option><option value="3390-3">3390-3 (3340 cyl)</option>
+        <option value="3380">3380 (886 cyl)</option><option value="3350">3350 (560 cyl)</option></select></label>
+      <label class="field"><span data-i18n="vm.nv.addr">Unit address</span><select id="vm-nv-addr" class="mono"></select></label>
+    </div>
+    <p id="vm-nv-error" class="hint error"></p>
+    <div class="dialog-actions">
+      <span class="grow"></span>
+      <button id="vm-nv-cancel" type="button" class="secondary" data-i18n="vm.cancel">Cancel</button>
+      <button id="vm-nv-ok" type="button" data-i18n="vm.new.create">Create</button>
+    </div>
+  </dialog>
+
+  <!-- Nouveau fichier (gestionnaire de volumes, MVS en marche) -->
+  <dialog id="vm-new" class="dialog vm-new" aria-labelledby="vm-new-title">
+    <h2 id="vm-new-title" data-i18n="vm.new.title">New data set</h2>
+    <p class="hint" data-i18n="vm.new.hint"></p>
+    <label class="field"><span data-i18n="vm.new.preset">Model</span>
+      <select id="vm-new-preset">
+        <option value="src" data-i18n="vm.new.p.src">Source library (FB 80)</option>
+        <option value="seq" data-i18n="vm.new.p.seq">Sequential (FB 80)</option>
+        <option value="vb" data-i18n="vm.new.p.vb">Text library (VB 255)</option>
+        <option value="load" data-i18n="vm.new.p.load">Load library (U)</option>
+      </select></label>
+    <label class="field"><span data-i18n="vm.col.name">Data set</span><input id="vm-new-name" type="text" maxlength="44" class="mono" spellcheck="false" autocomplete="off"></label>
+    <div class="vm-grid">
+      <label class="field"><span data-i18n="vm.col.dsorg">Org</span><select id="vm-new-dsorg"><option>PO</option><option>PS</option></select></label>
+      <label class="field"><span>RECFM</span><select id="vm-new-recfm"><option>FB</option><option>F</option><option>VB</option><option>V</option><option>U</option></select></label>
+      <label class="field"><span>LRECL</span><input id="vm-new-lrecl" type="number" min="0" max="32760"></label>
+      <label class="field"><span>BLKSIZE</span><input id="vm-new-blksize" type="number" min="1" max="32760"></label>
+      <label class="field"><span data-i18n="vm.new.unit">Space in</span><select id="vm-new-spaceUnit"><option>TRK</option><option>CYL</option></select></label>
+      <label class="field"><span data-i18n="vm.new.primary">Primary</span><input id="vm-new-primary" type="number" min="1"></label>
+      <label class="field"><span data-i18n="vm.new.secondary">Secondary</span><input id="vm-new-secondary" type="number" min="0"></label>
+      <label class="field"><span data-i18n="vm.new.dir">Directory blocks</span><input id="vm-new-dirBlocks" type="number" min="0"></label>
+    </div>
+    <p id="vm-new-error" class="hint error"></p>
+    <div class="dialog-actions">
+      <span class="grow"></span>
+      <button id="vm-new-cancel" type="button" class="secondary" data-i18n="vm.cancel">Cancel</button>
+      <button id="vm-new-ok" type="button" data-i18n="vm.new.create">Create</button>
+    </div>
   </dialog>
 
   <!-- Aide-mémoire (memo.js) -->
@@ -379,6 +483,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=088d4ad6"></script>
+  <script type="module" src="main.js?v=59102d35"></script>
 </body>
 </html>

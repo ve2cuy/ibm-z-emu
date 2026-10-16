@@ -1,16 +1,22 @@
-// Gestionnaire de volumes (étape 1 de docs/edition-volumes.md : lecture seule) : parcourt
-// les volumes MVS rangés dans le fureteur, leur VTOC, les membres des bibliothèques, et
-// affiche ou exporte un fichier ou un membre. Le travail est fait par le module wasm
-// (crates/mvsvol) dans un fil : vol-worker.js quand la machine est arrêtée, le fil de la
-// machine (worker.js) quand elle tourne, car lui seul tient alors les images.
+// Gestionnaire de volumes (docs/edition-volumes.md) : parcourt les volumes MVS rangés dans
+// le fureteur, leur VTOC, les membres des bibliothèques; affiche, édite, crée, renomme,
+// supprime, importe et exporte. Lecture par le module wasm (crates/mvsvol) dans un fil :
+// vol-worker.js quand la machine est arrêtée, le fil de la machine (worker.js) quand elle
+// tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
+// (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=088d4ad6';
+import { t } from './i18n.js?v=59102d35';
+import {
+  JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
+} from './vol-jobs.js?v=59102d35';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
 const HIDDEN = /^(PAGE|SPOOL)/;    // volumes de pagination et de spool : masqués
 
-let ctx = null;          // { volumes(), running(), worker(), version }
+let ctx = null;          // { volumes(), running(), worker(), version, prefs, savePrefs, submit }
+let jobs = null;         // JobTracker (MVS en marche)
+const confirmed = new Set(); // volumes déjà acceptés pour l'écriture directe (cette session)
 let volWorker = null;
 let callId = 0;
 const pending = new Map();
@@ -29,6 +35,8 @@ const state = {
   mode: 'text',
   cols80: false,
   filter: '',
+  editing: null,         // {dsn, member, isNew, original, recfm, lrecl}
+  lastJob: null,         // {name, output, rcs, maxRc, ok}
 };
 
 const $ = (id) => document.getElementById(id);
@@ -47,7 +55,9 @@ export function volSettle(msg) {
 function call(op, args = {}) {
   const vol = state.vols.find((v) => v.file === (args.file ?? state.file));
   const id = ++callId;
-  const msg = { id, op, dsn: args.dsn ?? '', member: args.member ?? '', limit: args.limit ?? 0 };
+  const msg = { ...args, id, op, dsn: args.dsn ?? '', member: args.member ?? '', limit: args.limit ?? 0 };
+  delete msg.file;
+  delete msg.addr;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     if (ctx.running()) {
@@ -101,9 +111,26 @@ function el(tag, cls, text) {
   return e;
 }
 
-function row(cells, onOpen) {
+/** Bouton d'action d'une ligne (sans ouvrir la ligne). */
+function action(icon, title, fn) {
+  const b = el('button', 'icon-button small');
+  b.type = 'button';
+  b.title = title;
+  b.setAttribute('aria-label', title);
+  b.innerHTML = `<svg class="icon"><use href="#i-${icon}"/></svg>`;
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    guard(fn);
+  });
+  return b;
+}
+
+function row(cells, onOpen, actions = []) {
   const tr = el('tr');
   for (const [text, cls] of cells) tr.append(el('td', cls, text ?? ''));
+  const td = el('td', 'vm-actions');
+  td.append(...actions);
+  tr.append(td);
   if (onOpen) {
     tr.tabIndex = 0;
     tr.classList.add('vm-open');
@@ -116,6 +143,7 @@ function row(cells, onOpen) {
 function head(keys) {
   const tr = el('tr');
   for (const k of keys) tr.append(el('th', null, t(k)));
+  tr.append(el('th'));
   return tr;
 }
 
@@ -175,7 +203,8 @@ function exportName(ext) {
 // ------------------------------------------------------------------ affichage
 
 function showPane(which) {
-  for (const p of ['datasets', 'members', 'viewer']) $(`vm-${p}`).hidden = p !== which;
+  for (const p of ['datasets', 'members', 'viewer', 'editor', 'job']) $(`vm-${p}`).hidden = p !== which;
+  renderTools();
 }
 
 function crumbs() {
@@ -210,10 +239,16 @@ function renderDatasets() {
   table.replaceChildren(head(['vm.col.name', 'vm.col.dsorg', 'vm.col.recfm', 'vm.col.lrecl', 'vm.col.blksize', 'vm.col.tracks', 'vm.col.created', 'vm.col.referenced']));
   const list = state.datasets.filter((d) => matches(d.name));
   for (const d of list) {
+    const acts = [];
+    if (ctx.running() && !d.dsorg.startsWith('VS')) {
+      if (d.dsorg === 'PO') acts.push(action('archive', t('vm.compress'), () => compress(d.name)));
+      acts.push(action('pencil', t('vm.rename'), () => renameDataset(d)));
+      acts.push(action('trash', t('vm.delete'), () => deleteDataset(d)));
+    }
     table.append(row([
       [d.name, 'mono'], [d.dsorg, 'mono'], [d.recfm, 'mono'], [d.lrecl || '', 'num'], [d.blksize || '', 'num'],
       [`${d.used}/${d.tracks}`, 'num'], [fmtDate(d.created)], [fmtDate(d.referenced)],
-    ], () => guard(() => openDataset(d))));
+    ], () => guard(() => openDataset(d)), acts));
   }
   $('vm-count').textContent = t('vm.count', { n: list.length, total: state.datasets.length });
 }
@@ -229,7 +264,10 @@ function renderMembers() {
       [m.alias ? `${m.name} (${t('vm.alias')})` : m.name, 'mono'],
       [s ? `${String(s.vv).padStart(2, '0')}.${String(s.mm).padStart(2, '0')}` : '', 'mono'],
       [s ? fmtDate(s.created) : ''], [changed], [s ? s.lines : '', 'num'], [s?.user ?? '', 'mono'],
-    ], () => guard(() => openMember(m))));
+    ], () => guard(() => openMember(m)), editable() ? [
+      action('pencil', t('vm.rename'), () => renameMember(m.name)),
+      action('trash', t('vm.delete'), () => deleteMember(m.name)),
+    ] : []));
   }
   $('vm-count').textContent = t('vm.count', { n: list.length, total: state.members.length });
 }
@@ -247,9 +285,478 @@ function renderViewer() {
     out.textContent = text;
   }
   for (const b of document.querySelectorAll('#vm-viewer [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode));
+  $('vm-edit').hidden = !editable() || !textual(v.dataset) || v.truncated;
+  $('vm-view-import').hidden = !editable() || v.dataset.dsorg !== 'PS' || !textual(v.dataset);
+  $('vm-view-binimport').hidden = ctx.running() || !vol()?.info || v.dataset.dsorg !== 'PS' || !v.dataset.recfm.startsWith('F');
   $('vm-view-info').textContent = t(v.truncated ? 'vm.view.truncated' : 'vm.view.info', {
     records: v.records, bytes: v.bytes, recfm: v.dataset.recfm, lrecl: v.dataset.lrecl,
   });
+}
+
+// ------------------------------------------------------------------ écriture
+
+const vol = () => state.vols.find((v) => v.file === state.file);
+const creds = () => ({ user: ctx.prefs.jobUser || 'HERC01', password: ctx.prefs.jobPassword || 'CUL8TR' });
+
+/** Texte modifiable : F ou V (pas U, pas VSAM). */
+function textual(d) {
+  return /^[FV]/.test(d.recfm) && (d.dsorg === 'PO' || d.dsorg === 'PS');
+}
+
+/** Écriture possible : directe (machine arrêtée) ou par travaux (MVS en marche, volume MVS). */
+function editable() {
+  return !!vol()?.info && (!ctx.running() || !!jobs);
+}
+
+/** MVS en marche : les travaux passent par des cartes de 80 colonnes (F, LRECL 80 au plus). */
+function jobFits(d) {
+  return d.recfm.startsWith('F') && d.lrecl > 0 && d.lrecl <= 80;
+}
+
+function stamp() {
+  const d = new Date();
+  const day = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 0)) / 864e5);
+  return [d.getFullYear(), day, d.getHours(), d.getMinutes(), d.getSeconds()];
+}
+
+/** Lignes changées (pour les statistiques ISPF). */
+function changedLines(a, b) {
+  const x = (a ?? '').split('\n');
+  const y = b.split('\n');
+  let n = Math.abs(x.length - y.length);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i].trimEnd() !== y[i].trimEnd()) n++;
+  return n;
+}
+
+/** Première écriture directe sur un volume (cette session) : confirmation. */
+function confirmDirect() {
+  const v = vol();
+  if (confirmed.has(v.file)) return true;
+  if (!confirm(t('vm.confirm.direct', { volser: v.info?.volser ?? v.file }))) return false;
+  confirmed.add(v.file);
+  return true;
+}
+
+/** Travail MVS : écrit, soumis, suivi; rend son résultat (lève si en échec). */
+async function runJob(build, args, quiet = false) {
+  const name = jobName();
+  const v = vol();
+  const text = build({ name, ...creds(), volser: v?.info?.volser, devtype: v?.info?.devtype, ...args });
+  status(t('vm.job.running', { name }));
+  const res = await jobs.run(name, text);
+  res.ok = !res.jclError && !res.abend && res.maxRc <= 4;
+  state.lastJob = res;
+  renderJobBar();
+  if (!res.ok && !quiet) throw new Error(`jobfail|${name}`);
+  return res;
+}
+
+async function saveText(dsn, member, text, original) {
+  if (!ctx.running()) {
+    if (!confirmDirect()) return false;
+    await call('write', { wop: 'save', dsn, member, text, user: creds().user, changed: changedLines(original, text), stamp: stamp() });
+  } else {
+    const d = state.datasets.find((x) => x.name === dsn) ?? state.dataset;
+    if (!jobFits(d)) throw new Error('jobwide|');
+    await runJob(saveJcl, { dsn, member, text });
+  }
+  return true;
+}
+
+async function refreshAfterWrite() {
+  await fillVolumes();
+  $('vm-volume').value = state.file;
+  state.datasets = await call('datasets');
+  if (state.dataset) state.dataset = state.datasets.find((d) => d.name === state.dataset.name) ?? state.dataset;
+  renderSummary();
+}
+
+async function deleteMember(name) {
+  if (!confirm(t('vm.confirm.delmember', { name: `${state.dataset.name}(${name})` }))) return;
+  if (!ctx.running()) {
+    if (!confirmDirect()) return;
+    await call('write', { wop: 'delete', dsn: state.dataset.name, member: name });
+  } else {
+    await runJob(memberJcl, { dsn: state.dataset.name, member: name });
+  }
+  await refreshAfterWrite();
+  await openDataset(state.dataset);
+  status(t('vm.done.delete', { name }));
+}
+
+async function renameMember(name) {
+  const to = prompt(t('vm.ask.rename', { name }), name)?.trim().toUpperCase();
+  if (!to || to === name) return;
+  if (!MEMBER_RE.test(to)) throw new Error(`badname|${to}`);
+  if (!ctx.running()) {
+    if (!confirmDirect()) return;
+    await call('write', { wop: 'rename', dsn: state.dataset.name, member: name, to });
+  } else {
+    await runJob(memberJcl, { dsn: state.dataset.name, member: name, to });
+  }
+  await refreshAfterWrite();
+  await openDataset(state.dataset);
+  status(t('vm.done.rename', { name, to }));
+}
+
+const MEMBER_RE = /^[A-Z@#$][A-Z0-9@#$]{0,7}$/;
+const DSN_RE = /^(?=.{1,44}$)[A-Z@#$][A-Z0-9@#$-]{0,7}(\.[A-Z@#$][A-Z0-9@#$-]{0,7})*$/;
+
+async function newMember() {
+  const name = prompt(t('vm.ask.member'))?.trim().toUpperCase();
+  if (!name) return;
+  if (!MEMBER_RE.test(name)) throw new Error(`badname|${name}`);
+  const old = state.members.find((m) => m.name === name);
+  if (old) {
+    await openMember(old);
+    return;
+  }
+  if (ctx.running() && !jobFits(state.dataset)) throw new Error('jobwide|');
+  state.member = { name, stats: null };
+  openEditor('', true);
+}
+
+/** Importe des fichiers du PC : membres (nom d'après le fichier) ou contenu d'un séquentiel. */
+async function importFiles(files) {
+  const d = state.dataset;
+  if (d.dsorg === 'PS') {
+    const f = files[0];
+    if (!confirm(t('vm.confirm.replace', { name: d.name, file: f.name }))) return;
+    await saveText(d.name, '', await f.text(), state.view?.text);
+    await refreshAfterWrite();
+    await openView();
+    status(t('vm.done.import', { n: 1 }));
+    return;
+  }
+  const plan = [];
+  for (const f of files) {
+    const name = f.name.replace(/\.[^.]*$/, '').toUpperCase().replace(/[^A-Z0-9@#$]/g, '').slice(0, 8);
+    if (!MEMBER_RE.test(name)) throw new Error(`badname|${f.name}`);
+    plan.push({ f, name });
+  }
+  const existing = plan.filter((p) => state.members.some((m) => m.name === p.name)).map((p) => p.name);
+  if (!confirm(t(existing.length ? 'vm.confirm.import.replace' : 'vm.confirm.import', {
+    n: plan.length, names: plan.map((p) => p.name).join(', '), replaced: existing.join(', '),
+  }))) return;
+  let n = 0;
+  for (const { f, name } of plan) {
+    status(t('vm.importing', { name }));
+    if (await saveText(d.name, name, await f.text(), '')) n++;
+  }
+  await refreshAfterWrite();
+  await openDataset(state.dataset);
+  status(t('vm.done.import', { n }));
+}
+
+// --- éditeur
+
+function openEditor(text, isNew = false) {
+  const d = state.dataset;
+  state.editing = { dsn: d.name, member: state.member?.name ?? '', isNew, original: text, recfm: d.recfm, lrecl: d.lrecl };
+  const ta = $('vm-edit-text');
+  ta.value = text;
+  $('vm-caps').checked = !!ctx.prefs.vmCaps;
+  const f80 = d.recfm.startsWith('F') && d.lrecl === 80;
+  $('vm-num-box').hidden = !f80;
+  $('vm-num').value = 'keep';
+  showPane('editor');
+  crumbs();
+  editInfo();
+  ta.focus();
+  ta.setSelectionRange(0, 0);
+  ta.scrollTop = 0;
+  status(t(ctx.running() ? 'vm.edit.byjob' : 'vm.edit.direct'));
+}
+
+function editInfo() {
+  const e = state.editing;
+  if (!e) return;
+  const ta = $('vm-edit-text');
+  const before = ta.value.slice(0, ta.selectionStart);
+  const line = before.split('\n').length;
+  const col = before.length - before.lastIndexOf('\n');
+  const max = e.recfm.startsWith('V') ? e.lrecl - 4 : e.lrecl;
+  const long = ta.value.split('\n').findIndex((l) => l.replace(/\t/g, '        ').trimEnd().length > max);
+  $('vm-edit-info').textContent = t('vm.edit.info', { line, col, lines: ta.value.split('\n').length, recfm: e.recfm, lrecl: e.lrecl })
+    + (long >= 0 ? ` ${t('vm.edit.long', { n: long + 1, max })}` : '');
+  $('vm-edit-info').classList.toggle('error', long >= 0);
+}
+
+/** Texte à ranger : majuscules et numéros des colonnes 73-80 selon les choix. */
+function editedText() {
+  let lines = $('vm-edit-text').value.replace(/\r\n?/g, '\n').split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  if ($('vm-caps').checked) lines = lines.map((l) => l.toUpperCase());
+  if (!$('vm-num-box').hidden) {
+    const how = $('vm-num').value;
+    if (how === 'clear') lines = lines.map((l) => l.slice(0, 72).trimEnd());
+    if (how === 'renum') lines = lines.map((l, i) => l.slice(0, 72).padEnd(72) + String((i + 1) * 10000).padStart(8, '0'));
+  }
+  return lines.length ? `${lines.join('\n')}\n` : '';
+}
+
+async function saveEditor() {
+  const e = state.editing;
+  ctx.prefs.vmCaps = $('vm-caps').checked;
+  ctx.savePrefs();
+  const text = editedText();
+  status(t('vm.saving'));
+  if (!(await saveText(e.dsn, e.member, text, e.original))) return;
+  state.editing = null;
+  await refreshAfterWrite();
+  if (e.member) {
+    state.members = await call('members', { dsn: e.dsn });
+    state.member = state.members.find((m) => m.name === e.member) ?? { name: e.member };
+  }
+  await openView();
+  status(t('vm.done.save', { name: e.member ? `${e.dsn}(${e.member})` : e.dsn }));
+}
+
+function cancelEditor() {
+  const e = state.editing;
+  if (e && editedText() !== e.original && !confirm(t('vm.confirm.discard'))) return;
+  state.editing = null;
+  if (e?.isNew) guard(() => openDataset(state.dataset));
+  else {
+    showPane('viewer');
+    crumbs();
+    status('');
+  }
+}
+
+// --- fichiers (MVS en marche)
+
+async function compress(dsn) {
+  await runJob(compressJcl, { dsn });
+  await refreshAfterWrite();
+  if (state.dataset?.name === dsn && !$('vm-members').hidden) await openDataset(state.dataset);
+  else renderDatasets();
+  status(t('vm.done.compress', { name: dsn }));
+}
+
+async function deleteDataset(d) {
+  if (!confirm(t('vm.confirm.deldataset', { name: d.name }))) return;
+  await runJob(deleteJcl, { dsn: d.name }, true);
+  await refreshAfterWrite();
+  if (state.datasets.some((x) => x.name === d.name)) throw new Error(`jobfail|${state.lastJob.name}`);
+  renderDatasets();
+  status(t('vm.done.delete', { name: d.name }));
+}
+
+async function renameDataset(d) {
+  const to = prompt(t('vm.ask.rename', { name: d.name }), d.name)?.trim().toUpperCase();
+  if (!to || to === d.name) return;
+  if (!DSN_RE.test(to)) throw new Error(`badname|${to}`);
+  await runJob(renameJcl, { dsn: d.name, to }, true);
+  await refreshAfterWrite();
+  if (!state.datasets.some((x) => x.name === to)) throw new Error(`jobfail|${state.lastJob.name}`);
+  renderDatasets();
+  status(t('vm.done.rename', { name: d.name, to }));
+}
+
+const PRESETS = {
+  src: { dsorg: 'PO', recfm: 'FB', lrecl: 80, blksize: 3120, spaceUnit: 'TRK', primary: 15, secondary: 15, dirBlocks: 10 },
+  seq: { dsorg: 'PS', recfm: 'FB', lrecl: 80, blksize: 3120, spaceUnit: 'TRK', primary: 5, secondary: 5, dirBlocks: 0 },
+  vb: { dsorg: 'PO', recfm: 'VB', lrecl: 255, blksize: 3120, spaceUnit: 'TRK', primary: 15, secondary: 15, dirBlocks: 10 },
+  load: { dsorg: 'PO', recfm: 'U', lrecl: 0, blksize: 6144, spaceUnit: 'TRK', primary: 15, secondary: 15, dirBlocks: 10 },
+};
+
+function fillNewForm(preset) {
+  const p = PRESETS[preset];
+  for (const [k, v] of Object.entries(p)) {
+    const e = $(`vm-new-${k}`);
+    if (e) e.value = String(v);
+  }
+}
+
+async function newDataset() {
+  const dlg = $('vm-new');
+  const prefix = (ctx.prefs.jobUser || 'HERC01').toUpperCase();
+  $('vm-new-name').value = `${prefix}.`;
+  $('vm-new-preset').value = 'src';
+  fillNewForm('src');
+  $('vm-new-error').textContent = '';
+  dlg.showModal();
+  $('vm-new-name').focus();
+}
+
+async function submitNewDataset() {
+  const val = (k) => $(`vm-new-${k}`).value.trim().toUpperCase();
+  const args = {
+    dsn: val('name'), dsorg: val('dsorg'), recfm: val('recfm'), lrecl: Number(val('lrecl')), blksize: Number(val('blksize')),
+    spaceUnit: val('spaceUnit'), primary: Number(val('primary')), secondary: Number(val('secondary')), dirBlocks: Number(val('dirBlocks')),
+  };
+  const bad = !DSN_RE.test(args.dsn) ? 'name'
+    : !(args.primary > 0) ? 'primary'
+      : args.dsorg === 'PO' && !(args.dirBlocks > 0) ? 'dirBlocks'
+        : !(args.blksize > 0 && args.blksize <= 32760) ? 'blksize'
+          : args.recfm.startsWith('F') && args.recfm.includes('B') && (args.lrecl <= 0 || args.blksize % args.lrecl) ? 'blksize'
+            : '';
+  if (bad) {
+    $('vm-new-error').textContent = t(`vm.new.bad.${bad}`);
+    return;
+  }
+  $('vm-new').close();
+  await runJob(createJcl, args);
+  await refreshAfterWrite();
+  renderDatasets();
+  if (!state.datasets.some((d) => d.name === args.dsn)) {
+    status(t('vm.new.elsewhere', { name: args.dsn }), true);
+    return;
+  }
+  status(t('vm.done.create', { name: args.dsn }));
+}
+
+async function listCatalog() {
+  const level = state.filter.trim().toUpperCase().replace(/\.\*.*$/, '').replace(/\*.*$/, '') || (ctx.prefs.jobUser || 'HERC01').toUpperCase();
+  const r = await runJob(listcatJcl, { level }, true);
+  showJob();
+  status(t(r.ok ? 'vm.job.ok' : 'vm.job.bad', { name: r.name, rc: String(r.maxRc).padStart(4, '0') }), !r.ok);
+}
+
+// --- import binaire (fichier XMIT…), volume vierge
+
+async function importBinary(file) {
+  const d = state.dataset;
+  if (ctx.running()) throw new Error('running|');
+  if (!confirm(t('vm.confirm.binary', { name: d.name, file: file.name, lrecl: d.lrecl }))) return;
+  if (!confirmDirect()) return;
+  const bin = new Uint8Array(await file.arrayBuffer());
+  await call('write', { wop: 'savebin', dsn: d.name, bin });
+  await refreshAfterWrite();
+  await openView();
+  status(t('vm.done.binary', { name: d.name, bytes: bin.length }));
+}
+
+// Types d'unité et adresses que le MVS de TK5 connaît (SYS1.SYSGEN.CNTL(IOGEN)).
+const MODELS = {
+  '3390-1': { devtype: 0x3390, cyls: 1114, ranges: [[0x1F0, 16], [0x2F0, 16], [0x390, 16]] },
+  '3390-2': { devtype: 0x3390, cyls: 2227, ranges: [[0x1F0, 16], [0x2F0, 16], [0x390, 16]] },
+  '3390-3': { devtype: 0x3390, cyls: 3340, ranges: [[0x1F0, 16], [0x2F0, 16], [0x390, 16]] },
+  3380: { devtype: 0x3380, cyls: 886, ranges: [[0x1E0, 16], [0x2E0, 16], [0x380, 16]] },
+  3350: { devtype: 0x3350, cyls: 560, ranges: [[0x140, 16], [0x240, 16], [0x340, 16]] },
+};
+
+function freeAddresses(model) {
+  const used = new Set(ctx.volumes().map((v) => v.addr));
+  const out = [];
+  for (const [first, n] of MODELS[model].ranges) {
+    for (let a = first; a < first + n; a++) if (!used.has(a)) out.push(a);
+  }
+  return out;
+}
+
+function fillAddresses() {
+  const sel = $('vm-nv-addr');
+  sel.replaceChildren(...freeAddresses($('vm-nv-model').value).map((a) => {
+    const h = a.toString(16).toUpperCase().padStart(3, '0');
+    return new Option(h, String(a));
+  }));
+}
+
+function newVolume() {
+  $('vm-nv-volser').value = '';
+  $('vm-nv-model').value = '3390-1';
+  fillAddresses();
+  $('vm-nv-error').textContent = '';
+  $('vm-newvol').showModal();
+  $('vm-nv-volser').focus();
+}
+
+async function submitNewVolume() {
+  const volser = $('vm-nv-volser').value.trim().toUpperCase();
+  const m = MODELS[$('vm-nv-model').value];
+  const addr = Number($('vm-nv-addr').value);
+  if (!/^[A-Z0-9@#$]{1,6}$/.test(volser)) {
+    $('vm-nv-error').textContent = t('vm.nv.bad.volser');
+    return;
+  }
+  if (!addr) {
+    $('vm-nv-error').textContent = t('vm.nv.bad.addr');
+    return;
+  }
+  if (state.vols.some((v) => v.info?.volser === volser)) {
+    $('vm-nv-error').textContent = t('vm.nv.bad.dup', { volser });
+    return;
+  }
+  $('vm-newvol').close();
+  const hex = addr.toString(16).toUpperCase().padStart(3, '0');
+  const file = `${volser.toLowerCase()}.${hex.toLowerCase()}`;
+  status(t('vm.nv.creating', { volser }));
+  // Fabriqué par le fil des volumes (module wasm), même machine en marche.
+  const id = ++callId;
+  const bytes = await new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    volWorker ??= new Worker(new URL(`./vol-worker.js${ctx.version}`, import.meta.url), { type: 'module' });
+    volWorker.onmessage = ({ data }) => volSettle(data);
+    volWorker.postMessage({ id, op: 'blank', devtype: m.devtype, cyls: m.cyls, volser });
+  });
+  await ctx.addVolume(file, bytes);
+  if (!ctx.running()) {
+    await fillVolumes();
+    $('vm-volume').value = file;
+    await openVolume(file);
+  }
+  status(t(ctx.running() ? 'vm.nv.done.later' : 'vm.nv.done', { volser, addr: hex }));
+}
+
+// --- sortie des travaux
+
+function renderJobBar() {
+  const j = state.lastJob;
+  const bar = $('vm-jobbar');
+  bar.hidden = !j;
+  if (!j) return;
+  $('vm-jobbar-text').textContent = t(j.ok ? 'vm.job.ok' : 'vm.job.bad', {
+    name: j.name,
+    rc: j.jclError ? 'JCL' : j.abend ? 'ABEND' : String(j.maxRc).padStart(4, '0'),
+  });
+  bar.classList.toggle('error', !j.ok);
+}
+
+let paneBeforeJob = 'datasets';
+
+function showJob() {
+  const j = state.lastJob;
+  if (!j) return;
+  const cur = ['datasets', 'members', 'viewer', 'editor'].find((p) => !$(`vm-${p}`).hidden);
+  if (cur) paneBeforeJob = cur;
+  $('vm-job-text').textContent = j.output.replace(/\f/g, `\n${'─'.repeat(60)}\n`) || t('prt.empty');
+  $('vm-job-title').textContent = t('vm.job.output', { name: j.name });
+  showPane('job');
+}
+
+/** Barre d'outils selon le volet et le mode. */
+function renderTools() {
+  const members = !$('vm-members').hidden;
+  const datasets = !$('vm-datasets').hidden;
+  const run = ctx.running();
+  $('vm-mem-tools').hidden = !members || !editable();
+  $('vm-mem-compress').hidden = !run;
+  $('vm-ds-tools').hidden = !datasets || !vol()?.info;
+  $('vm-ds-new').hidden = !run;
+  $('vm-ds-catalog').hidden = !run;
+  $('vm-ds-hint').hidden = run;
+}
+
+/** La machine démarre ou s'arrête : les actions possibles changent. */
+export function volMachineChanged() {
+  if (!$('vm').open) return;
+  renderSummary();
+  if (!$('vm-members').hidden) renderMembers();
+  else if (!$('vm-datasets').hidden) renderDatasets();
+  else if (!$('vm-viewer').hidden && state.view) renderViewer();
+  renderTools();
+}
+
+/** Console (main.js) : fin des travaux. */
+export function volConsole(text) {
+  jobs?.console(text);
+}
+
+/** Imprimante 00F (main.js) : sortie des travaux. */
+export function volPrinter(text) {
+  jobs?.printer(text);
 }
 
 // ------------------------------------------------------------------ navigation
@@ -377,7 +884,15 @@ export async function openVolumes() {
 /** Prépare la fenêtre; rend la fonction qui refait les textes (changement de langue). */
 export function initVolumes(context) {
   ctx = context;
+  jobs = new JobTracker(ctx.submit);
   const dlg = $('vm');
+  dlg.addEventListener('cancel', (e) => {
+    // Échap dans l'éditeur : demander avant de perdre le texte.
+    if (state.editing) {
+      e.preventDefault();
+      cancelEditor();
+    }
+  });
   dlg.querySelector('.vm-close').addEventListener('click', () => dlg.close());
   $('vm-volume').addEventListener('change', (e) => guard(() => openVolume(e.target.value)));
   $('vm-filter').addEventListener('input', (e) => {
@@ -406,6 +921,67 @@ export function initVolumes(context) {
   $('vm-export-text').addEventListener('click', () => {
     if (state.view) download(exportName('txt'), state.view.text, 'text/plain');
   });
+  // Écriture.
+  $('vm-edit').addEventListener('click', () => {
+    if (ctx.running() && !jobFits(state.dataset)) {
+      status(errorText(new Error('jobwide|')), true);
+      return;
+    }
+    openEditor(state.view.text);
+  });
+  $('vm-edit-text').addEventListener('input', editInfo);
+  $('vm-edit-text').addEventListener('click', editInfo);
+  $('vm-edit-text').addEventListener('keyup', editInfo);
+  $('vm-edit-text').addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      document.execCommand('insertText', false, ' ');
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      guard(saveEditor);
+    }
+  });
+  $('vm-edit-save').addEventListener('click', () => guard(saveEditor));
+  $('vm-edit-cancel').addEventListener('click', cancelEditor);
+  $('vm-mem-new').addEventListener('click', () => guard(newMember));
+  $('vm-mem-compress').addEventListener('click', () => guard(() => compress(state.dataset.name)));
+  for (const id of ['vm-mem-file', 'vm-view-file']) {
+    $(id).addEventListener('change', (e) => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      if (files.length) guard(() => importFiles(files));
+    });
+  }
+  $('vm-ds-new').addEventListener('click', () => guard(newDataset));
+  $('vm-newvol-button').addEventListener('click', () => guard(newVolume));
+  $('vm-nv-model').addEventListener('change', fillAddresses);
+  $('vm-nv-ok').addEventListener('click', () => guard(submitNewVolume));
+  $('vm-nv-cancel').addEventListener('click', () => $('vm-newvol').close());
+  $('vm-view-bin').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) guard(() => importBinary(f));
+  });
+  $('vm-ds-catalog').addEventListener('click', () => guard(listCatalog));
+  $('vm-new-preset').addEventListener('change', (e) => fillNewForm(e.target.value));
+  $('vm-new-ok').addEventListener('click', () => guard(submitNewDataset));
+  $('vm-new-cancel').addEventListener('click', () => $('vm-new').close());
+  $('vm-jobbar-show').addEventListener('click', showJob);
+  $('vm-job-back').addEventListener('click', () => showPane(paneBeforeJob));
+  $('vm-job-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('vm-job-text').textContent); status(t('vm.copied')); } catch { /* refusé */ }
+  });
+  // Réglages des travaux (utilisateur et mot de passe RAKF).
+  $('vm-user').value = ctx.prefs.jobUser || 'HERC01';
+  $('vm-pass').value = ctx.prefs.jobPassword || 'CUL8TR';
+  for (const [id, key] of [['vm-user', 'jobUser'], ['vm-pass', 'jobPassword']]) {
+    $(id).addEventListener('change', (e) => {
+      ctx.prefs[key] = e.target.value.trim().toUpperCase();
+      e.target.value = ctx.prefs[key];
+      ctx.savePrefs();
+    });
+  }
   $('vm-export-bin').addEventListener('click', () => guard(async () => {
     const raw = await call('raw', { dsn: state.dataset.name, member: state.member?.name ?? '', limit: 2 ** 31 - 1 });
     download(exportName('bin'), raw, 'application/octet-stream');
@@ -413,6 +989,7 @@ export function initVolumes(context) {
   return () => {
     if (!dlg.open) return;
     renderSummary();
+    renderJobBar();
     crumbs();
     if (!$('vm-members').hidden) renderMembers();
     else if (!$('vm-viewer').hidden && state.view) renderViewer();

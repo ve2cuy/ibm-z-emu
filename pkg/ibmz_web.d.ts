@@ -134,6 +134,10 @@ export class Emulator {
      */
     vol_raw(addr: number, dsn: string, member: string, limit: number): Uint8Array;
     /**
+     * Écriture directe, machine en marche : refusée (MVS réécrirait par-dessus).
+     */
+    vol_write(): string;
+    /**
      * Le processeur attend (PSW d'attente).
      */
     waiting(): boolean;
@@ -148,7 +152,13 @@ export class VolumeImage {
     call(op: string, dsn: string, member: string, limit: number): string;
     constructor(disk: any);
     raw(dsn: string, member: string, limit: number): Uint8Array;
+    write(op: string, dsn: string, member: string, text: string, to: string, user: string, changed: number, stamp: Uint16Array, bin: Uint8Array): string;
 }
+
+/**
+ * Volume vierge (VOL1, VTOC) : image CCKD de `cyls` cylindres pour 3390, 3380 ou 3350.
+ */
+export function blank_volume(devtype: number, cyls: number, volser: string): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -156,6 +166,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_emulator_free: (a: number, b: number) => void;
     readonly __wbg_volumeimage_free: (a: number, b: number) => void;
+    readonly blank_volume: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly emulator_attach_console: (a: number, b: number) => void;
     readonly emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
     readonly emulator_attach_printer: (a: number, b: number, c: number) => void;
@@ -194,15 +205,17 @@ export interface InitOutput {
     readonly emulator_term_version: (a: number, b: number) => number;
     readonly emulator_vol_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
     readonly emulator_vol_raw: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly emulator_vol_write: (a: number) => [number, number, number, number];
     readonly emulator_waiting: (a: number) => number;
     readonly volumeimage_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
     readonly volumeimage_new: (a: any) => [number, number, number];
     readonly volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
+    readonly volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __externref_table_dealloc: (a: number) => void;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

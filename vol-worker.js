@@ -1,11 +1,15 @@
 // Gestionnaire de volumes, machine arrêtée : ouvre le volume dans l'OPFS (accès synchrone,
-// le temps d'une opération), fait l'opération de lecture avec le module wasm (crates/mvsvol)
-// et referme. Machine en marche, c'est worker.js qui répond, car lui seul tient les images.
+// le temps d'une opération), fait l'opération avec le module wasm (crates/mvsvol) et
+// referme. Machine en marche, c'est worker.js qui répond (lecture seule), car lui seul tient
+// alors les images.
 //
-// Message reçu : {id, file, op, dsn, member, limit}. Réponse : {id, ok, result} ou
-// {id, ok: false, error} (« code|détail »).
+// Message reçu : {id, file, op, dsn, member, limit} (lecture : info, datasets, members,
+// text, raw) ou {id, file, op: 'write', wop, dsn, member, text, to, user, changed, stamp}
+// (écriture directe : save, savebin {bin}, delete, rename). Réponse : {id, ok, result} ou
+// {id, ok: false, error} (« code|détail »). {id, op: 'blank', devtype, cyls, volser} : image
+// d'un volume vierge (Uint8Array).
 
-import init, { VolumeImage } from './pkg/ibmz_web.js?v=088d4ad6';
+import init, { VolumeImage, blank_volume } from './pkg/ibmz_web.js?v=59102d35';
 
 const version = new URL(import.meta.url).search; // ?v=… transmis par la page
 let ready = null;
@@ -16,6 +20,12 @@ self.onmessage = async ({ data }) => {
   try {
     ready ??= init(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url));
     await ready;
+    // Volume vierge : fabriqué en mémoire, rangé par la page (writeVolume).
+    if (data.op === 'blank') {
+      const result = blank_volume(data.devtype, data.cyls, data.volser);
+      postMessage({ id: data.id, ok: true, result }, [result.buffer]);
+      return;
+    }
     const root = await navigator.storage.getDirectory();
     const dir = await root.getDirectoryHandle('dasd');
     const fh = await dir.getFileHandle(data.file);
@@ -34,12 +44,25 @@ self.onmessage = async ({ data }) => {
           return false;
         }
       },
-      write: () => false, // lecture seule (étape 1)
+      write(off, buf) {
+        try {
+          let done = 0;
+          while (done < buf.length) done += h.write(buf.subarray(done), { at: off + done });
+          return true;
+        } catch {
+          return false;
+        }
+      },
       size: () => h.getSize(),
-      flush() {},
+      flush() { try { h.flush(); } catch { /* rien */ } },
     });
     const { op, dsn = '', member = '', limit = 0 } = data;
-    if (op === 'raw') {
+    if (op === 'write') {
+      const { wop, text = '', to = '', user = 'HERC01', changed = 0, stamp = [], bin = new Uint8Array(0) } = data;
+      const result = JSON.parse(vol.write(wop, dsn, member, text, to, user, changed, new Uint16Array(stamp), bin));
+      h.flush();
+      postMessage({ id: data.id, ok: true, result });
+    } else if (op === 'raw') {
       const result = vol.raw(dsn, member, limit);
       postMessage({ id: data.id, ok: true, result }, [result.buffer]);
     } else {
