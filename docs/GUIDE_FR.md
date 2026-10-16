@@ -81,6 +81,9 @@ d'origine.
 
 ## 7. Pour aller plus loin
 
+- L'**aide-mémoire** (bouton **?** de la barre du haut) : commandes de l'opérateur et de
+  TSO, volumes et fichiers de TK5, script de connexion, compilation en COBOL et en C (chaque
+  travail s'ouvre dans le lecteur de cartes).
 - Le manuel de TK5 : <https://www.prince-webdesign.nl/tk5> (« TK5 Introduction and User
   Manual »).
 - Les manuels de MVS 3.8j et de TSO sont dans les archives de Bitsavers

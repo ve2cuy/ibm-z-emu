@@ -2,7 +2,8 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0dbb610c';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=5eb8ed12';
+import { initMemo } from './memo.js?v=5eb8ed12';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -190,7 +191,9 @@ function showStatus(key, values = {}) {
 }
 languageListeners.push(() => showStatus(statusKey, statusValues));
 
-window.addEventListener('error', (e) => showStatus('error', { msg: e.message }));
+// Le fichier et la ligne aident à comprendre un « Script error » (Safari le donne sans détail).
+const where = (file, line) => (file ? ` (${file.split('/').pop().split('?')[0]}:${line})` : '');
+window.addEventListener('error', (e) => showStatus('error', { msg: `${e.error?.message ?? e.message}${where(e.filename, e.lineno)}` }));
 window.addEventListener('unhandledrejection', (e) => showStatus('error', { msg: e.reason?.message ?? String(e.reason) }));
 
 function fmtSize(n) {
@@ -284,12 +287,48 @@ async function saveVolume(file) {
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
-/** Copie un flux dans l'OPFS (fichier .part, renommé à la fin). */
+/**
+ * Ouvre `file` (dossier des volumes de l'OPFS) en écriture, vidé. Safari d'iOS et d'iPadOS
+ * (avant la version 26) n'a pas createWritable() : un fil y écrit par un accès synchrone.
+ */
+async function openWriter(dir, file) {
+  const fh = await dir.getFileHandle(file, { create: true });
+  if (typeof fh.createWritable === 'function') {
+    const out = await fh.createWritable();
+    return { fh, write: (chunk) => out.write(chunk), close: () => out.close(), abort: () => out.abort() };
+  }
+  const writer = new Worker(new URL(`./opfs-writer.js${V}`, import.meta.url));
+  const ask = (msg, transfer = []) => new Promise((resolve, reject) => {
+    writer.onmessage = ({ data }) => (data.ok ? resolve() : reject(new Error(data.msg)));
+    writer.onerror = (e) => reject(new Error(e.message || 'opfs-writer.js'));
+    writer.postMessage(msg, transfer);
+  });
+  try {
+    await ask({ type: 'open', file });
+  } catch (e) {
+    writer.terminate();
+    throw e;
+  }
+  return {
+    fh,
+    write: (chunk) => {
+      // Copie : le bloc d'origine peut être la vue d'un tampon plus grand.
+      const copy = chunk.slice();
+      return ask({ type: 'write', chunk: copy }, [copy.buffer]);
+    },
+    close: async () => {
+      try { await ask({ type: 'close' }); } finally { writer.terminate(); }
+    },
+    abort: () => writer.terminate(),
+  };
+}
+
+/** Copie un flux dans l'OPFS (fichier .part, renommé à la fin si le fureteur sait renommer). */
 async function writeVolume(name, stream, onBytes) {
   const dir = await volDir();
-  const part = `${name}.part`;
-  const fh = await dir.getFileHandle(part, { create: true });
-  const out = await fh.createWritable();
+  const canMove = typeof FileSystemHandle !== 'undefined' && typeof FileSystemHandle.prototype.move === 'function';
+  const part = canMove ? `${name}.part` : name;
+  const out = await openWriter(dir, part);
   const reader = stream.getReader();
   try {
     for (;;) {
@@ -304,8 +343,10 @@ async function writeVolume(name, stream, onBytes) {
     await dir.removeEntry(part).catch(() => {});
     throw e;
   }
-  await dir.removeEntry(name).catch(() => {});
-  await fh.move(name);
+  if (canMove) {
+    await dir.removeEntry(name).catch(() => {});
+    await out.fh.move(name);
+  }
 }
 
 $('vol-file').addEventListener('change', async (e) => {
@@ -497,7 +538,7 @@ function showOverlay() {
 function startWorker() {
   worker = new Worker(new URL(`./worker.js${V}`, import.meta.url), { type: 'module' });
   worker.onmessage = onWorkerMessage;
-  worker.onerror = (e) => showStatus('error', { msg: e.message || 'worker.js' });
+  worker.onerror = (e) => showStatus('error', { msg: `${e.message || 'worker'}${where(e.filename, e.lineno) || ' (worker.js)'}` });
 }
 
 async function ipl() {
@@ -1172,6 +1213,17 @@ $('jcl-file').addEventListener('change', async (e) => {
   e.target.value = '';
   if (f) jcl.value = await f.text();
 });
+// Aide-mémoire : un travail d'exemple va dans le lecteur de cartes, à relire avant de le soumettre.
+const memo = $('memo');
+languageListeners.push(initMemo(memo, (text) => {
+  jcl.value = text;
+  try { localStorage.setItem('ibmz-jcl', text); } catch { /* rien */ }
+  memo.close();
+  showPanel('cards');
+  showStatus('memo.loaded');
+}));
+$('memo-button').addEventListener('click', () => memo.showModal());
+
 $('jcl-submit').addEventListener('click', () => {
   if (!running) {
     $('cards-status').textContent = t('cards.off');

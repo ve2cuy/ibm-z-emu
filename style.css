@@ -1514,3 +1514,31 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
 .row.wrap { flex-wrap: wrap; }
 .key3270 button.wide { min-width: 76px; }
 .console-in input::placeholder { text-transform: none; color: #6b7280; }
+
+/* Aide-mémoire (memo.js) */
+.dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); padding: 16px 18px; }
+.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+.dialog.memo { width: min(980px, calc(100vw - 32px)); height: min(820px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 14px 16px; }
+.dialog.memo[open] { display: flex; flex-direction: column; }
+.memo-head { display: flex; align-items: center; gap: 8px; }
+.memo-head h2 { flex: 1; margin: 0; font-size: 1.05rem; }
+.memo-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 0; border-bottom: 1px solid var(--border); }
+.memo-tab { padding: 6px 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: none; color: var(--muted); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.memo-tab[aria-selected="true"] { border-color: var(--border); background: var(--surface-2); color: var(--text); font-weight: 600; }
+.memo-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 8px 0; font-size: 0.9rem; line-height: 1.45; }
+.memo-pane h3 { margin: 16px 0 6px; font-size: 0.95rem; color: var(--accent-ink); }
+.memo-pane p, .memo-pane ul, .memo-pane ol { margin: 8px 0; }
+.memo-pane li { margin: 3px 0; }
+.memo-pane code { padding: 0 3px; border-radius: 4px; background: var(--surface-2); }
+.memo-table { overflow-x: auto; }
+.memo-table table { width: 100%; border-collapse: collapse; }
+.memo-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.82rem; border-bottom: 1px solid var(--border); padding: 4px 10px 4px 0; }
+.memo-table td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.memo-table td.mono { font: 0.84rem ui-monospace, Consolas, monospace; white-space: nowrap; }
+.memo-code { margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); }
+.memo-code pre { margin: 0; padding: 10px 12px; overflow-x: auto; font: 0.8rem/1.35 ui-monospace, Consolas, monospace; }
+.memo-code-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); }
+@media (max-width: 640px) {
+  .dialog.memo { width: 100vw; height: 100dvh; border-radius: 0; padding: 10px 12px; }
+  .memo-table td.mono { white-space: normal; overflow-wrap: anywhere; }
+}
