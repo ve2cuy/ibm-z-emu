@@ -73,6 +73,11 @@ export class Emulator {
      * Durée simulée d'une instruction (ns) : règle la vitesse apparente du processeur.
      */
     set_ns_per_inst(ns: number): void;
+    /**
+     * Voyants d'activité : masque des classes d'unités qui ont reçu un SIO depuis le
+     * dernier appel (1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
+     */
+    take_activity(): number;
     take_instructions(): number;
     /**
      * Caractère tapé. Faux s'il est refusé (champ protégé, clavier verrouillé).
@@ -191,6 +196,7 @@ export interface InitOutput {
     readonly emulator_restart: (a: number) => void;
     readonly emulator_run: (a: number, b: number, c: number) => [number, number];
     readonly emulator_set_ns_per_inst: (a: number, b: number) => void;
+    readonly emulator_take_activity: (a: number) => number;
     readonly emulator_take_instructions: (a: number) => number;
     readonly emulator_term_char: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_term_click: (a: number, b: number, c: number) => void;

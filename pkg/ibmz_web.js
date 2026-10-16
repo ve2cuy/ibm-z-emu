@@ -268,6 +268,15 @@ export class Emulator {
         wasm.emulator_set_ns_per_inst(this.__wbg_ptr, ns);
     }
     /**
+     * Voyants d'activité : masque des classes d'unités qui ont reçu un SIO depuis le
+     * dernier appel (1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
+     * @returns {number}
+     */
+    take_activity() {
+        const ret = wasm.emulator_take_activity(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @returns {number}
      */
     take_instructions() {
@@ -636,22 +645,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_2ba27b452d086ad2: function(arg0) {
+        __wbg_flush_794bf8ac134837ef: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_cc4ef295b7237788: function() {
+        __wbg_now_d1718709e1f5842f: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_bf6b1becd81b7d4a: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_9f77666f59a912c2: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_5c570f487a2fa407: function(arg0) {
+        __wbg_size_6988579300209eb4: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_09fba5bcf30dbd92: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_42039333ff0a3ee1: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

@@ -51,6 +51,9 @@ A few operator commands to type in the field under the console:
    - **X**: leave ISPF (you get to `READY`).
 6. To log off: leave ISPF, then type `LOGOFF` at `READY`.
 
+The **full screen** button, right of the tabs, enlarges the terminal (with the 3270 keys if
+they are shown); the button at the top right of the screen leaves it.
+
 On the 3270 keyboard: **Esc** is the Clear key, **F3** (PF3) goes back in ISPF, **Ctrl+R**
 (Reset) unlocks the keyboard if it stays locked ("X SYSTEM" in the bar above the screen).
 

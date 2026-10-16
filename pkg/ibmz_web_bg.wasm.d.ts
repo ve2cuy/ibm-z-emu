@@ -28,6 +28,7 @@ export const emulator_reader_load: (a: number, b: number, c: number, d: number) 
 export const emulator_restart: (a: number) => void;
 export const emulator_run: (a: number, b: number, c: number) => [number, number];
 export const emulator_set_ns_per_inst: (a: number, b: number) => void;
+export const emulator_take_activity: (a: number) => number;
 export const emulator_take_instructions: (a: number) => number;
 export const emulator_term_char: (a: number, b: number, c: number, d: number) => number;
 export const emulator_term_click: (a: number, b: number, c: number) => void;

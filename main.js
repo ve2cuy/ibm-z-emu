@@ -2,11 +2,11 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=ca325bbc';
-import { initMemo } from './memo.js?v=ca325bbc';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ca325bbc';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=b0f5cf90';
+import { initMemo } from './memo.js?v=b0f5cf90';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b0f5cf90';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -199,9 +199,15 @@ const where = (file, line) => (file ? ` (${file.split('/').pop().split('?')[0]}:
 window.addEventListener('error', (e) => showStatus('error', { msg: `${e.error?.message ?? e.message}${where(e.filename, e.lineno)}` }));
 window.addEventListener('unhandledrejection', (e) => showStatus('error', { msg: e.reason?.message ?? String(e.reason) }));
 
+/** Nombre à `d` décimales selon la langue (10,74 en français, 10.74 en anglais). */
+function fmtNum(x, d) {
+  const loc = { fr: 'fr-CA', es: 'es', zh: 'zh-CN' }[langList.value] ?? 'en';
+  return x.toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
 function fmtSize(n) {
-  if (n >= 1e9) return `${(n / 1e9).toFixed(2)} ${t('unit.gb')}`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} ${t('unit.mb')}`;
+  if (n >= 1e9) return `${fmtNum(n / 1e9, 2)} ${t('unit.gb')}`;
+  if (n >= 1e6) return `${fmtNum(n / 1e6, 1)} ${t('unit.mb')}`;
   return `${Math.max(1, Math.round(n / 1e3))} ${t('unit.kb')}`;
 }
 
@@ -458,7 +464,7 @@ function renderDepot() {
     desc.textContent = localized(entry, 'description');
     const lic = document.createElement('p');
     lic.className = 'hint small';
-    lic.textContent = entry.license ?? '';
+    lic.textContent = localized(entry, 'license');
     const have = entry.files.every((f) => volumes.some((v) => v.file === f.file && v.size === f.size));
     const b = document.createElement('button');
     b.type = 'button';
@@ -514,6 +520,12 @@ async function downloadPack(entry, again) {
 // ------------------------------------------------------------------ machine
 
 const memList = $('mem-list');
+// Unité de la mémoire (MB, Mo…) dans la langue choisie.
+function memLabels() {
+  for (const o of memList.options) o.textContent = `${o.value} ${t('unit.mb')}`;
+}
+languageListeners.push(memLabels);
+memLabels();
 memList.value = String(prefs.mem);
 memList.addEventListener('change', () => { prefs.mem = Number(memList.value); savePrefs(); });
 const termsList = $('terms-list');
@@ -670,6 +682,9 @@ function onWorkerMessage({ data }) {
     case 'vol':
       volSettle(data);
       break;
+    case 'leds':
+      flashIo(data.mask);
+      break;
     case 'cards':
       $('cards-status').textContent = t('cards.sent', { n: data.left });
       break;
@@ -687,6 +702,7 @@ function onWorkerMessage({ data }) {
       setLight('lt-sys', false);
       setLight('lt-wait', false);
       setLight('lt-load', false);
+      for (const [, id] of IO_LIGHTS) setLight(id, false);
       speed.textContent = '';
       if (data.reason === 'error' && lastError) showStatus('error', { msg: lastError });
       else showStatus(data.reason === 'user' ? 'power.stopped' : `stop.${data.reason}`);
@@ -781,6 +797,18 @@ function setLight(id, on) {
   $(id).classList.toggle('on', !!on);
 }
 
+// Voyants d'activité : allumés 150 ms après chaque accès (prolongés s'il continue).
+const IO_LIGHTS = [[1, 'lt-dasd'], [2, 'lt-prt'], [4, 'lt-rdr'], [8, 'lt-pun']];
+const ioTimers = {};
+function flashIo(mask) {
+  for (const [bit, id] of IO_LIGHTS) {
+    if (!(mask & bit)) continue;
+    setLight(id, true);
+    clearTimeout(ioTimers[id]);
+    ioTimers[id] = setTimeout(() => setLight(id, false), 150);
+  }
+}
+
 const showPanelBox = $('show-panel');
 showPanelBox.checked = prefs.showPanel;
 $('op-panel').hidden = !prefs.showPanel;
@@ -841,6 +869,8 @@ function selectTab(name) {
   canvas.hidden = !name.startsWith('t');
   printerOut.hidden = name !== 'printer';
   $('key-bar').hidden = !(name.startsWith('t') && showKeys());
+  $('full-button').hidden = !name.startsWith('t');
+  if (!name.startsWith('t') && isFull()) setFull(false);
   if (name.startsWith('t')) {
     drawScreen();
     canvas.focus();
@@ -954,9 +984,11 @@ function drawScreen() {
   // Taille : la police choisie, réduite si l'écran ne tient pas dans la zone.
   const mon = $('monitor');
   const box = mon.getBoundingClientRect();
-  const availW = mon.clientWidth - 40;
-  const availH = Math.max(200, innerHeight - box.top - 70);
-  let size = prefs.fontSize;
+  // Plein écran : la plus grande police qui tient; sinon la police choisie, réduite au besoin.
+  const full = isFull();
+  const availW = mon.clientWidth - (full ? 16 : 40);
+  const availH = full ? mon.clientHeight - 16 : Math.max(200, innerHeight - box.top - 70);
+  let size = full ? 200 : prefs.fontSize;
   ctx.font = `${size}px ${FONT}`;
   let w = ctx.measureText('M').width;
   const fit = Math.min(availW / (cols * w + 16), availH / (rows * size * 1.25 + 16));
@@ -1122,6 +1154,47 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('resize', () => drawScreen());
+
+// --- plein écran des terminaux (écran et touches 3270). API plein écran (préfixée par
+// WebKit au besoin); sinon (iPhone) la zone occupe toute la fenêtre.
+const stage = document.querySelector('.stage');
+const fullApi = !!(stage.requestFullscreen || stage.webkitRequestFullscreen);
+const fullElement = () => document.fullscreenElement ?? document.webkitFullscreenElement ?? null;
+
+function isFull() {
+  return stage.classList.contains('full');
+}
+
+async function setFull(on) {
+  if (on) {
+    stage.classList.add('full');
+    if (fullApi && !fullElement()) {
+      try {
+        await (stage.requestFullscreen ? stage.requestFullscreen() : stage.webkitRequestFullscreen());
+      } catch { /* refusé : la zone occupe la fenêtre */ }
+    }
+  } else {
+    stage.classList.remove('full');
+    if (fullElement()) {
+      try { await (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen()); } catch { /* rien */ }
+    }
+  }
+  fullChanged();
+}
+
+function fullChanged() {
+  // Sortie par Échap ou par le fureteur : la classe suit.
+  if (fullApi && !fullElement() && stage.classList.contains('full') && fullWasApi) stage.classList.remove('full');
+  fullWasApi = !!fullElement();
+  $('full-exit').hidden = !isFull();
+  drawScreen();
+  if (!canvas.hidden) canvas.focus();
+}
+let fullWasApi = false;
+document.addEventListener('fullscreenchange', fullChanged);
+document.addEventListener('webkitfullscreenchange', fullChanged);
+$('full-button').addEventListener('click', () => setFull(!isFull()));
+$('full-exit').addEventListener('click', () => setFull(false));
 
 // Touches 3270 à l'écran.
 const keyBar = $('key-bar');

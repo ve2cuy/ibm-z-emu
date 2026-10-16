@@ -11,6 +11,9 @@ const HERC = '<a href="https://github.com/SDL-Hercules-390/hyperion" target="_bl
 
 const STRINGS = {
   en: {
+    'term.full': 'Full screen (terminal and 3270 keys)',
+    'term.full.exit': 'Leave full screen',
+    'panel.io.tip': 'Input/output activity: disks, printers, card reader, punch',
     'memo.tab.asm': 'Assembler',
     'memo.tab.pl1': 'PL/I',
     'memo.tab.fortran': 'FORTRAN',
@@ -400,6 +403,9 @@ const STRINGS = {
     'error': 'Error: {msg}',
   },
   fr: {
+    'term.full': 'Plein écran (terminal et touches 3270)',
+    'term.full.exit': 'Quitter le plein écran',
+    'panel.io.tip': 'Activité des entrées-sorties : disques, imprimantes, lecteur de cartes, perforatrice',
     'memo.tab.asm': 'Assembleur',
     'memo.tab.pl1': 'PL/I',
     'memo.tab.fortran': 'FORTRAN',
@@ -789,6 +795,9 @@ const STRINGS = {
     'error': 'Erreur : {msg}',
   },
   es: {
+    'term.full': 'Pantalla completa (terminal y teclas 3270)',
+    'term.full.exit': 'Salir de la pantalla completa',
+    'panel.io.tip': 'Actividad de entrada/salida: discos, impresoras, lector de tarjetas, perforadora',
     'memo.tab.asm': 'Ensamblador',
     'memo.tab.pl1': 'PL/I',
     'memo.tab.fortran': 'FORTRAN',
@@ -1178,6 +1187,9 @@ const STRINGS = {
     'error': 'Error: {msg}',
   },
   zh: {
+    'term.full': '全屏（终端和 3270 按键）',
+    'term.full.exit': '退出全屏',
+    'panel.io.tip': '输入/输出活动：磁盘、打印机、读卡机、穿孔机',
     'memo.tab.asm': '汇编',
     'memo.tab.pl1': 'PL/I',
     'memo.tab.fortran': 'FORTRAN',

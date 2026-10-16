@@ -12,9 +12,10 @@
 // Messages envoyés : ready, started {volumes: [{addr, info}]}, console {text},
 // screen {addr, data}, printer {addr, text}, stats {mips, psw, wait, io, simMs},
 // shutdown {phase} (arrêt de TK5 en cours), relay {state, url, clients: [{addr, ttype}]},
-// stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error}.
+// stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
+// leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=ca325bbc';
+import init, { Emulator } from './pkg/ibmz_web.js?v=b0f5cf90';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;
@@ -35,6 +36,8 @@ let statTime = 0;
 let turbo = false;
 let mips = 20;          // vitesse mesurée de l'hôte (millions d'instructions par seconde)
 let flushTime = 0;
+let activity = 0;       // voyants d'activité : classes d'unités servies depuis le dernier envoi
+let activityTime = 0;
 
 const SLICE_MS = 12;
 const MAX_LAG_MS = 200;
@@ -338,6 +341,13 @@ function tick() {
   }
   drain();
   const t1 = performance.now();
+  // Voyants d'activité du pupitre (disques, imprimantes, lecteurs) : au plus toutes les 50 ms.
+  activity |= emu.take_activity();
+  if (activity && t1 - activityTime >= 50) {
+    post({ type: 'leds', mask: activity });
+    activity = 0;
+    activityTime = t1;
+  }
   if (t1 - statTime >= 1000) {
     const rate = statInst / (t1 - statTime) / 1000;
     statInst = 0;

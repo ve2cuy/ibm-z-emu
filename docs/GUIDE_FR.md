@@ -54,6 +54,9 @@ Quelques commandes d'opérateur à taper dans la zone sous la console :
    - **X** : quitter ISPF (vous arrivez à `READY`).
 6. Pour vous déconnecter : quittez ISPF, puis tapez `LOGOFF` à `READY`.
 
+Le bouton **plein écran**, à droite des onglets, agrandit le terminal (avec les touches
+3270 si elles sont affichées); le bouton en haut à droite de l'écran en sort.
+
 Sur le clavier 3270 : **Échap** est la touche Clear, **F3** (PF3) revient en arrière dans
 ISPF, **Ctrl+R** (Reset) libère le clavier s'il reste verrouillé (« X SYSTÈME » dans la
 barre au-dessus de l'écran).
