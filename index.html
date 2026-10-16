@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=b0f5cf90">
+  <link rel="stylesheet" href="style.css?v=77e85c5f">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -423,6 +423,7 @@
           <button id="vm-job-back" type="button" class="small-button secondary" data-i18n="vm.back">Back</button>
           <strong id="vm-job-title"></strong>
           <span class="grow"></span>
+          <button id="vm-job-printer" type="button" class="small-button secondary" data-i18n="vm.job.tab">Printer tab (00F)</button>
           <button id="vm-job-copy" type="button" class="small-button secondary" data-i18n="memo.copy">Copy</button>
         </div>
         <pre id="vm-job-text" class="vm-text vm-1403" tabindex="0"></pre>
@@ -498,6 +499,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=b0f5cf90"></script>
+  <script type="module" src="main.js?v=77e85c5f"></script>
 </body>
 </html>

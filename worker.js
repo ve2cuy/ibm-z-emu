@@ -15,7 +15,7 @@
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=b0f5cf90';
+import init, { Emulator } from './pkg/ibmz_web.js?v=77e85c5f';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;

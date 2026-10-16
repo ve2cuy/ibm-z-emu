@@ -11,6 +11,7 @@ const HERC = '<a href="https://github.com/SDL-Hercules-390/hyperion" target="_bl
 
 const STRINGS = {
   en: {
+    'vm.job.tab': 'Printer tab (00F)',
     'term.full': 'Full screen (terminal and 3270 keys)',
     'term.full.exit': 'Leave full screen',
     'panel.io.tip': 'Input/output activity: disks, printers, card reader, punch',
@@ -403,6 +404,7 @@ const STRINGS = {
     'error': 'Error: {msg}',
   },
   fr: {
+    'vm.job.tab': 'Onglet Imprimante (00F)',
     'term.full': 'Plein écran (terminal et touches 3270)',
     'term.full.exit': 'Quitter le plein écran',
     'panel.io.tip': 'Activité des entrées-sorties : disques, imprimantes, lecteur de cartes, perforatrice',
@@ -795,6 +797,7 @@ const STRINGS = {
     'error': 'Erreur : {msg}',
   },
   es: {
+    'vm.job.tab': 'Pestaña Impresora (00F)',
     'term.full': 'Pantalla completa (terminal y teclas 3270)',
     'term.full.exit': 'Salir de la pantalla completa',
     'panel.io.tip': 'Actividad de entrada/salida: discos, impresoras, lector de tarjetas, perforadora',
@@ -1187,6 +1190,7 @@ const STRINGS = {
     'error': 'Error: {msg}',
   },
   zh: {
+    'vm.job.tab': '打印机标签（00F）',
     'term.full': '全屏（终端和 3270 按键）',
     'term.full.exit': '退出全屏',
     'panel.io.tip': '输入/输出活动：磁盘、打印机、读卡机、穿孔机',

@@ -2,11 +2,11 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=b0f5cf90';
-import { initMemo } from './memo.js?v=b0f5cf90';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b0f5cf90';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=77e85c5f';
+import { initMemo } from './memo.js?v=77e85c5f';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=77e85c5f';
 
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -660,6 +660,9 @@ function onWorkerMessage({ data }) {
     case 'printer':
       if (data.addr === 0x00F) volPrinter(data.text);
       printers[data.addr] = (printers[data.addr] ?? '') + data.text;
+      // Sortie non lue : marquée dans la liste des imprimantes (●).
+      if (!(currentTab === 'printer' && prefs.printer === data.addr)) unreadPrinters.add(data.addr);
+      if ([0x00E, 0x00F, 0x002].includes(data.addr)) lastJobPrinter = data.addr;
       if (printers[data.addr].length > 2_000_000) printers[data.addr] = printers[data.addr].slice(-1_500_000);
       if (currentTab === 'printer') showPrinter();
       else markTab('printer');
@@ -877,6 +880,11 @@ function selectTab(name) {
   } else if (name === 'console') {
     consoleInput.focus();
   } else {
+    // La dernière sortie d'un travail, si elle n'est pas lue, est montrée d'emblée.
+    if (lastJobPrinter !== null && unreadPrinters.has(lastJobPrinter) && prefs.printer !== lastJobPrinter) {
+      prefs.printer = lastJobPrinter;
+      savePrefs();
+    }
     showPrinter();
   }
   showTermStatus();
@@ -930,12 +938,18 @@ function printerSelect() {
   return sel;
 }
 
+const unreadPrinters = new Set();
+let lastJobPrinter = null; // imprimante de travaux (00E, 00F, 002) qui a reçu la dernière sortie
+
 function showPrinter() {
   const sel = printerSelect();
+  if (currentTab === 'printer') unreadPrinters.delete(prefs.printer);
   const units = [[0x00E, 'prt.a'], [0x00F, 'prt.b'], [0x002, 'prt.x'], [0x30E, 'prt.log'], [0x00D, 'prt.punch']];
-  sel.replaceChildren(...units.map(([a, k]) => new Option(`${hex3(a)} ${t(k)}`, String(a))));
+  sel.replaceChildren(...units.map(([a, k]) => new Option(`${unreadPrinters.has(a) ? '● ' : ''}${hex3(a)} ${t(k)}`, String(a))));
   sel.value = String(prefs.printer);
   sel.hidden = currentTab !== 'printer';
+  // Imprimante 2 (00F, travaux du gestionnaire de volumes) : police de l'IBM 1403.
+  printerOut.classList.toggle('font-1403', prefs.printer === 0x00F);
   const text = printers[prefs.printer] ?? '';
   const atEnd = printerOut.scrollTop + printerOut.clientHeight >= printerOut.scrollHeight - 30;
   printerOut.textContent = text.replace(/\f/g, '\n' + '─'.repeat(60) + '\n') || t('prt.empty');
@@ -1340,6 +1354,12 @@ languageListeners.push(initVolumes({
   savePrefs,
   // Travaux du gestionnaire (MVS en marche) : cartes pour le lecteur 00C.
   submit: (text) => worker?.postMessage({ type: 'submit', text }),
+  // Onglet Imprimante sur l'unité `addr` (sortie des travaux : 00F).
+  showPrinter: (addr) => {
+    prefs.printer = addr;
+    savePrefs();
+    selectTab('printer');
+  },
   // Volume vierge : rangé dans l'OPFS comme un volume du dépôt.
   addVolume: async (name, bytes) => {
     await writeVolume(name, new Blob([bytes]).stream());
