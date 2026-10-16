@@ -2,8 +2,8 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=5eb8ed12';
-import { initMemo } from './memo.js?v=5eb8ed12';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=26752f3d';
+import { initMemo } from './memo.js?v=26752f3d';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -1043,7 +1043,15 @@ function termChars(text) {
 canvas.addEventListener('keydown', (e) => {
   const k = e.key;
   let key = null;
-  if (k === 'Enter') key = e.shiftKey ? 'NewLine' : 'Enter';
+  // AltGr (Ctrl+Alt sous Windows) donne des caractères : @, [, ], {, }, #…
+  const altGr = e.getModifierState?.('AltGraph') ?? false;
+  const ctrl = e.ctrlKey && !altGr;
+  const alt = e.altKey && !altGr;
+  // PA1-PA3 d'après la position de la touche (e.code) : sur AZERTY, Ctrl+1 donne « & »; au
+  // pavé numérique sans Verr Num, « End ».
+  const pa = /^(?:Digit|Numpad)([1-3])$/.exec(e.code);
+  if ((ctrl || alt) && !e.metaKey && pa) key = `PA${pa[1]}`;
+  else if (k === 'Enter') key = e.shiftKey ? 'NewLine' : 'Enter';
   else if (k === 'Escape') key = 'Clear';
   else if (/^F([1-9]|1[0-2])$/.test(k)) key = `PF${Number(k.slice(1)) + (e.shiftKey ? 12 : 0)}`;
   else if (k === 'PageUp') key = 'PF7';
@@ -1058,15 +1066,14 @@ canvas.addEventListener('keydown', (e) => {
   else if (k === 'Backspace') key = 'Backspace';
   else if (k === 'Delete') key = 'Delete';
   else if (k === 'Insert') key = 'Insert';
-  else if ((e.ctrlKey || e.altKey) && ['1', '2', '3'].includes(k)) key = `PA${k}`;
-  else if (e.ctrlKey && (k === 'r' || k === 'R')) key = 'Reset';
-  else if ((e.ctrlKey || e.metaKey) && (k === 'v' || k === 'c')) return; // coller, copier
+  else if (ctrl && (k === 'r' || k === 'R' || e.code === 'KeyR')) key = 'Reset';
+  else if ((ctrl || e.metaKey) && (k === 'v' || k === 'c')) return; // coller, copier
   if (key) {
     e.preventDefault();
     termKey(key);
     return;
   }
-  if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  if (k.length === 1 && !ctrl && !e.metaKey && !alt) {
     e.preventDefault();
     termChars(k);
   }
