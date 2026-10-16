@@ -2,11 +2,11 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=59102d35';
-import { initMemo } from './memo.js?v=59102d35';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=59102d35';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=ca325bbc';
+import { initMemo } from './memo.js?v=ca325bbc';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ca325bbc';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -348,7 +348,22 @@ async function writeVolume(name, stream, onBytes) {
   }
   if (canMove) {
     await dir.removeEntry(name).catch(() => {});
-    await out.fh.move(name);
+    try {
+      // Forme à deux arguments : WebKit (Safari, et Chrome et Edge d'iPadOS) exige le
+      // dossier de destination (« Not enough arguments » sinon).
+      await out.fh.move(dir, name);
+    } catch {
+      // Renommage refusé : copie sous le nom final, puis le fichier .part est effacé.
+      const copy = await openWriter(dir, name);
+      const reader = (await out.fh.getFile()).stream().getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        await copy.write(value);
+      }
+      await copy.close();
+      await dir.removeEntry(part).catch(() => {});
+    }
   }
 }
 

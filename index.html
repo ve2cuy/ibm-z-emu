@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=59102d35">
+  <link rel="stylesheet" href="style.css?v=ca325bbc">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -348,7 +348,10 @@
         <svg class="icon"><use href="#i-refresh"/></svg></button>
     </div>
     <p class="vm-info"><span id="vm-summary"></span> <span id="vm-mode" class="vm-mode"></span></p>
-    <nav id="vm-path" class="vm-path" aria-label="Path"></nav>
+    <div class="vm-pathbar">
+      <button id="vm-back" type="button" class="small-button secondary with-icon" hidden><svg class="icon icon-back"><use href="#i-chevron"/></svg><span data-i18n="vm.back">Back</span></button>
+      <nav id="vm-path" class="vm-path" aria-label="Path"></nav>
+    </div>
     <div class="vm-body">
       <div id="vm-datasets" class="vm-pane vm-list">
         <div id="vm-ds-tools" class="vm-tools" hidden>
@@ -483,6 +486,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=59102d35"></script>
+  <script type="module" src="main.js?v=ca325bbc"></script>
 </body>
 </html>

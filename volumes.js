@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=59102d35';
+import { t } from './i18n.js?v=ca325bbc';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=59102d35';
+} from './vol-jobs.js?v=ca325bbc';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
@@ -204,6 +204,7 @@ function exportName(ext) {
 
 function showPane(which) {
   for (const p of ['datasets', 'members', 'viewer', 'editor', 'job']) $(`vm-${p}`).hidden = p !== which;
+  $('vm-back').hidden = which === 'datasets';
   renderTools();
 }
 
@@ -726,6 +727,14 @@ function showJob() {
   showPane('job');
 }
 
+/** Retour : un niveau plus haut (éditeur, sortie d'un travail, texte, membres). */
+function goBack() {
+  if (!$('vm-editor').hidden) cancelEditor();
+  else if (!$('vm-job').hidden) showPane(paneBeforeJob);
+  else if (!$('vm-viewer').hidden && state.member) guard(() => openDataset(state.dataset));
+  else guard(() => openVolume(state.file, true));
+}
+
 /** Barre d'outils selon le volet et le mode. */
 function renderTools() {
   const members = !$('vm-members').hidden;
@@ -968,6 +977,7 @@ export function initVolumes(context) {
   $('vm-new-ok').addEventListener('click', () => guard(submitNewDataset));
   $('vm-new-cancel').addEventListener('click', () => $('vm-new').close());
   $('vm-jobbar-show').addEventListener('click', showJob);
+  $('vm-back').addEventListener('click', goBack);
   $('vm-job-back').addEventListener('click', () => showPane(paneBeforeJob));
   $('vm-job-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('vm-job-text').textContent); status(t('vm.copied')); } catch { /* refusé */ }

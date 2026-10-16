@@ -81,8 +81,8 @@ To start over, the **Repository** menu downloads the original volumes again.
   volume; MVS running: through jobs whose output shows in the window); create, rename,
   delete and compress data sets (MVS running); create a blank volume.
 - The **cheat sheet** (the **?** button in the top bar): operator and TSO commands, TK5
-  volumes and data sets, logon script, COBOL and C compilation (each job opens in the card
-  reader).
+  volumes and data sets, logon script, COBOL, C, assembler, PL/I and FORTRAN compilation (each job
+  opens in the card reader).
 - The TK5 manual: <https://www.prince-webdesign.nl/tk5> ("TK5 Introduction and User
   Manual").
 - The MVS 3.8j and TSO manuals are in the Bitsavers archive

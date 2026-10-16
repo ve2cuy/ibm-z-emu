@@ -1,9 +1,9 @@
 // Aide-mémoire de MVS 3.8j TK5 (bouton de la barre du haut) : commandes, volumes, connexion,
-// compilation COBOL et C. Les textes sont dans i18n.js (clés memo.*); les commandes et les
-// travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
+// compilation COBOL, C, assembleur, PL/I et FORTRAN. Les textes sont dans i18n.js (clés
+// memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=59102d35';
+import { t } from './i18n.js?v=ca325bbc';
 
 const COBOL_JOB = `//COBDEMO  JOB (ACCT),'COBOL DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
 //*
@@ -67,6 +67,80 @@ int main(void)
         printf("%2d! = %lu\\n", i, fact(i));
     return 0;
 }
+/*
+//`;
+
+const ASM_JOB = `//ASMDEMO  JOB (ACCT),'ASM DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
+//*
+//* ASSEMBLE, LINK AND RUN AN ASSEMBLER PROGRAM (ASSEMBLER F)
+//*
+//DEMO     EXEC ASMFCLG
+//ASM.SYSPUNCH DD DUMMY
+//ASM.SYSIN DD *
+SUM      CSECT
+         STM   14,12,12(13)       SAVE THE CALLER'S REGISTERS
+         BALR  12,0               BASE REGISTER
+         USING *,12
+         SR    3,3                R3 = SUM
+         LA    4,1                R4 = 1, 2, ... 10
+LOOP     AR    3,4
+         LA    4,1(,4)
+         C     4,=F'10'
+         BNH   LOOP
+         CVD   3,DW               SUM IN PACKED DECIMAL
+         MVC   RESULT,PATTERN
+         ED    RESULT,DW+6        EDITED INTO THE MESSAGE
+         WTO   MF=(E,WTOLIST)     MESSAGE ON THE CONSOLE
+         LM    14,12,12(13)
+         SR    15,15              RETURN CODE 0
+         BR    14
+DW       DS    D
+PATTERN  DC    X'40202120'
+WTOLIST  DC    AL2(WTOEND-WTOLIST),AL2(0)
+         DC    C'SUM OF 1 TO 10 ='
+RESULT   DS    CL4
+WTOEND   EQU   *
+         END   SUM
+/*
+//`;
+
+const PL1_JOB = `//PL1DEMO  JOB (ACCT),'PL/I DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
+//*
+//* COMPILE, LINK AND RUN A PL/I PROGRAM (PL/I F)
+//*
+//DEMO     EXEC PL1LFCLG
+//PL1L.SYSLIN DD UNIT=SYSDA
+//PL1L.SYSIN DD *
+ SQUARES: PROC OPTIONS(MAIN);
+   DCL I FIXED BIN(31);
+   PUT FILE(SYSPRINT) SKIP LIST('HELLO FROM PL/I ON MVS 3.8J');
+   DO I = 1 TO 10;
+     PUT FILE(SYSPRINT) SKIP EDIT('N = ', I, '   N**2 = ', I * I)
+                  (A, F(2), A, F(4));
+   END;
+ END SQUARES;
+/*
+//LKED.SYSLIB DD DSN=SYS1.PL1LIB,DISP=SHR
+//GO.STEPLIB DD DSN=SYS1.PL1LIB,DISP=SHR
+//`;
+
+const FORTRAN_JOB = `//FORTDEMO JOB (ACCT),'FORTRAN DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
+//*
+//* COMPILE, LINK AND RUN A FORTRAN PROGRAM (FORTRAN IV G)
+//*
+//DEMO     EXEC FORTGCLG,REGION.FORT=1024K
+//FORT.SYSLIN DD UNIT=SYSDA
+//FORT.SYSIN DD *
+C     SQUARES IN FORTRAN IV
+      WRITE (6,10)
+   10 FORMAT (' HELLO FROM FORTRAN ON MVS 3.8J')
+      DO 20 I = 1, 10
+      J = I * I
+      WRITE (6,30) I, J
+   20 CONTINUE
+   30 FORMAT (' N = ', I2, '   N**2 = ', I4)
+      STOP
+      END
 /*
 //`;
 
@@ -236,6 +310,30 @@ const SECTIONS = [
       { p: 'memo.c.p' },
       { code: C_JOB, job: true },
       { ul: ['memo.c.n1', 'memo.c.n2', 'memo.c.n3', 'memo.c.n4', 'memo.c.n5'] },
+    ],
+  },
+  {
+    id: 'asm',
+    blocks: [
+      { p: 'memo.asm.p' },
+      { code: ASM_JOB, job: true },
+      { ul: ['memo.asm.n1', 'memo.asm.n2', 'memo.asm.n3'] },
+    ],
+  },
+  {
+    id: 'pl1',
+    blocks: [
+      { p: 'memo.pl1.p' },
+      { code: PL1_JOB, job: true },
+      { ul: ['memo.pl1.n1', 'memo.pl1.n2', 'memo.pl1.n3'] },
+    ],
+  },
+  {
+    id: 'fortran',
+    blocks: [
+      { p: 'memo.fortran.p' },
+      { code: FORTRAN_JOB, job: true },
+      { ul: ['memo.fortran.n1', 'memo.fortran.n2', 'memo.fortran.n3'] },
     ],
   },
 ];
