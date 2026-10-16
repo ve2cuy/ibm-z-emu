@@ -2,9 +2,9 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=e8d56daf';
-import { initMemo } from './memo.js?v=e8d56daf';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=e8d56daf';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=8b078ee1';
+import { initMemo } from './memo.js?v=8b078ee1';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=8b078ee1';
 
 const VERSION = '0.1.4';
 const V = new URL(import.meta.url).search;

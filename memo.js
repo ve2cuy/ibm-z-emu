@@ -3,7 +3,7 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=e8d56daf';
+import { t } from './i18n.js?v=8b078ee1';
 
 const COBOL_JOB = `//COBDEMO  JOB (ACCT),'COBOL DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
 //*
