@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=3e101d96">
+  <link rel="stylesheet" href="style.css?v=0dbb610c">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -159,6 +159,27 @@
               <button id="jcl-sample" type="button" class="secondary" data-i18n="cards.sample">Example</button>
             </div>
             <p id="cards-status" class="hint"></p>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <button type="button" class="nav-item" aria-expanded="false" aria-controls="panel-net" data-tip="Local network" data-i18n-tip="nav.net">
+            <svg class="chev"><use href="#i-chevron"/></svg>
+            <svg class="icon"><use href="#i-globe"/></svg>
+            <span class="label" data-i18n="nav.net">Local network</span>
+          </button>
+          <div id="panel-net" class="nav-panel" hidden>
+            <p class="hint" data-i18n="net.desc">TN3270 clients of your network (x3270, wc3270, PCOMM…) can use the terminals of this emulator through the ibmz-relay program, started on this PC.</p>
+            <label class="check"><input id="relay-on" type="checkbox"><span data-i18n="net.relay">TN3270 relay (ibmz-relay)</span></label>
+            <p id="relay-status" class="hint" role="status"></p>
+            <ul id="relay-clients" class="vol-list"></ul>
+            <details class="more">
+              <summary data-i18n="more">More information</summary>
+              <label class="field"><span data-i18n="net.url">Relay address</span>
+                <input id="relay-url" type="url" spellcheck="false" autocomplete="off" class="mono">
+              </label>
+              <p class="hint" data-i18n-html="net.hint"></p>
+            </details>
           </div>
         </div>
 
@@ -302,6 +323,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="main.js?v=3e101d96"></script>
+  <script type="module" src="main.js?v=0dbb610c"></script>
 </body>
 </html>

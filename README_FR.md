@@ -60,6 +60,26 @@ Utilisateurs TSO de TK5 : HERC01 et HERC02 (mot de passe CUL8TR), HERC03 et HERC
 
 Les touches peuvent aussi s'afficher sous l'écran (menu Affichage).
 
+## Se connecter avec un client TN3270
+
+Une page Web ne peut pas recevoir de connexions réseau : deux petits programmes, dans les
+[versions publiées](https://github.com/ve2cuy/ibm-z-emu/releases) pour Windows, Linux et macOS,
+mettent les terminaux 3270 sur votre réseau local :
+
+- **ibmz-relay** (avec la page) : lancez `ibmz-relay` sur le PC du fureteur, cochez
+  **Relais TN3270** dans le menu **Réseau local**, puis faites l'IPL. Un client (x3270,
+  wc3270, c3270, PCOMM, Vista…, modèle 3278-2) se connecte à l'adresse de ce PC, port 3270,
+  et prend un terminal libre parmi 0C0-0C6. La page le montre tenu par le client.
+- **ibmz-server** (sans fureteur) : `ibmz-server <dossier des volumes de TK5>` fait tourner
+  MVS dans une fenêtre de terminal, avec la console de l'opérateur, TN3270 sur le port 3270,
+  le lecteur de cartes sur le port 3505 (`nc hôte 3505 < travail.jcl`) et les imprimantes
+  dans des fichiers (`prt/`). Commandes : `.shutdown` (arrêt propre de TK5), `.quit`, `.who`.
+  Avec `--copy`, les fichiers des volumes ne sont pas modifiés.
+
+Les deux écoutent sur toutes les cartes réseau du PC (`--bind 127.0.0.1` les garde sur ce
+PC) : votre pare-feu décide qui les joint. Il n'y a pas d'autre mot de passe que celui de
+TSO.
+
 ## Travaux en lots
 
 Le menu **Lecteur de cartes** envoie un travail au lecteur 3505 de l'adresse 00C, où JES2

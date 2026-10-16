@@ -2,7 +2,7 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=3e101d96';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0dbb610c';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -33,6 +33,8 @@ const prefs = {
   depot: 'https://ve2cuy.com/vax/ibmz',
   turbo: false,
   printer: 0x00E,
+  relay: false,
+  relayUrl: 'ws://127.0.0.1:8370',
   ...readPrefs(),
 };
 
@@ -524,6 +526,7 @@ async function ipl() {
     ipl: addr,
     volumes: vols.map((v) => ({ addr: v.addr, file: v.file })),
     terminals,
+    relay: prefs.relay ? prefs.relayUrl : null,
   });
   worker.postMessage({ type: 'turbo', on: prefs.turbo });
 }
@@ -598,6 +601,10 @@ function onWorkerMessage({ data }) {
       shuttingDown = true;
       showStatus('power.shutting');
       break;
+    case 'relay':
+      relayState = data;
+      showRelay();
+      break;
     case 'cards':
       $('cards-status').textContent = t('cards.sent', { n: data.left });
       break;
@@ -625,6 +632,56 @@ function onWorkerMessage({ data }) {
       break;
   }
 }
+
+// ------------------------------------------------------------------ relais TN3270
+
+const relayOn = $('relay-on');
+const relayUrlInput = $('relay-url');
+let relayState = { state: 'off', clients: [] };
+relayOn.checked = prefs.relay;
+relayUrlInput.value = prefs.relayUrl;
+
+function relayConfig() {
+  worker?.postMessage({ type: 'relay', url: running && prefs.relay ? prefs.relayUrl : null });
+}
+
+relayOn.addEventListener('change', () => {
+  prefs.relay = relayOn.checked;
+  savePrefs();
+  if (running) relayConfig();
+  showRelay();
+});
+relayUrlInput.addEventListener('change', () => {
+  const v = relayUrlInput.value.trim();
+  prefs.relayUrl = /^wss?:\/\//.test(v) ? v : 'ws://127.0.0.1:8370';
+  relayUrlInput.value = prefs.relayUrl;
+  savePrefs();
+  if (running) relayConfig();
+});
+
+/** Terminaux tenus par un client TN3270. */
+function remoteTerms() {
+  return new Set((relayState.clients ?? []).map((c) => c.addr));
+}
+
+function showRelay() {
+  const box = $('relay-status');
+  let key;
+  if (!prefs.relay) key = 'net.off';
+  else if (!running) key = 'net.later';
+  else key = { connecting: 'net.connecting', open: 'net.open', closed: 'net.closed', off: 'net.later' }[relayState.state] ?? 'net.later';
+  box.textContent = t(key, { url: prefs.relayUrl, n: relayState.clients?.length ?? 0 });
+  box.classList.toggle('error', key === 'net.closed');
+  const list = $('relay-clients');
+  list.replaceChildren(...(relayState.clients ?? []).map((c) => {
+    const li = document.createElement('li');
+    li.className = 'mono';
+    li.textContent = `${hex3(c.addr)}  ${c.ttype}`;
+    return li;
+  }));
+  showTermStatus();
+}
+languageListeners.push(showRelay);
 
 // ------------------------------------------------------------------ pupitre
 
@@ -904,6 +961,8 @@ function showTermStatus(d = null) {
   }
   const cursor = (d[2] << 8) | d[3];
   const parts = [];
+  const remote = (relayState.clients ?? []).find((c) => c.addr === a);
+  if (remote) parts.push(t('term.remote', { ttype: remote.ttype }));
   if (d[4] & 1) parts.push(t('term.locked'));
   if (d[4] & 2) parts.push(t('term.insert'));
   parts.push(`${Math.floor(cursor / d[1]) + 1}/${(cursor % d[1]) + 1}`);
@@ -926,12 +985,12 @@ function beep() {
 
 function termKey(key) {
   const a = currentTerm();
-  if (a !== null && running) worker.postMessage({ type: 'key', addr: a, key });
+  if (a !== null && running && !remoteTerms().has(a)) worker.postMessage({ type: 'key', addr: a, key });
 }
 
 function termChars(text) {
   const a = currentTerm();
-  if (a === null || !running) return;
+  if (a === null || !running || remoteTerms().has(a)) return;
   // Retour à la ligne : touche NewLine; tabulation : Tab.
   for (const part of text.replace(/\r\n?/g, '\n').split(/(\n|\t)/)) {
     if (part === '\n') worker.postMessage({ type: 'key', addr: a, key: 'NewLine' });
@@ -1143,6 +1202,7 @@ async function main() {
   startWorker();
   await renderVolumes();
   await loadDepot();
+  showRelay();
   selectTab('console');
   updateButtons();
   document.documentElement.classList.replace('js-loading', 'js-ready');

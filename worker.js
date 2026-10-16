@@ -3,16 +3,17 @@
 // 200 ms. En Turbo, quand le processeur travaille, le temps simulé va aussi vite que le
 // fureteur le permet.
 //
-// Messages reçus : start {mem, ipl, volumes: [{addr, file}], terminals: [addr]},
+// Messages reçus : start {mem, ipl, volumes: [{addr, file}], terminals: [addr], relay},
+// relay {url} (relais TN3270 : adresse ws://…, ou nul),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
 // turbo {on}, flush, stop.
 // Messages envoyés : ready, started {volumes: [{addr, info}]}, console {text},
 // screen {addr, data}, printer {addr, text}, stats {mips, psw, wait, io, simMs},
-// shutdown {phase} (arrêt de TK5 en cours),
+// shutdown {phase} (arrêt de TK5 en cours), relay {state, url, clients: [{addr, ttype}]},
 // stopped {reason}, closed, error {msg}, cards {left}.
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=3e101d96';
+import init, { Emulator } from './pkg/ibmz_web.js?v=0dbb610c';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;
@@ -111,6 +112,8 @@ async function start(cfg) {
   emu.set_ns_per_inst(1000 / mips);
   post({ type: 'started', volumes: infos });
   running = true;
+  relayUrl = cfg.relay || null;
+  openRelay();
   autoShutdown = false;
   initDone = false;
   shutdownWanted = false;
@@ -124,6 +127,8 @@ async function start(cfg) {
 
 function stop(reason) {
   running = false;
+  closeRelay();
+  relayStatus('off');
   if (emu) {
     try { emu.flush(); } catch { /* rien */ }
   }
@@ -131,6 +136,110 @@ function stop(reason) {
   emu?.free();
   emu = null;
   post({ type: 'stopped', reason });
+}
+
+// Relais TN3270 (ibmz-relay sur ce PC) : les clients TN3270 du réseau local prennent un
+// terminal libre. Messages binaires : genre, connexion (4 octets), données; genres :
+// 1 nouveau client (type de terminal), 2 client parti, 3 enregistrement.
+let relayUrl = null;
+let relay = null;
+let relayTimer = 0;
+const remotes = new Map(); // connexion -> {addr, ttype}
+
+function relayStatus(state) {
+  post({
+    type: 'relay',
+    state,
+    url: relayUrl,
+    clients: [...remotes.values()].map((r) => ({ addr: r.addr, ttype: r.ttype })),
+  });
+}
+
+function relayMsg(kind, conn, data) {
+  const m = new Uint8Array(5 + data.length);
+  m[0] = kind;
+  new DataView(m.buffer).setUint32(1, conn);
+  m.set(data, 5);
+  if (relay?.readyState === WebSocket.OPEN) relay.send(m);
+}
+
+/** Terminal libre pour un client : d'abord ceux que la page ne montre pas. */
+function freeTerminal() {
+  const all = [];
+  for (let a = 0x0C0; a <= 0x0C6; a++) all.push(a);
+  const order = [...all.filter((a) => !terminals.includes(a)), ...all.filter((a) => terminals.includes(a))];
+  const used = new Set([...remotes.values()].map((r) => r.addr));
+  return order.find((a) => !used.has(a));
+}
+
+function dropRemotes() {
+  for (const r of remotes.values()) emu?.term_disconnect(r.addr);
+  remotes.clear();
+}
+
+function openRelay() {
+  clearTimeout(relayTimer);
+  if (!relayUrl || !running) return;
+  relayStatus('connecting');
+  let ws;
+  try {
+    ws = new WebSocket(relayUrl);
+  } catch {
+    relayTimer = setTimeout(openRelay, 5000);
+    return;
+  }
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => relayStatus('open');
+  ws.onmessage = (e) => {
+    if (!emu || !(e.data instanceof ArrayBuffer)) return;
+    const m = new Uint8Array(e.data);
+    if (m.length < 5) return;
+    const conn = new DataView(m.buffer).getUint32(1);
+    const data = m.subarray(5);
+    if (m[0] === 1) {
+      const addr = freeTerminal();
+      if (addr === undefined) {
+        relayMsg(2, conn, new Uint8Array());
+        return;
+      }
+      remotes.set(conn, { addr, ttype: new TextDecoder().decode(data) });
+      relayMsg(3, conn, emu.term_connect(addr));
+      relayStatus('open');
+    } else if (m[0] === 2) {
+      const r = remotes.get(conn);
+      if (r) emu.term_disconnect(r.addr);
+      remotes.delete(conn);
+      relayStatus('open');
+    } else if (m[0] === 3) {
+      const r = remotes.get(conn);
+      if (r) emu.term_input(r.addr, data);
+    }
+  };
+  ws.onclose = () => {
+    if (relay !== ws) return;
+    relay = null;
+    dropRemotes();
+    relayStatus('closed');
+    if (running && relayUrl) relayTimer = setTimeout(openRelay, 5000);
+  };
+  relay = ws;
+}
+
+function closeRelay() {
+  clearTimeout(relayTimer);
+  const ws = relay;
+  relay = null;
+  try { ws?.close(); } catch { /* déjà fermé */ }
+  dropRemotes();
+}
+
+/** Écrans des terminaux distants vers leurs clients. */
+function sendRemotes() {
+  for (const [conn, r] of remotes) {
+    for (let rec = emu.term_outbound(r.addr); rec.length; rec = emu.term_outbound(r.addr)) {
+      relayMsg(3, conn, rec);
+    }
+  }
 }
 
 // Opérateur automatique de l'arrêt de TK5 (comme les règles « hao » de Hercules) : la
@@ -179,6 +288,7 @@ function autoOperator(text) {
 
 /** Sorties de la machine : console, écrans changés, imprimantes. */
 function drain() {
+  if (remotes.size) sendRemotes();
   const text = emu.console_take(CONSOLE);
   if (text) post({ type: 'console', text });
   autoOperator(text);
@@ -286,6 +396,12 @@ self.onmessage = async ({ data }) => {
           emu.reader_load(READER, data.text);
           post({ type: 'cards', left: emu.reader_left(READER) });
         }
+        break;
+      case 'relay':
+        relayUrl = data.url || null;
+        closeRelay();
+        if (relayUrl) openRelay();
+        else relayStatus('off');
         break;
       case 'turbo':
         turbo = !!data.on;

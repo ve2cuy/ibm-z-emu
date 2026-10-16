@@ -295,6 +295,35 @@ export class Emulator {
         wasm.emulator_term_click(this.__wbg_ptr, addr, pos);
     }
     /**
+     * Un client TN3270 (par le relais) prend le terminal : rend l'écran courant à lui
+     * envoyer (enregistrement 3270).
+     * @param {number} addr
+     * @returns {Uint8Array}
+     */
+    term_connect(addr) {
+        const ret = wasm.emulator_term_connect(this.__wbg_ptr, addr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Le client TN3270 est parti.
+     * @param {number} addr
+     */
+    term_disconnect(addr) {
+        wasm.emulator_term_disconnect(this.__wbg_ptr, addr);
+    }
+    /**
+     * Enregistrement reçu du client TN3270.
+     * @param {number} addr
+     * @param {Uint8Array} rec
+     */
+    term_input(addr, rec) {
+        const ptr0 = passArray8ToWasm0(rec, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.emulator_term_input(this.__wbg_ptr, addr, ptr0, len0);
+    }
+    /**
      * Touche spéciale : Enter, Clear, PA1-PA3, PF1-PF24, Tab, BackTab, Home, NewLine,
      * Left, Right, Up, Down, Backspace, Delete, EraseEOF, Insert, Reset.
      * @param {number} addr
@@ -304,6 +333,26 @@ export class Emulator {
         const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.emulator_term_key(this.__wbg_ptr, addr, ptr0, len0);
+    }
+    /**
+     * Prochain enregistrement à envoyer au client TN3270 (vide : aucun).
+     * @param {number} addr
+     * @returns {Uint8Array}
+     */
+    term_outbound(addr) {
+        const ret = wasm.emulator_term_outbound(this.__wbg_ptr, addr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Le terminal est tenu par un client TN3270.
+     * @param {number} addr
+     * @returns {boolean}
+     */
+    term_remote(addr) {
+        const ret = wasm.emulator_term_remote(this.__wbg_ptr, addr);
+        return ret !== 0;
     }
     /**
      * Écran : rangées, colonnes, curseur (2 octets), état (bit 0 verrouillé, 1 insertion,
@@ -415,6 +464,13 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {

@@ -83,10 +83,31 @@ export class Emulator {
      */
     term_click(addr: number, pos: number): void;
     /**
+     * Un client TN3270 (par le relais) prend le terminal : rend l'écran courant à lui
+     * envoyer (enregistrement 3270).
+     */
+    term_connect(addr: number): Uint8Array;
+    /**
+     * Le client TN3270 est parti.
+     */
+    term_disconnect(addr: number): void;
+    /**
+     * Enregistrement reçu du client TN3270.
+     */
+    term_input(addr: number, rec: Uint8Array): void;
+    /**
      * Touche spéciale : Enter, Clear, PA1-PA3, PF1-PF24, Tab, BackTab, Home, NewLine,
      * Left, Right, Up, Down, Backspace, Delete, EraseEOF, Insert, Reset.
      */
     term_key(addr: number, key: string): void;
+    /**
+     * Prochain enregistrement à envoyer au client TN3270 (vide : aucun).
+     */
+    term_outbound(addr: number): Uint8Array;
+    /**
+     * Le terminal est tenu par un client TN3270.
+     */
+    term_remote(addr: number): boolean;
     /**
      * Écran : rangées, colonnes, curseur (2 octets), état (bit 0 verrouillé, 1 insertion,
      * 2 alarme), puis deux octets par position : caractère (Latin-1) et style (bits 0-2
@@ -140,7 +161,12 @@ export interface InitOutput {
     readonly emulator_take_instructions: (a: number) => number;
     readonly emulator_term_char: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_term_click: (a: number, b: number, c: number) => void;
+    readonly emulator_term_connect: (a: number, b: number) => [number, number];
+    readonly emulator_term_disconnect: (a: number, b: number) => void;
+    readonly emulator_term_input: (a: number, b: number, c: number, d: number) => void;
     readonly emulator_term_key: (a: number, b: number, c: number, d: number) => void;
+    readonly emulator_term_outbound: (a: number, b: number) => [number, number];
+    readonly emulator_term_remote: (a: number, b: number) => number;
     readonly emulator_term_render: (a: number, b: number) => [number, number];
     readonly emulator_term_text: (a: number, b: number) => [number, number];
     readonly emulator_term_version: (a: number, b: number) => number;

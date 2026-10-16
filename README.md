@@ -58,6 +58,25 @@ TSO users of TK5: HERC01 and HERC02 (password CUL8TR), HERC03 and HERC04 (PASS4U
 
 The keys can also be shown under the screen (Display menu).
 
+## Connecting a TN3270 client
+
+A web page cannot receive network connections, so two small programs, available in the
+[releases](https://github.com/ve2cuy/ibm-z-emu/releases) for Windows, Linux and macOS, put the
+3270 terminals on your local network:
+
+- **ibmz-relay** (with the page): start `ibmz-relay` on the PC that runs the browser,
+  check **TN3270 relay** in the **Local network** menu, then IPL. A client (x3270, wc3270,
+  c3270, PCOMM, Vista…, model 3278-2) connects to the address of that PC, port 3270, and
+  gets a free terminal among 0C0-0C6. The page shows it held by the client.
+- **ibmz-server** (without a browser): `ibmz-server <folder of the TK5 volumes>` runs MVS
+  in a terminal window, with the operator console in it, TN3270 on port 3270, the card
+  reader on port 3505 (`nc host 3505 < job.jcl`) and the printers in files (`prt/`).
+  Commands: `.shutdown` (clean shutdown of TK5), `.quit`, `.who`. With `--copy`, the volume
+  files are not modified.
+
+Both listen on all the interfaces of the PC (`--bind 127.0.0.1` keeps them on this PC):
+your firewall decides who reaches them. There is no password other than the TSO logon.
+
 ## Batch jobs
 
 The **Card reader** menu sends a job to the 3505 reader at address 00C, where JES2 reads
