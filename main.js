@@ -2,7 +2,7 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=edd7b5c8';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=36325a67';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
