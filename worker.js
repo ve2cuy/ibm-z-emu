@@ -7,13 +7,14 @@
 // relay {url} (relais TN3270 : adresse ws://…, ou nul),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
-// turbo {on}, flush, stop.
+// turbo {on}, flush, stop, vol {id, addr, op, dsn, member, limit} (gestionnaire de volumes :
+// lecture par les images que la machine tient).
 // Messages envoyés : ready, started {volumes: [{addr, info}]}, console {text},
 // screen {addr, data}, printer {addr, text}, stats {mips, psw, wait, io, simMs},
 // shutdown {phase} (arrêt de TK5 en cours), relay {state, url, clients: [{addr, ttype}]},
-// stopped {reason}, closed, error {msg}, cards {left}.
+// stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error}.
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=92f2680f';
+import init, { Emulator } from './pkg/ibmz_web.js?v=088d4ad6';
 
 const version = new URL(import.meta.url).search;
 const CONSOLE = 0x009;
@@ -409,6 +410,9 @@ self.onmessage = async ({ data }) => {
       case 'flush':
         emu?.flush();
         break;
+      case 'vol':
+        volCall(data);
+        break;
       case 'stop':
         if (emu) {
           drain();
@@ -427,5 +431,16 @@ self.onmessage = async ({ data }) => {
     }
   }
 };
+
+/** Gestionnaire de volumes, machine en marche : lecture seulement (vol-ops.js). */
+function volCall({ id, addr, op, dsn = '', member = '', limit = 0 }) {
+  try {
+    if (!emu) throw new Error('stopped|');
+    const result = op === 'raw' ? emu.vol_raw(addr, dsn, member, limit) : JSON.parse(emu.vol_call(addr, op, dsn, member, limit));
+    post({ type: 'vol', id, ok: true, result }, op === 'raw' ? [result.buffer] : []);
+  } catch (e) {
+    post({ type: 'vol', id, ok: false, error: e?.message ?? String(e) });
+  }
+}
 
 ready = init(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url)).then(() => post({ type: 'ready' }));

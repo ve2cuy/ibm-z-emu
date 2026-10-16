@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=92f2680f">
+  <link rel="stylesheet" href="style.css?v=088d4ad6">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -47,6 +47,8 @@
       <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
       <symbol id="i-card" viewBox="0 0 24 24"><path d="M6 4h12l2 2v14H4V6z"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
       <symbol id="i-memo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7M8 11h5"/></symbol>
     </defs>
@@ -240,6 +242,8 @@
             <svg class="icon"><use href="#i-paste"/></svg></button>
           <button id="copy-button" type="button" class="icon-button" title="Copy the screen" data-i18n-title="clip.copy" aria-label="Copy the screen" data-i18n-aria="clip.copy">
             <svg class="icon"><use href="#i-copy"/></svg></button>
+          <button id="vm-button" type="button" class="icon-button" title="Volumes" data-i18n-title="vm.tip" aria-label="Volumes" data-i18n-aria="vm.tip" aria-haspopup="dialog">
+            <svg class="icon"><use href="#i-folder"/></svg></button>
           <button id="memo-button" type="button" class="icon-button" title="Cheat sheet" data-i18n-title="memo.tip" aria-label="Cheat sheet" data-i18n-aria="memo.tip" aria-haspopup="dialog">
             <svg class="icon"><use href="#i-memo"/></svg></button>
           <a id="guide-link" class="icon-button" href="https://github.com/ve2cuy/ibm-z-emu" target="_blank" rel="noopener"
@@ -326,6 +330,45 @@
       </div>
     </main>
   </div>
+  <!-- Gestionnaire de volumes (volumes.js) -->
+  <dialog id="vm" class="dialog vm" aria-labelledby="vm-title">
+    <div class="memo-head">
+      <h2 id="vm-title" data-i18n="vm.title">Volumes</h2>
+      <button type="button" class="icon-button vm-close" title="Close" data-i18n-title="memo.close" aria-label="Close" data-i18n-aria="memo.close">
+        <svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="vm-bar">
+      <label class="vm-field"><span data-i18n="vm.volume">Volume</span>
+        <select id="vm-volume" autocomplete="off"></select></label>
+      <label class="vm-field grow"><span data-i18n="vm.filter">Filter</span>
+        <input id="vm-filter" type="search" spellcheck="false" autocomplete="off" class="mono" placeholder="HERC01.*" data-i18n-placeholder="vm.filter.ph"></label>
+      <button id="vm-refresh" type="button" class="icon-button" title="Read again" data-i18n-title="vm.refresh" aria-label="Read again" data-i18n-aria="vm.refresh">
+        <svg class="icon"><use href="#i-refresh"/></svg></button>
+    </div>
+    <p class="vm-info"><span id="vm-summary"></span> <span id="vm-mode" class="vm-mode"></span></p>
+    <nav id="vm-path" class="vm-path" aria-label="Path"></nav>
+    <div class="vm-body">
+      <div id="vm-datasets" class="vm-pane"><table id="vm-ds-table" class="vm-table"></table></div>
+      <div id="vm-members" class="vm-pane" hidden><table id="vm-mem-table" class="vm-table"></table></div>
+      <div id="vm-viewer" class="vm-pane vm-viewer" hidden>
+        <div class="vm-tools">
+          <div class="vm-seg" role="group">
+            <button type="button" class="small-button secondary" data-mode="text" aria-pressed="true" data-i18n="vm.text">Text</button>
+            <button type="button" class="small-button secondary" data-mode="hex" aria-pressed="false" data-i18n="vm.hex">Hex</button>
+          </div>
+          <label id="vm-cols" class="check"><input id="vm-cols80" type="checkbox"><span data-i18n="vm.cols80">Columns 73-80</span></label>
+          <span class="grow"></span>
+          <button id="vm-copy" type="button" class="small-button secondary" data-i18n="memo.copy">Copy</button>
+          <button id="vm-export-text" type="button" class="small-button secondary" data-i18n="vm.export.text">Export text</button>
+          <button id="vm-export-bin" type="button" class="small-button secondary" data-i18n="vm.export.bin">Export binary</button>
+        </div>
+        <p id="vm-view-info" class="hint"></p>
+        <pre id="vm-text" class="vm-text mono" tabindex="0"></pre>
+      </div>
+    </div>
+    <p class="vm-foot"><span id="vm-count" class="hint"></span><span id="vm-status" class="vm-status" role="status"></span></p>
+  </dialog>
+
   <!-- Aide-mémoire (memo.js) -->
   <dialog id="memo" class="dialog memo" aria-labelledby="memo-title">
     <div class="memo-head">
@@ -336,6 +379,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=92f2680f"></script>
+  <script type="module" src="main.js?v=088d4ad6"></script>
 </body>
 </html>

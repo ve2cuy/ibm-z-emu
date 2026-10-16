@@ -2,8 +2,9 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=92f2680f';
-import { initMemo } from './memo.js?v=92f2680f';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=088d4ad6';
+import { initMemo } from './memo.js?v=088d4ad6';
+import { initVolumes, openVolumes, volSettle } from './volumes.js?v=088d4ad6';
 
 const VERSION = '0.1.0';
 const V = new URL(import.meta.url).search;
@@ -646,6 +647,9 @@ function onWorkerMessage({ data }) {
       relayState = data;
       showRelay();
       break;
+    case 'vol':
+      volSettle(data);
+      break;
     case 'cards':
       $('cards-status').textContent = t('cards.sent', { n: data.left });
       break;
@@ -1230,6 +1234,16 @@ languageListeners.push(initMemo(memo, (text) => {
   showStatus('memo.loaded');
 }));
 $('memo-button').addEventListener('click', () => memo.showModal());
+
+// Gestionnaire de volumes (volumes.js) : lecture par vol-worker.js, ou par le fil de la
+// machine quand elle tourne.
+languageListeners.push(initVolumes({
+  volumes: () => volumes,
+  running: () => running,
+  worker: () => worker,
+  version: V,
+}));
+$('vm-button').addEventListener('click', () => openVolumes());
 
 $('jcl-submit').addEventListener('click', () => {
   if (!running) {

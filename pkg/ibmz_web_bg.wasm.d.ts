@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_emulator_free: (a: number, b: number) => void;
+export const __wbg_volumeimage_free: (a: number, b: number) => void;
 export const emulator_attach_console: (a: number, b: number) => void;
 export const emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
 export const emulator_attach_printer: (a: number, b: number, c: number) => void;
@@ -38,7 +39,12 @@ export const emulator_term_remote: (a: number, b: number) => number;
 export const emulator_term_render: (a: number, b: number) => [number, number];
 export const emulator_term_text: (a: number, b: number) => [number, number];
 export const emulator_term_version: (a: number, b: number) => number;
+export const emulator_vol_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
+export const emulator_vol_raw: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
 export const emulator_waiting: (a: number) => number;
+export const volumeimage_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+export const volumeimage_new: (a: any) => [number, number, number];
+export const volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __externref_table_dealloc: (a: number) => void;
 export const __wbindgen_free: (a: number, b: number, c: number) => void;

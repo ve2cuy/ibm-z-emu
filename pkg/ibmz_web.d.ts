@@ -124,9 +124,30 @@ export class Emulator {
      */
     term_version(addr: number): number;
     /**
+     * Gestionnaire de volumes, machine en marche : opération de lecture `op` (voir
+     * `vol_op`) sur le volume de l'unité `addr`, par l'image que la machine tient (piste
+     * modifiée écrite d'abord). Rend du JSON.
+     */
+    vol_call(addr: number, op: string, dsn: string, member: string, limit: number): string;
+    /**
+     * Octets bruts (blocs à la suite) d'un fichier ou d'un membre, machine en marche.
+     */
+    vol_raw(addr: number, dsn: string, member: string, limit: number): Uint8Array;
+    /**
      * Le processeur attend (PSW d'attente).
      */
     waiting(): boolean;
+}
+
+/**
+ * Volume ouvert par la page quand la machine est arrêtée (`www/vol-worker.js`).
+ */
+export class VolumeImage {
+    free(): void;
+    [Symbol.dispose](): void;
+    call(op: string, dsn: string, member: string, limit: number): string;
+    constructor(disk: any);
+    raw(dsn: string, member: string, limit: number): Uint8Array;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -134,6 +155,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_emulator_free: (a: number, b: number) => void;
+    readonly __wbg_volumeimage_free: (a: number, b: number) => void;
     readonly emulator_attach_console: (a: number, b: number) => void;
     readonly emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
     readonly emulator_attach_printer: (a: number, b: number, c: number) => void;
@@ -170,7 +192,12 @@ export interface InitOutput {
     readonly emulator_term_render: (a: number, b: number) => [number, number];
     readonly emulator_term_text: (a: number, b: number) => [number, number];
     readonly emulator_term_version: (a: number, b: number) => number;
+    readonly emulator_vol_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
+    readonly emulator_vol_raw: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly emulator_waiting: (a: number) => number;
+    readonly volumeimage_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly volumeimage_new: (a: any) => [number, number, number];
+    readonly volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
