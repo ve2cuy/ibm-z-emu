@@ -1656,3 +1656,76 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
 .sd-result { margin: 10px 0 0; font-weight: 600; }
 .sd-result.ok { color: #2ea043; }
 .sd-result.error { color: var(--error); }
+/* Configuration Hercules (menu Machine, fenêtre d'import). */
+.hc-box { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.hc-box .hint { margin: 0 0 6px; }
+.dialog.hc { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.dialog.hc[open] { display: flex; flex-direction: column; }
+.dialog.hc h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.hc-body { flex: 1; min-height: 0; overflow: auto; font-size: 0.9rem; }
+.hc-body h3 { margin: 12px 0 4px; font-size: 0.92rem; color: var(--accent-ink); }
+.hc-body ul { margin: 0; padding-left: 20px; }
+.hc-body li { margin: 2px 0; }
+.hc-ignored { max-height: 14rem; overflow: auto; font-size: 0.78rem; background: var(--code-bg); padding: 6px 8px; border-radius: 6px; }
+/* Perforatrice (punch.js) : fenêtre, éditeur et carte de 80 colonnes (SVG). */
+.dialog.kp { width: min(1320px, calc(100vw - 24px)); height: calc(100vh - 24px); max-width: none; max-height: none; padding: 12px 14px; }
+.dialog.kp[open] { display: flex; flex-direction: column; }
+.kp-head { gap: 12px; }
+.kp-head h2 { flex: none; }
+.kp-name { flex: 0 1 26rem; min-width: 8rem; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; }
+.kp-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 12px; margin-top: 10px; }
+.kp-side { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--border); border-radius: 8px; }
+.kp-side-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
+.kp-lib { flex: 1; min-height: 0; overflow: auto; padding: 4px 8px 8px; font-size: 0.86rem; }
+.kp-lib h3 { margin: 10px 0 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.kp-lib ul { margin: 0; padding: 0; list-style: none; }
+.kp-lib li { display: flex; align-items: center; gap: 2px; border-radius: 6px; }
+.kp-lib li.active { background: var(--accent-soft); }
+.kp-lib-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 6px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: 6px; }
+.kp-lib-open:hover { background: var(--surface-2); }
+.kp-lib-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.kp-lib-meta { font-size: 0.75rem; color: var(--muted); }
+.kp-work { display: flex; flex-direction: column; min-height: 0; gap: 8px; }
+.kp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kp-tools .grow { flex: 1; }
+.kp-editor { flex: 1 1 0; min-height: 7rem; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--code-bg); }
+.kp-ruler { flex: none; overflow: hidden; white-space: pre; padding: 4px 10px 2px; font: 0.86rem/1.4 ui-monospace, Consolas, monospace; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.kp-edit { flex: 1; min-height: 0; resize: none; border: 0; outline: none; padding: 4px 10px; background: transparent; color: var(--text); font: 0.86rem/1.4 ui-monospace, Consolas, monospace; white-space: pre; overflow: auto; tab-size: 8; }
+.kp-card-box { position: relative; flex: none; display: flex; justify-content: center; padding: 10px; border-radius: 10px; background: #2c2f36; overflow: hidden; outline: none; }
+.kp-card-box:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.kp-card-host { width: 100%; max-width: 1180px; }
+.kp-svg { display: block; width: 100%; height: auto; max-height: 40vh; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45)); transition: transform 0.45s ease-in, opacity 0.45s ease-in; }
+.kp-card-box.feeding .kp-svg { transform: translateX(-115%); opacity: 0; }
+.kp-card { fill: #f1e6c4; stroke: #cdbb8d; stroke-width: 2; }
+.kp-stripe { fill: none; }
+.kp-job .kp-stripe { fill: #c75a6c; }
+.kp-digit { font: 600 22px 'DejaVu Sans Mono', 'Cascadia Mono', Consolas, monospace; fill: #6f5a37; text-anchor: middle; }
+.kp-colno { font: 600 9.5px 'DejaVu Sans Mono', Consolas, monospace; fill: #8b754e; text-anchor: middle; }
+.kp-char { font: 700 27px 'DejaVu Sans Mono', 'Cascadia Mono', Consolas, monospace; fill: #17150f; text-anchor: middle; }
+.kp-rule { stroke: rgba(139, 105, 60, 0.45); stroke-width: 1.5; stroke-dasharray: 6 6; }
+.kp-brand { font: 700 15px system-ui, sans-serif; fill: #a08a5f; letter-spacing: 0.12em; text-anchor: middle; }
+.kp-hole { fill: #23262d; }
+.kp-cursor { fill: rgba(10, 168, 201, 0.16); stroke: rgba(10, 168, 201, 0.55); stroke-width: 1.5; }
+.kp-blank .kp-text { display: none; }
+.kp-preview { display: none; position: absolute; top: 14px; right: 18px; padding: 3px 10px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #ffd28a; font-size: 0.8rem; }
+.kp-card-box.preview .kp-preview { display: block; }
+.kp-card-box.preview .kp-hole { fill: rgba(35, 38, 45, 0.28); }
+.kp-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kp-nav input[type="range"] { flex: 1 1 10rem; min-width: 6rem; }
+.kp-flip .icon { transform: rotate(180deg); }
+.kp-dirty { padding: 2px 8px; border-radius: 6px; background: rgba(255, 178, 46, 0.18); font-size: 0.82rem; }
+.kp-status { margin: 0; min-height: 1.3em; font-size: 0.86rem; color: var(--muted); }
+.kp-status.ok { color: #2ea043; }
+.kp-status.error { color: var(--error); }
+@media (max-width: 820px) {
+  .kp-main { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .kp-side { max-height: 11rem; }
+  .dialog.kp { width: 100vw; height: 100dvh; border-radius: 0; padding: 8px; }
+}
+.kp-main > *, .kp-work > *, .kp-editor { min-width: 0; }
+.kp-card-box { max-width: 100%; }
+@media (max-width: 820px) {
+  .kp-tools .grow { flex-basis: 100%; height: 0; }
+  .kp-tools > button.with-icon { flex: 1 1 auto; }
+  .kp-svg { max-height: none; }
+}

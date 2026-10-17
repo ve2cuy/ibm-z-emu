@@ -83,6 +83,11 @@ To start over, the **Repository** menu downloads the original volumes again.
   edit, create, import, rename or delete members (machine stopped: directly in the
   volume; MVS running: through jobs whose output shows in the window); create, rename,
   delete and compress data sets (MVS running); create a blank volume.
+- The **card punch** (**Card punch** menu, or an example of the cheat sheet): write a deck of
+  cards, punch it, look at each card and its holes, keep it in the library (17 examples in
+  COBOL, C, assembler, PL/I, FORTRAN) and submit it to the card reader.
+- The **Hercules configuration** (**Machine** menu): import a Hercules `.cnf` file (units and
+  volumes placed at their addresses) or export this machine for Hercules.
 - The **cheat sheet** (the **?** button in the top bar): operator and TSO commands, TK5
   volumes and data sets, logon script, COBOL, C, assembler, PL/I and FORTRAN compilation (each job
   opens in the card reader).

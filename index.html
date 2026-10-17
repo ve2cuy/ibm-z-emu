@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=8b078ee1">
+  <link rel="stylesheet" href="style.css?v=047e721c">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -47,6 +47,9 @@
       <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
       <symbol id="i-card" viewBox="0 0 24 24"><path d="M6 4h12l2 2v14H4V6z"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-punch" viewBox="0 0 24 24"><path d="M6 5h15v14H3V8z"/><path d="M7 9v2M10 9v4M13 9v2M16 9v3M7 15v1M11 14v2M15 15v1"/></symbol>
+      <symbol id="i-first" viewBox="0 0 24 24"><path d="M6 5v14M18 6l-7 6 7 6"/></symbol>
+      <symbol id="i-last" viewBox="0 0 24 24"><path d="M18 5v14M6 6l7 6-7 6"/></symbol>
       <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></symbol>
       <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></symbol>
@@ -101,6 +104,18 @@
               </select>
             </label>
             <p class="hint" data-i18n="machine.next">These settings take effect at the next IPL.</p>
+            <div class="hc-box">
+              <p class="hint"><span data-i18n="hc.title">Hercules configuration</span> : <span id="hc-current"></span></p>
+              <div class="row wrap">
+                <label class="button secondary with-icon" title="Read a Hercules configuration file (.cnf)" data-i18n-title="hc.import.tip">
+                  <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.import">Import…</span>
+                  <input id="hc-file" type="file" accept=".cnf,.conf,.cfg,.txt,text/plain" hidden>
+                </label>
+                <button id="hc-export" type="button" class="secondary with-icon" title="Write this machine's configuration for Hercules" data-i18n-title="hc.export.tip">
+                  <svg class="icon"><use href="#i-download"/></svg><span data-i18n="hc.export">Export</span></button>
+                <button id="hc-reset" type="button" class="secondary" data-i18n="hc.reset" hidden>TK5 configuration</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -165,6 +180,19 @@
               <button id="jcl-sample" type="button" class="secondary" data-i18n="cards.sample">Example</button>
             </div>
             <p id="cards-status" class="hint"></p>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <button type="button" class="nav-item" aria-expanded="false" aria-controls="panel-punch" data-tip="Card punch" data-i18n-tip="nav.punch">
+            <svg class="chev"><use href="#i-chevron"/></svg>
+            <svg class="icon"><use href="#i-punch"/></svg>
+            <span class="label" data-i18n="nav.punch">Card punch</span>
+          </button>
+          <div id="panel-punch" class="nav-panel" hidden>
+            <p class="hint" data-i18n="punch.desc">Write a deck of cards, punch it, look at each card, keep it in the library and submit it to the card reader.</p>
+            <button id="punch-open" type="button" class="with-icon"><svg class="icon"><use href="#i-punch"/></svg><span data-i18n="punch.open">Open the card punch</span></button>
+            <p id="punch-count" class="hint"></p>
           </div>
         </div>
 
@@ -343,6 +371,72 @@
       </div>
     </main>
   </div>
+  <!-- Perforatrice (punch.js) -->
+  <dialog id="kp" class="dialog kp" aria-labelledby="kp-title">
+    <div class="memo-head kp-head">
+      <h2 id="kp-title" data-i18n="kp.title">Card punch</h2>
+      <input id="kp-name" class="kp-name" type="text" spellcheck="false" autocomplete="off" aria-label="Deck name" data-i18n-aria="kp.name">
+      <span class="grow"></span>
+      <button type="button" class="icon-button kp-close" title="Close" data-i18n-title="memo.close" aria-label="Close" data-i18n-aria="memo.close">
+        <svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="kp-main">
+      <aside class="kp-side">
+        <div class="kp-side-tools">
+          <button id="kp-new" type="button" class="small-button secondary" data-i18n="kp.new">New</button>
+          <label class="button secondary small-button"><span data-i18n="kp.import">Import…</span>
+            <input id="kp-file" type="file" accept=".jcl,.txt,.cbl,.cob,.asm,.c,.pli,.f,.for,text/plain" hidden></label>
+          <button id="kp-export" type="button" class="small-button secondary" data-i18n="kp.export">Export</button>
+        </div>
+        <div id="kp-lib" class="kp-lib"></div>
+      </aside>
+      <section class="kp-work">
+        <div class="kp-tools">
+          <button id="kp-save" type="button" class="small-button secondary" data-i18n="kp.save">Save</button>
+          <button id="kp-saveas" type="button" class="small-button secondary" data-i18n="kp.saveas">Save as…</button>
+          <label class="check" title="The 029 punched capitals only" data-i18n-title="kp.caps.tip"><input id="kp-caps" type="checkbox"><span data-i18n="kp.caps">Capitals</span></label>
+          <span class="grow"></span>
+          <button id="kp-punch" type="button" class="with-icon"><svg class="icon"><use href="#i-punch"/></svg><span data-i18n="kp.punch">Punch the cards</span></button>
+          <button id="kp-submit" type="button" class="with-icon"><svg class="icon"><use href="#i-card"/></svg><span data-i18n="kp.submit">Submit the deck</span></button>
+        </div>
+        <div class="kp-editor">
+          <div id="kp-ruler" class="kp-ruler mono" aria-hidden="true">....+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8</div>
+          <textarea id="kp-edit" class="kp-edit mono" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Deck text, one line per card" data-i18n-aria="kp.edit"></textarea>
+        </div>
+        <div id="kp-card-box" class="kp-card-box" tabindex="0" aria-label="Current card" data-i18n-aria="kp.current">
+          <div id="kp-card" class="kp-card-host"></div>
+          <span class="kp-preview" data-i18n="kp.preview">Preview — not punched yet</span>
+        </div>
+        <div class="kp-nav">
+          <button id="kp-first" type="button" class="icon-button small" title="First card" data-i18n-title="kp.first" aria-label="First card" data-i18n-aria="kp.first"><svg class="icon"><use href="#i-first"/></svg></button>
+          <button id="kp-prev" type="button" class="icon-button small kp-flip" title="Previous card" data-i18n-title="kp.prev" aria-label="Previous card" data-i18n-aria="kp.prev"><svg class="icon"><use href="#i-chevron"/></svg></button>
+          <input id="kp-range" type="range" min="1" max="1" value="1" aria-label="Card" data-i18n-aria="kp.range">
+          <button id="kp-next" type="button" class="icon-button small" title="Next card" data-i18n-title="kp.next" aria-label="Next card" data-i18n-aria="kp.next"><svg class="icon"><use href="#i-chevron"/></svg></button>
+          <button id="kp-last" type="button" class="icon-button small" title="Last card" data-i18n-title="kp.last" aria-label="Last card" data-i18n-aria="kp.last"><svg class="icon"><use href="#i-last"/></svg></button>
+          <strong id="kp-count"></strong>
+          <span id="kp-col" class="hint"></span>
+          <span id="kp-dirty" class="kp-dirty" data-i18n="kp.dirty" hidden>Text changed: punch the cards again</span>
+        </div>
+        <p id="kp-status" class="kp-status" role="status"></p>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- Import d'une configuration Hercules (herc-ui.js) -->
+  <dialog id="hc" class="dialog hc" aria-labelledby="hc-title2">
+    <h2 id="hc-title2"><span data-i18n="hc.dialog">Import a Hercules configuration</span> — <span id="hc-name" class="mono"></span></h2>
+    <div id="hc-body" class="hc-body"></div>
+    <p id="hc-note" class="hint"></p>
+    <p id="hc-running" class="hint error" data-i18n="hc.running" hidden>Stop the machine to apply this configuration.</p>
+    <div class="dialog-actions">
+      <label id="hc-files" class="button secondary"><span data-i18n="hc.files">Choose the missing volumes…</span>
+        <input id="hc-vols" type="file" multiple hidden></label>
+      <span class="grow"></span>
+      <button id="hc-cancel" type="button" class="secondary" data-i18n="vm.cancel">Cancel</button>
+      <button id="hc-apply" type="button" data-i18n="hc.apply">Apply</button>
+    </div>
+  </dialog>
+
   <!-- Arrêt propre de MVS : étapes -->
   <dialog id="sd" class="dialog sd" aria-labelledby="sd-title">
     <h2 id="sd-title" data-i18n="sd.title">Shutting MVS down</h2>
@@ -521,6 +615,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=8b078ee1"></script>
+  <script type="module" src="main.js?v=047e721c"></script>
 </body>
 </html>

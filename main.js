@@ -2,11 +2,14 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=8b078ee1';
-import { initMemo } from './memo.js?v=8b078ee1';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=8b078ee1';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=047e721c';
+import { initMemo } from './memo.js?v=047e721c';
+import { deckText } from './decks.js?v=047e721c';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=047e721c';
+import { devices, initHerc } from './herc-ui.js?v=047e721c';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=047e721c';
 
-const VERSION = '0.1.4';
+const VERSION = '0.1.6';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +40,8 @@ const prefs = {
   printer: 0x00E,
   relay: false,
   relayUrl: 'ws://127.0.0.1:8370',
+  devices: null,          // unités d'une configuration Hercules importée (null : celles de TK5)
+  devicesName: null,
   jobUser: 'HERC01',      // gestionnaire de volumes : travaux et statistiques ISPF
   jobPassword: 'CUL8TR',
   ...readPrefs(),
@@ -528,7 +533,41 @@ languageListeners.push(memLabels);
 memLabels();
 memList.value = String(prefs.mem);
 memList.addEventListener('change', () => { prefs.mem = Number(memList.value); savePrefs(); });
+// Configuration au format de Hercules (herc-ui.js) : unités en service, import, export.
+languageListeners.push(initHerc({
+  prefs,
+  savePrefs,
+  version: VERSION,
+  volumes: () => volumes,
+  running: () => running,
+  volDir,
+  writeVolume,
+  renderVolumes,
+  status: showStatus,
+  // Nouvelle configuration : terminaux, imprimantes et mémoire montrés de nouveau.
+  applied: () => {
+    termLabels();
+    memList.value = String(prefs.mem);
+    showPrinter();
+  },
+}));
+
 const termsList = $('terms-list');
+/** Terminaux locaux de la configuration (0C0-0C6 pour TK5). */
+function localTerminals() {
+  return devices().filter((d) => d.kind === 'terminal').map((d) => d.addr);
+}
+// Choix du nombre de terminaux montrés, avec leurs adresses.
+function termLabels() {
+  const list = localTerminals();
+  for (const o of termsList.options) {
+    const n = Number(o.value);
+    const a = list.slice(0, n).map(hex3);
+    o.textContent = a.length ? `${n} (${n > 2 ? `${a[0]}-${a[a.length - 1]}` : a.join(', ')})` : String(n);
+    o.disabled = list.length < n && n > 1;
+  }
+}
+termLabels();
 termsList.value = String(prefs.terms);
 termsList.addEventListener('change', () => { prefs.terms = Number(termsList.value); savePrefs(); });
 const iplInput = $('ipl-addr');
@@ -580,7 +619,7 @@ async function ipl() {
     showStatus('ipl.novol', { addr: prefs.ipl });
     return;
   }
-  terminals = Array.from({ length: prefs.terms }, (_, i) => 0x0C0 + i);
+  terminals = localTerminals().slice(0, prefs.terms);
   buildTabs();
   consoleText = '';
   consoleOut.textContent = '';
@@ -588,6 +627,7 @@ async function ipl() {
   showPrinter();
   running = true;
   volMachineChanged();
+  punchMachineChanged();
   setLight('lt-load', true);
   updateButtons();
   renderVolumes();
@@ -597,6 +637,7 @@ async function ipl() {
     mem: prefs.mem,
     ipl: addr,
     volumes: vols.map((v) => ({ addr: v.addr, file: v.file })),
+    devices: devices(),
     terminals,
     relay: prefs.relay ? prefs.relayUrl : null,
   });
@@ -777,6 +818,7 @@ function onWorkerMessage({ data }) {
       updateButtons();
       renderVolumes();
       volMachineChanged();
+      punchMachineChanged();
       sdStopped(data.reason);
       break;
     case 'closed':
@@ -939,6 +981,9 @@ function selectTab(name) {
   printerOut.hidden = name !== 'printer';
   $('key-bar').hidden = !(name.startsWith('t') && showKeys());
   $('full-button').hidden = !name.startsWith('t');
+  // Liste des imprimantes : seulement sous l'onglet Imprimante.
+  const ps = $('printer-select');
+  if (ps) ps.hidden = name !== 'printer';
   if (!name.startsWith('t') && isFull()) setFull(false);
   if (name.startsWith('t')) {
     drawScreen();
@@ -1010,8 +1055,12 @@ let lastJobPrinter = null; // imprimante de travaux (00E, 00F, 002) qui a reçu 
 function showPrinter() {
   const sel = printerSelect();
   if (currentTab === 'printer') unreadPrinters.delete(prefs.printer);
-  const units = [[0x00E, 'prt.a'], [0x00F, 'prt.b'], [0x002, 'prt.x'], [0x30E, 'prt.log'], [0x00D, 'prt.punch']];
-  sel.replaceChildren(...units.map(([a, k]) => new Option(`${unreadPrinters.has(a) ? '● ' : ''}${hex3(a)} ${t(k)}`, String(a))));
+  // Imprimantes et perforatrices de la configuration (rôles connus pour celles de TK5).
+  const known = { 0x00E: 'prt.a', 0x00F: 'prt.b', 0x002: 'prt.x', 0x30E: 'prt.log' };
+  const units = devices().filter((d) => d.kind === 'printer' || d.kind === 'punch')
+    .map((d) => [d.addr, d.kind === 'punch' ? 'prt.punch' : known[d.addr] ?? null, d.type]);
+  if (!units.some(([a]) => a === prefs.printer) && units.length) prefs.printer = units[0][0];
+  sel.replaceChildren(...units.map(([a, k, type]) => new Option(`${unreadPrinters.has(a) ? '● ' : ''}${hex3(a)} ${k ? t(k) : `${t('prt.printer')} ${type}`}`, String(a))));
   sel.value = String(prefs.printer);
   sel.hidden = currentTab !== 'printer';
   // Imprimante 2 (00F, travaux du gestionnaire de volumes) : police de l'IBM 1403.
@@ -1369,23 +1418,7 @@ $('paste-button').addEventListener('click', async () => {
 
 // ------------------------------------------------------------------ lecteur de cartes
 
-const SAMPLE_JCL = `//HELLO    JOB (ACCT),'HELLO WORLD',CLASS=A,MSGCLASS=A,
-//             MSGLEVEL=(1,1),USER=HERC01,PASSWORD=CUL8TR
-//* Compile, link and run a small assembler program.
-//STEP1    EXEC ASMFCLG
-//ASM.SYSPUNCH DD DUMMY
-//ASM.SYSIN DD *
-HELLO    CSECT
-         STM   14,12,12(13)
-         BALR  12,0
-         USING *,12
-         WTO   'HELLO FROM THE S/370 EMULATOR IN YOUR BROWSER'
-         LM    14,12,12(13)
-         SR    15,15
-         BR    14
-         END   HELLO
-/*
-//`;
+const SAMPLE_JCL = deckText('hello');
 
 const jcl = $('jcl');
 jcl.value = localStorage.getItem('ibmz-jcl') ?? SAMPLE_JCL;
@@ -1398,14 +1431,30 @@ $('jcl-file').addEventListener('change', async (e) => {
   e.target.value = '';
   if (f) jcl.value = await f.text();
 });
-// Aide-mémoire : un travail d'exemple va dans le lecteur de cartes, à relire avant de le soumettre.
+// Perforatrice (punch.js) : jeux de cartes, bibliothèque, soumission au lecteur 00C.
+languageListeners.push(initPunch({
+  running: () => running,
+  submit: (text) => worker?.postMessage({ type: 'submit', text }),
+  prefs,
+  savePrefs,
+}));
+function punchCount() {
+  const n = savedDeckCount();
+  $('punch-count').textContent = n ? t('punch.count', { n }) : '';
+}
+languageListeners.push(punchCount);
+punchCount();
+$('punch-open').addEventListener('click', () => {
+  openPunch();
+  setDrawer(false);
+});
+$('kp').addEventListener('close', punchCount);
+
+// Aide-mémoire : un travail d'exemple s'ouvre dans la perforatrice, à perforer et à soumettre.
 const memo = $('memo');
 languageListeners.push(initMemo(memo, (text) => {
-  jcl.value = text;
-  try { localStorage.setItem('ibmz-jcl', text); } catch { /* rien */ }
   memo.close();
-  showPanel('cards');
-  showStatus('memo.loaded');
+  openPunch({ text });
 }));
 $('memo-button').addEventListener('click', () => memo.showModal());
 

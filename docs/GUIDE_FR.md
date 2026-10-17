@@ -90,6 +90,12 @@ d'origine.
   des membres (machine arrêtée : directement dans le volume; MVS en marche : par des
   travaux, dont la sortie paraît dans la fenêtre); créer, renommer, supprimer et
   compresser des fichiers (MVS en marche); créer un volume vierge.
+- La **perforatrice** (menu **Perforatrice**, ou un exemple de l'aide-mémoire) : écrire un
+  jeu de cartes, le perforer, voir chaque carte et ses perforations, le garder dans la
+  bibliothèque (17 exemples en COBOL, C, assembleur, PL/I, FORTRAN) et le soumettre au
+  lecteur de cartes.
+- La **configuration Hercules** (menu **Machine**) : importer un fichier `.cnf` de Hercules
+  (unités et volumes placés à leurs adresses) ou exporter cette machine pour Hercules.
 - L'**aide-mémoire** (bouton **?** de la barre du haut) : commandes de l'opérateur et de
   TSO, volumes et fichiers de TK5, script de connexion, compilation en COBOL, C, assembleur, PL/I et
   FORTRAN (chaque travail s'ouvre dans le lecteur de cartes).

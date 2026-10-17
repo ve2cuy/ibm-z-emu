@@ -3,7 +3,8 @@
 // 200 ms. En Turbo, quand le processeur travaille, le temps simulé va aussi vite que le
 // fureteur le permet.
 //
-// Messages reçus : start {mem, ipl, volumes: [{addr, file}], terminals: [addr], relay},
+// Messages reçus : start {mem, ipl, volumes: [{addr, file}], devices: [{addr, kind, type}]
+// (sans les disques; vide : unités de TK5), terminals: [addr], relay},
 // relay {url} (relais TN3270 : adresse ws://…, ou nul),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
@@ -15,13 +16,17 @@
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=8b078ee1';
+import init, { Emulator } from './pkg/ibmz_web.js?v=047e721c';
+import { TK5_DEVICES } from './herc-conf.js?v=047e721c';
 
 const version = new URL(import.meta.url).search;
-const CONSOLE = 0x009;
-const READER = 0x00C;
-const PRINTERS = [0x00E, 0x00F, 0x002, 0x30E];
-const PUNCHES = [0x00D, 0x10D];
+// Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
+// importée) : fixées à chaque démarrage.
+let CONSOLE = 0x009;
+let READER = 0x00C;
+let PRINTERS = [0x00E, 0x00F, 0x002, 0x30E];
+let PUNCHES = [0x00D, 0x10D];
+let LOCAL_TERMS = [0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0C4, 0x0C5, 0x0C6];
 
 let ready = null;
 let emu = null;
@@ -99,19 +104,22 @@ async function start(cfg) {
     const disk = await openVolume(v.file);
     infos.push({ addr: v.addr, info: emu.attach_dasd(v.addr, disk) });
   }
+  const devices = cfg.devices?.length ? cfg.devices : TK5_DEVICES;
+  const of = (k) => devices.filter((d) => d.kind === k);
+  CONSOLE = of('console')[0]?.addr ?? 0x009;
+  READER = of('reader')[0]?.addr ?? 0x00C;
+  PRINTERS = of('printer').map((d) => d.addr);
+  PUNCHES = of('punch').map((d) => d.addr);
+  LOCAL_TERMS = of('terminal').map((d) => d.addr);
   emu.attach_console(CONSOLE);
-  emu.attach_reader(READER);
-  emu.attach_reader(0x10C);
-  emu.attach_printer(0x00E, 0x1403);
-  emu.attach_printer(0x00F, 0x1403);
-  emu.attach_printer(0x002, 0x3211);
-  emu.attach_printer(0x30E, 0x1403);
+  for (const d of of('reader')) emu.attach_reader(d.addr);
+  for (const d of of('printer')) emu.attach_printer(d.addr, parseInt(d.type, 16) || 0x1403);
   for (const p of PUNCHES) emu.attach_punch(p);
-  emu.attach_tape(0x480);
-  // Les sept terminaux locaux de TK5 (0C0-0C6) sont toujours branchés : VTAM les attend;
-  // la page n'en montre que le nombre choisi.
+  for (const d of of('tape')) emu.attach_tape(d.addr);
+  // Tous les terminaux locaux de la configuration sont branchés (VTAM les attend : 0C0-0C6
+  // pour TK5); la page n'en montre que le nombre choisi.
   terminals = cfg.terminals;
-  for (let a = 0x0C0; a <= 0x0C6; a++) emu.attach_terminal(a, 24, 80, 24, 80);
+  for (const a of LOCAL_TERMS) emu.attach_terminal(a, 24, 80, 24, 80);
   versions = new Map();
   if (!emu.ipl(cfg.ipl)) throw new Error(`IPL ${cfg.ipl.toString(16).toUpperCase()} — ${infos.map((v) => v.info).join(', ')} — ${emu.disk_error()}`);
   emu.set_ns_per_inst(1000 / mips);
@@ -170,8 +178,7 @@ function relayMsg(kind, conn, data) {
 
 /** Terminal libre pour un client : d'abord ceux que la page ne montre pas. */
 function freeTerminal() {
-  const all = [];
-  for (let a = 0x0C0; a <= 0x0C6; a++) all.push(a);
+  const all = [...LOCAL_TERMS];
   const order = [...all.filter((a) => !terminals.includes(a)), ...all.filter((a) => terminals.includes(a))];
   const used = new Set([...remotes.values()].map((r) => r.addr));
   return order.find((a) => !used.has(a));

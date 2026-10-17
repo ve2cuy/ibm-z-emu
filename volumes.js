@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=8b078ee1';
+import { t } from './i18n.js?v=047e721c';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=8b078ee1';
+} from './vol-jobs.js?v=047e721c';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
@@ -182,7 +182,7 @@ const E2A_SHOW = (() => {
   const punct = { 0x40: ' ', 0x4A: '¢', 0x4B: '.', 0x4C: '<', 0x4D: '(', 0x4E: '+', 0x4F: '|', 0x50: '&',
     0x5A: '!', 0x5B: '$', 0x5C: '*', 0x5D: ')', 0x5E: ';', 0x5F: '¬', 0x60: '-', 0x61: '/', 0x6A: '¦',
     0x6B: ',', 0x6C: '%', 0x6D: '_', 0x6E: '>', 0x6F: '?', 0x79: '`', 0x7A: ':', 0x7B: '#', 0x7C: '@',
-    0x7D: "'", 0x7E: '=', 0x7F: '"', 0xA1: '~', 0xBA: '[', 0xBB: ']', 0xC0: '{', 0xD0: '}', 0xE0: '\\' };
+    0x7D: "'", 0x7E: '=', 0x7F: '"', 0xA1: '~', 0xAD: '[', 0xBD: ']', 0xC0: '{', 0xD0: '}', 0xE0: '\\' };
   for (const [k, v] of Object.entries(punct)) out[k] = v;
   return out;
 })();

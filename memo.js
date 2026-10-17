@@ -3,165 +3,20 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=8b078ee1';
+import { t } from './i18n.js?v=047e721c';
+import { deckText } from './decks.js?v=047e721c';
 
-const COBOL_JOB = `//COBDEMO  JOB (ACCT),'COBOL DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//*
-//* COMPILE, LINK AND RUN A COBOL PROGRAM (ANS COBOL 68)
-//*
-//DEMO     EXEC COBUCLG
-//COB.SYSIN DD *
-       IDENTIFICATION DIVISION.
-       PROGRAM-ID. SQUARES.
-       ENVIRONMENT DIVISION.
-       CONFIGURATION SECTION.
-       SOURCE-COMPUTER. IBM-370.
-       OBJECT-COMPUTER. IBM-370.
-       SPECIAL-NAMES.
-           CONSOLE IS CNSL.
-       DATA DIVISION.
-       WORKING-STORAGE SECTION.
-       77  N           PIC 99.
-       77  SQ          PIC 9999.
-       01  LINE-OUT.
-           05  FILLER  PIC X(4) VALUE 'N = '.
-           05  N-OUT   PIC Z9.
-           05  FILLER  PIC X(9) VALUE '   N2 = '.
-           05  SQ-OUT  PIC ZZZ9.
-       PROCEDURE DIVISION.
-       MAIN-PARA.
-           DISPLAY 'HELLO FROM COBOL ON MVS 3.8J' UPON CNSL.
-           PERFORM SHOW-SQUARE VARYING N FROM 1 BY 1
-               UNTIL N GREATER THAN 10.
-           STOP RUN.
-       SHOW-SQUARE.
-           COMPUTE SQ = N * N.
-           MOVE N TO N-OUT.
-           MOVE SQ TO SQ-OUT.
-           DISPLAY LINE-OUT.
-/*
-//LKED.SYSLIB DD DSNAME=SYS1.COBLIB,DISP=SHR
-//            DD DSNAME=SYS1.LINKLIB,DISP=SHR
-//GO.SYSOUT DD SYSOUT=A
-//`;
+const COBOL_JOB = deckText('cobdemo');
 
-const C_JOB = `//CDEMO    JOB (ACCT),'C DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1),
-//             REGION=8M
-//*
-//* COMPILE, LINK AND RUN A C PROGRAM (GCC AND PDPCLIB)
-//*
-//DEMO     EXEC GCCCLG
-//COMP.SYSIN DD *
-#include <stdio.h>
+const C_JOB = deckText('cdemo');
 
-static unsigned long fact(int n)
-{
-    return n <= 1 ? 1 : n * fact(n - 1);
-}
+const ASM_JOB = deckText('asmdemo');
 
-int main(void)
-{
-    int i;
-    printf("Hello from C on MVS 3.8j\\n");
-    for (i = 1; i <= 10; i++)
-        printf("%2d! = %lu\\n", i, fact(i));
-    return 0;
-}
-/*
-//`;
+const PL1_JOB = deckText('pl1demo');
 
-const ASM_JOB = `//ASMDEMO  JOB (ACCT),'ASM DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//*
-//* ASSEMBLE, LINK AND RUN AN ASSEMBLER PROGRAM (ASSEMBLER F)
-//*
-//DEMO     EXEC ASMFCLG
-//ASM.SYSPUNCH DD DUMMY
-//ASM.SYSIN DD *
-SUM      CSECT
-         STM   14,12,12(13)       SAVE THE CALLER'S REGISTERS
-         BALR  12,0               BASE REGISTER
-         USING *,12
-         SR    3,3                R3 = SUM
-         LA    4,1                R4 = 1, 2, ... 10
-LOOP     AR    3,4
-         LA    4,1(,4)
-         C     4,=F'10'
-         BNH   LOOP
-         CVD   3,DW               SUM IN PACKED DECIMAL
-         MVC   RESULT,PATTERN
-         ED    RESULT,DW+6        EDITED INTO THE MESSAGE
-         WTO   MF=(E,WTOLIST)     MESSAGE ON THE CONSOLE
-         LM    14,12,12(13)
-         SR    15,15              RETURN CODE 0
-         BR    14
-DW       DS    D
-PATTERN  DC    X'40202120'
-WTOLIST  DC    AL2(WTOEND-WTOLIST),AL2(0)
-         DC    C'SUM OF 1 TO 10 ='
-RESULT   DS    CL4
-WTOEND   EQU   *
-         END   SUM
-/*
-//`;
+const FORTRAN_JOB = deckText('fortdemo');
 
-const PL1_JOB = `//PL1DEMO  JOB (ACCT),'PL/I DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//*
-//* COMPILE, LINK AND RUN A PL/I PROGRAM (PL/I F)
-//*
-//DEMO     EXEC PL1LFCLG
-//PL1L.SYSLIN DD UNIT=SYSDA
-//PL1L.SYSIN DD *
- SQUARES: PROC OPTIONS(MAIN);
-   DCL I FIXED BIN(31);
-   PUT FILE(SYSPRINT) SKIP LIST('HELLO FROM PL/I ON MVS 3.8J');
-   DO I = 1 TO 10;
-     PUT FILE(SYSPRINT) SKIP EDIT('N = ', I, '   N**2 = ', I * I)
-                  (A, F(2), A, F(4));
-   END;
- END SQUARES;
-/*
-//LKED.SYSLIB DD DSN=SYS1.PL1LIB,DISP=SHR
-//GO.STEPLIB DD DSN=SYS1.PL1LIB,DISP=SHR
-//`;
-
-const FORTRAN_JOB = `//FORTDEMO JOB (ACCT),'FORTRAN DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
-//*
-//* COMPILE, LINK AND RUN A FORTRAN PROGRAM (FORTRAN IV G)
-//*
-//DEMO     EXEC FORTGCLG,REGION.FORT=1024K
-//FORT.SYSLIN DD UNIT=SYSDA
-//FORT.SYSIN DD *
-C     SQUARES IN FORTRAN IV
-      WRITE (6,10)
-   10 FORMAT (' HELLO FROM FORTRAN ON MVS 3.8J')
-      DO 20 I = 1, 10
-      J = I * I
-      WRITE (6,30) I, J
-   20 CONTINUE
-   30 FORMAT (' N = ', I2, '   N**2 = ', I4)
-      STOP
-      END
-/*
-//`;
-
-const LOGON_JOB = `//MYLOGON  JOB (ACCT),'MYLOGON',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1),
-//             USER=HERC01,PASSWORD=CUL8TR
-//*
-//* STORE THE LOGON SCRIPT HERC01.CMDPROC(MYLOGON)
-//*
-//UPDATE   EXEC PGM=IEBUPDTE,PARM=NEW
-//SYSPRINT DD SYSOUT=A
-//SYSUT2   DD DISP=SHR,DSN=HERC01.CMDPROC
-//SYSIN    DD DATA
-./ ADD NAME=MYLOGON,LIST=ALL
-PROC 0
-CONTROL NOMSG NOLIST
-WRITE HELLO &SYSUID - IT IS &SYSTIME ON &SYSDATE
-PROFILE PREFIX(&SYSUID) MSGID
-WRITE DATA SET PREFIX IS &SYSUID
-EXIT CODE(0)
-./ ENDUP
-/*`;
+const LOGON_JOB = deckText('mylogon');
 
 const DASD_DISPLAY = `D U,DASD,ONLINE
  IEE450I 14.01.05 UNIT STATUS
