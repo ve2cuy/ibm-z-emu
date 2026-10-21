@@ -83,6 +83,22 @@ To start over, the **Repository** menu downloads the original volumes again.
   edit, create, import, rename or delete members (machine stopped: directly in the
   volume; MVS running: through jobs whose output shows in the window); create, rename,
   delete and compress data sets (MVS running); create a blank volume.
+- **Browse Hercules volumes kept on the PC** (the **Open from disk…** button of the volume
+  manager): choose one or more images (`.cckd`, `.ckd`…). They are read in place,
+  **read-only** and without copying them into the browser, and they are not attached to
+  the machine (readable even while MVS runs). Libraries (PDS) and sequential data sets are
+  shown; z/OS PDSE and HFS data sets are flagged (`PO-E`, `HFS`) but not read, nor are
+  VSAM data sets. The choice lasts for the session (make it again after reloading the
+  page).
+- **With their shadow files**: when Hercules is configured with `sf=` (for example
+  `0A81 3390 cckd/zares1.cckd sf=shadow/zares1_*`), it never writes into the image: the
+  changed tracks go into shadow files (`shadow/zares1_1`, then `_2`…). To see the volume
+  **with** these changes (data sets created under Hercules, for example), choose the
+  shadow files too, together with the images or afterwards: the page recognizes them by
+  their header, files each one under its image by name (`zares1_1` under `zares1.cckd`)
+  and reads them in order (the last shadow first, the image last). The list then shows,
+  for example, "ZARES1 (zares1.cckd + 1 shadow file(s))". **Stop Hercules first**: while
+  it runs, it keeps the shadow files locked.
 - The **card punch** (**Card punch** menu, or an example of the cheat sheet): write a deck of
   cards, punch it, look at each card and its holes, keep it in the library (17 examples in
   COBOL, C, assembler, PL/I, FORTRAN) and submit it to the card reader.

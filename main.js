@@ -2,14 +2,14 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=39d9494d';
-import { initMemo } from './memo.js?v=39d9494d';
-import { deckText } from './decks.js?v=39d9494d';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=39d9494d';
-import { devices, initHerc } from './herc-ui.js?v=39d9494d';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=39d9494d';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=c0ef7800';
+import { initMemo } from './memo.js?v=c0ef7800';
+import { deckText } from './decks.js?v=c0ef7800';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c0ef7800';
+import { devices, initHerc } from './herc-ui.js?v=c0ef7800';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c0ef7800';
 
-const VERSION = '0.1.7';
+const VERSION = '0.1.8';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);

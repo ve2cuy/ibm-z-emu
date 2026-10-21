@@ -156,6 +156,11 @@ export class VolumeImage {
     [Symbol.dispose](): void;
     call(op: string, dsn: string, member: string, limit: number): string;
     constructor(disk: any);
+    /**
+     * Pose un fichier d'ombre de Hercules (`CKD_S370`) sur l'image, dans l'ordre de
+     * création : le volume est ensuite vu tel que z/OS le voit, en lecture seule.
+     */
+    push_shadow(disk: any): void;
     raw(dsn: string, member: string, limit: number): Uint8Array;
     write(op: string, dsn: string, member: string, text: string, to: string, user: string, changed: number, stamp: Uint16Array, bin: Uint8Array): string;
 }
@@ -228,6 +233,7 @@ export interface InitOutput {
     readonly emulator_waiting: (a: number) => number;
     readonly volumeimage_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
     readonly volumeimage_new: (a: any) => [number, number, number];
+    readonly volumeimage_push_shadow: (a: number, b: any) => [number, number];
     readonly volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;

@@ -49,6 +49,7 @@ export const emulator_vol_write: (a: number) => [number, number, number, number]
 export const emulator_waiting: (a: number) => number;
 export const volumeimage_call: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
 export const volumeimage_new: (a: any) => [number, number, number];
+export const volumeimage_push_shadow: (a: number, b: any) => [number, number];
 export const volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;

@@ -550,6 +550,17 @@ export class VolumeImage {
         return this;
     }
     /**
+     * Pose un fichier d'ombre de Hercules (`CKD_S370`) sur l'image, dans l'ordre de
+     * création : le volume est ensuite vu tel que z/OS le voit, en lecture seule.
+     * @param {any} disk
+     */
+    push_shadow(disk) {
+        const ret = wasm.volumeimage_push_shadow(this.__wbg_ptr, disk);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * @param {string} dsn
      * @param {string} member
      * @param {number} limit
@@ -674,22 +685,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_da9f10623a666165: function(arg0) {
+        __wbg_flush_e4091acdd049b010: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_67a5133781f49557: function() {
+        __wbg_now_02e8f60794966e30: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_79227500f5a5d09d: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_a778235c7a89edb9: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_b24581d8240102e8: function(arg0) {
+        __wbg_size_5be931b64a11a98d: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_5cbb49765381399f: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_75d0d0a6d5379f1e: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

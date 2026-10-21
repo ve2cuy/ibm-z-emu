@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=39d9494d">
+  <link rel="stylesheet" href="style.css?v=c0ef7800">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -472,6 +472,8 @@
       <label class="vm-field grow"><span data-i18n="vm.filter">Filter</span>
         <input id="vm-filter" type="search" spellcheck="false" autocomplete="off" class="mono" placeholder="HERC01.*" data-i18n-placeholder="vm.filter.ph"></label>
       <button id="vm-newvol-button" type="button" class="small-button secondary" data-i18n="vm.nv.button">New volume…</button>
+      <label class="button secondary small-button" title="Browse volume images from this computer, read-only and without copying them" data-i18n-title="vm.ext.title"><span data-i18n="vm.ext.button">Open from disk…</span>
+        <input id="vm-ext-file" type="file" multiple hidden></label>
       <button id="vm-refresh" type="button" class="icon-button" title="Read again" data-i18n-title="vm.refresh" aria-label="Read again" data-i18n-aria="vm.refresh">
         <svg class="icon"><use href="#i-refresh"/></svg></button>
     </div>
@@ -615,6 +617,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=39d9494d"></script>
+  <script type="module" src="main.js?v=c0ef7800"></script>
 </body>
 </html>

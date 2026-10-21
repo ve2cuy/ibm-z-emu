@@ -90,6 +90,23 @@ d'origine.
   des membres (machine arrêtée : directement dans le volume; MVS en marche : par des
   travaux, dont la sortie paraît dans la fenêtre); créer, renommer, supprimer et
   compresser des fichiers (MVS en marche); créer un volume vierge.
+- **Parcourir des volumes de Hercules restés sur le PC** (bouton **Ouvrir du disque…** du
+  gestionnaire de volumes) : choisir une ou plusieurs images (`.cckd`, `.ckd`…). Elles
+  sont lues sur place, en **lecture seule** et sans copie dans le fureteur, et ne sont pas
+  branchées sur la machine (lisibles même MVS en marche). Les bibliothèques (PDS) et les
+  fichiers séquentiels s'affichent; les PDSE et HFS de z/OS sont signalés (`PO-E`, `HFS`)
+  mais pas lus, ni les fichiers VSAM. Le choix vaut pour la session (le refaire après un
+  rechargement de la page).
+- **Avec leurs fichiers d'ombre** : quand Hercules est configuré avec `sf=` (par exemple
+  `0A81 3390 cckd/zares1.cckd sf=shadow/zares1_*`), il n'écrit jamais dans l'image : les
+  pistes modifiées vont dans des fichiers d'ombre (`shadow/zares1_1`, puis `_2`…). Pour
+  voir le volume **avec** ces modifications (les fichiers créés sous Hercules, par
+  exemple), choisir aussi les ombres, dans le même choix que les images ou après coup :
+  la page les reconnaît à leur en-tête, les range sous leur image d'après le nom
+  (`zares1_1` sous `zares1.cckd`) et les lit dans l'ordre (la dernière ombre d'abord,
+  l'image en dernier). La liste montre alors par exemple
+  « ZARES1 (zares1.cckd + 1 fichier(s) d'ombre) ». **Arrêter Hercules d'abord** : tant
+  qu'il tourne, il garde les ombres verrouillées.
 - La **perforatrice** (menu **Perforatrice**, ou un exemple de l'aide-mémoire) : écrire un
   jeu de cartes, le perforer, voir chaque carte et ses perforations, le garder dans la
   bibliothèque (17 exemples en COBOL, C, assembleur, PL/I, FORTRAN) et le soumettre au

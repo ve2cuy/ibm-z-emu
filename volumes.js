@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=39d9494d';
+import { t } from './i18n.js?v=c0ef7800';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=39d9494d';
+} from './vol-jobs.js?v=c0ef7800';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
@@ -17,6 +17,10 @@ const HIDDEN = /^(PAGE|SPOOL)/;    // volumes de pagination et de spool : masqu�
 let ctx = null;          // { volumes(), running(), worker(), version, prefs, savePrefs, submit }
 let jobs = null;         // JobTracker (MVS en marche)
 const confirmed = new Set(); // volumes déjà acceptés pour l'écriture directe (cette session)
+// Volumes ouverts du disque (File, lecture seule, cette session) :
+// {file: 'ext:…', name, blob, shadows: [File]} (ombres de Hercules dans l'ordre de création).
+// Pas branchés sur la machine : toujours lus par vol-worker.js, sans copie.
+const external = [];
 let volWorker = null;
 let callId = 0;
 const pending = new Map();
@@ -54,13 +58,18 @@ export function volSettle(msg) {
 
 function call(op, args = {}) {
   const vol = state.vols.find((v) => v.file === (args.file ?? state.file));
+  const blob = args.blob ?? vol?.blob;
   const id = ++callId;
   const msg = { ...args, id, op, dsn: args.dsn ?? '', member: args.member ?? '', limit: args.limit ?? 0 };
   delete msg.file;
   delete msg.addr;
+  if (blob) {
+    msg.blob = blob;
+    msg.shadows = args.shadows ?? vol?.shadows ?? [];
+  }
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    if (ctx.running()) {
+    if (ctx.running() && !blob) {
       ctx.worker().postMessage({ type: 'vol', addr: vol?.addr ?? args.addr, ...msg });
     } else {
       volWorker ??= new Worker(new URL(`./vol-worker.js${ctx.version}`, import.meta.url), { type: 'module' });
@@ -232,7 +241,7 @@ function renderSummary() {
   $('vm-summary').textContent = v
     ? t('vm.summary', { volser: v.volser, type: v.devtype, cyls: v.cyls, n: v.datasets, free: v.freeTracks, dscbs: v.freeDscbs })
     : '';
-  $('vm-mode').textContent = t(ctx.running() ? 'vm.mode.running' : 'vm.mode.stopped');
+  $('vm-mode').textContent = t(vol()?.blob ? 'vm.mode.external' : ctx.running() ? 'vm.mode.running' : 'vm.mode.stopped');
 }
 
 function renderDatasets() {
@@ -241,7 +250,7 @@ function renderDatasets() {
   const list = state.datasets.filter((d) => matches(d.name));
   for (const d of list) {
     const acts = [];
-    if (ctx.running() && !d.dsorg.startsWith('VS')) {
+    if (ctx.running() && !vol()?.blob && !d.dsorg.startsWith('VS')) {
       if (d.dsorg === 'PO') acts.push(action('archive', t('vm.compress'), () => compress(d.name)));
       acts.push(action('pencil', t('vm.rename'), () => renameDataset(d)));
       acts.push(action('trash', t('vm.delete'), () => deleteDataset(d)));
@@ -288,7 +297,7 @@ function renderViewer() {
   for (const b of document.querySelectorAll('#vm-viewer [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode));
   $('vm-edit').hidden = !editable() || !textual(v.dataset) || v.truncated;
   $('vm-view-import').hidden = !editable() || v.dataset.dsorg !== 'PS' || !textual(v.dataset);
-  $('vm-view-binimport').hidden = ctx.running() || !vol()?.info || v.dataset.dsorg !== 'PS' || !v.dataset.recfm.startsWith('F');
+  $('vm-view-binimport').hidden = ctx.running() || !vol()?.info || !!vol().blob || v.dataset.dsorg !== 'PS' || !v.dataset.recfm.startsWith('F');
   $('vm-view-info').textContent = t(v.truncated ? 'vm.view.truncated' : 'vm.view.info', {
     records: v.records, bytes: v.bytes, recfm: v.dataset.recfm, lrecl: v.dataset.lrecl,
   });
@@ -306,7 +315,7 @@ function textual(d) {
 
 /** Écriture possible : directe (machine arrêtée) ou par travaux (MVS en marche, volume MVS). */
 function editable() {
-  return !!vol()?.info && (!ctx.running() || !!jobs);
+  return !!vol()?.info && !vol().blob && (!ctx.running() || !!jobs);
 }
 
 /** MVS en marche : les travaux passent par des cartes de 80 colonnes (F, LRECL 80 au plus). */
@@ -742,7 +751,7 @@ function renderTools() {
   const run = ctx.running();
   $('vm-mem-tools').hidden = !members || !editable();
   $('vm-mem-compress').hidden = !run;
-  $('vm-ds-tools').hidden = !datasets || !vol()?.info;
+  $('vm-ds-tools').hidden = !datasets || !vol()?.info || !!vol().blob;
   $('vm-ds-new').hidden = !run;
   $('vm-ds-catalog').hidden = !run;
   $('vm-ds-hint').hidden = run;
@@ -804,7 +813,8 @@ async function openDataset(d) {
     return;
   }
   if (d.dsorg !== 'PS') {
-    status(t('vm.unsupported', { dsorg: d.dsorg || '?' }), true);
+    const pdse = d.dsorg === 'PO-E' || d.dsorg === 'HFS';
+    status(t(pdse ? 'vm.unsupported.pdse' : 'vm.unsupported', { dsorg: d.dsorg || '?' }), true);
     return;
   }
   state.dataset = d;
@@ -854,15 +864,82 @@ async function fillVolumes() {
       list.push({ ...v, info: null });
     }
   }
+  for (const v of external) {
+    try {
+      list.push({ ...v, info: await call('info', { blob: v.blob, shadows: v.shadows }) });
+    } catch {
+      list.push({ ...v, info: null });
+    }
+  }
   state.vols = list;
   const sel = $('vm-volume');
   sel.replaceChildren();
+  const group = external.length ? el('optgroup') : null;
+  if (group) group.label = t('vm.ext.group');
   for (const v of list) {
-    const o = el('option', null, v.info ? `${v.info.volser}  (${v.file})` : v.file);
+    const label = v.shadows?.length ? `${v.name} ${t('vm.ext.shadows', { n: v.shadows.length })}` : v.name ?? v.file;
+    const o = el('option', null, v.info ? `${v.info.volser}  (${label})` : label);
     o.value = v.file;
-    sel.append(o);
+    (v.blob ? group : sel).append(o);
   }
+  if (group) sel.append(group);
   return list;
+}
+
+/** Nom sans extension (après le dernier point), en minuscules. */
+function stem(name) {
+  const i = name.lastIndexOf('.');
+  return (i > 0 ? name.slice(0, i) : name).toLowerCase();
+}
+
+/**
+ * Ombre de Hercules (en-tête CKD_S370) : nom de son image et numéro. Le gabarit sf= de
+ * Hercules remplace par le numéro le caractère avant le dernier point (ou le dernier
+ * caractère) : zares1_1 -> zares1, linux1_2.dsk -> linux1.
+ */
+async function shadowOf(f) {
+  const id = await f.slice(0, 8).text().catch(() => '');
+  if (id !== 'CKD_S370') return null;
+  const s = stem(f.name);
+  const n = Number(s.slice(-1));
+  return { base: s.slice(0, -1).replace(/[_.-]$/, ''), n: Number.isNaN(n) ? 0 : n };
+}
+
+/** Volumes choisis sur le disque : ajoutés à la liste (lecture seule), le premier ouvert.
+ *  Les ombres choisies avec (ou après) leur image s'y posent, dans l'ordre de leur numéro. */
+async function openExternal(files) {
+  let first = null;
+  const shadows = [];
+  for (const f of files) {
+    const sh = await shadowOf(f);
+    if (sh) {
+      shadows.push({ f, ...sh });
+      continue;
+    }
+    const file = `ext:${f.name}:${f.size}`;
+    if (!external.some((v) => v.file === file)) external.push({ file, name: f.name, blob: f, shadows: [] });
+    first ??= file;
+  }
+  const orphans = [];
+  for (const s of shadows.sort((a, b) => a.n - b.n)) {
+    const v = external.find((x) => stem(x.name) === s.base);
+    if (!v) {
+      orphans.push(s.f.name);
+      continue;
+    }
+    if (!v.shadows.some((x) => x.name === s.f.name && x.size === s.f.size)) {
+      v.shadows = [...v.shadows.filter((x) => x.name !== s.f.name), s.f];
+      v.shadows.sort((a, b) => Number(stem(a.name).slice(-1)) - Number(stem(b.name).slice(-1)));
+    }
+    first ??= v.file;
+  }
+  status(t('vm.loading'));
+  await fillVolumes();
+  if (first) {
+    $('vm-volume').value = first;
+    await openVolume(first);
+  }
+  if (orphans.length) status(t('vm.ext.orphan', { names: orphans.join(', ') }), true);
 }
 
 /** Ouvre la fenêtre. */
@@ -964,6 +1041,11 @@ export function initVolumes(context) {
   }
   $('vm-ds-new').addEventListener('click', () => guard(newDataset));
   $('vm-newvol-button').addEventListener('click', () => guard(newVolume));
+  $('vm-ext-file').addEventListener('change', (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) guard(() => openExternal(files));
+  });
   $('vm-nv-model').addEventListener('change', fillAddresses);
   $('vm-nv-ok').addEventListener('click', () => guard(submitNewVolume));
   $('vm-nv-cancel').addEventListener('click', () => $('vm-newvol').close());
