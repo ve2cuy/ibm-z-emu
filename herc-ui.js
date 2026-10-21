@@ -6,8 +6,8 @@
 // l'import, un volume déjà présent sous le même nom à une autre adresse est renommé; un
 // volume absent est demandé (fichiers choisis par l'usager, copiés sous le bon nom).
 
-import { t } from './i18n.js?v=c0ef7800';
-import { TK5_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=c0ef7800';
+import { t } from './i18n.js?v=2c6c4a60';
+import { TK5_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=2c6c4a60';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;

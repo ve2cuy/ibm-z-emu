@@ -836,53 +836,6 @@ button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error)
 .files-table td.size { text-align: right; }
 .files-table tr.system td { color: var(--muted); }
 .files-table label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
-/* Imprimante : papier en continu (bandes vertes et blanches, perforations d'entraînement). */
-.printer { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
-.printer-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-.printer-head .icon { color: var(--accent-ink); }
-.printer-head .spacer { flex: 1; }
-.printer-count { color: var(--muted); font-size: 0.82rem; }
-.printer-feed { max-height: 420px; overflow: auto; padding: 14px 0; background: var(--surface-2); }
-.sheet {
-  --lh: 17px;          /* une ligne imprimée */
-  --band: calc(var(--lh) * 3);
-  --tractor: 30px;     /* bande des perforations */
-  position: relative;
-  width: max-content;
-  min-width: calc(80ch + 2 * var(--tractor) + 24px);
-  margin: 0 auto;
-  padding: 0 calc(var(--tractor) + 12px);
-  background:
-    /* trous d'entraînement (tous les 1/2 pouce), à gauche puis à droite */
-    radial-gradient(circle at 15px calc(var(--band) / 2), #9aa39a 0 3.5px, #c9cfc9 4px 5px, transparent 5.5px) left top / var(--tractor) var(--band) repeat-y,
-    radial-gradient(circle at 15px calc(var(--band) / 2), #9aa39a 0 3.5px, #c9cfc9 4px 5px, transparent 5.5px) right top / var(--tractor) var(--band) repeat-y,
-    /* bandes blanches et vertes de trois lignes */
-    repeating-linear-gradient(to bottom, #fbfbf6 0 var(--band), #dcebd9 var(--band) calc(2 * var(--band)));
-  color: #262a2e;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
-}
-/* Prédécoupes entre la bande des perforations et la feuille. */
-.sheet::before, .sheet::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed #b9c4b8;
-}
-.sheet::before { left: var(--tractor); }
-.sheet::after { right: var(--tractor); }
-/* Pliure perforée entre deux feuilles (toutes les 66 lignes, ou saut de page). */
-.sheet + .sheet { border-top: 2px dotted #9aa39a; }
-.sheet pre {
-  margin: 0;
-  padding: 0 0 var(--band);
-  min-height: calc(2 * var(--band));
-  font: 15px/var(--lh) "Courier New", Courier, ui-monospace, monospace;
-  letter-spacing: 0.02em;
-  white-space: pre;
-  text-shadow: 0 0 0.6px rgb(38 42 46 / 0.6); /* encre du ruban, un peu baveuse */
-}
 /* Aide-mémoire : commandes par sujet; un clic tape la commande. */
 .cheat-sections { max-height: 58vh; overflow: auto; padding-right: 4px; }
 .cheat-sections h3 { margin: 12px 0 4px; font-size: 0.92rem; color: var(--accent-ink); }
@@ -1465,13 +1418,35 @@ a.icon-button { display: inline-flex; align-items: center; justify-content: cent
   font: var(--term-font-size, 16px)/1.3 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
   white-space: pre;
 }
+/* Imprimante : papier en continu (images/paper-*.png, tirées de la photo d'un listage :
+   bandes bleues et grises d'un demi-pouce, perforations d'entraînement). Chaque feuille
+   (saut de page) est un bloc qui porte son papier : le texte et le papier défilent ensemble. */
 .printer-out {
+  --lh: calc(var(--term-font-size, 16px) * 1.3); /* une ligne imprimée; trois par bande */
+  --tile: calc(var(--lh) * 6);                     /* deux bandes, deux perforations */
+  --margin: calc(var(--tile) * 104 / 147);         /* bande des perforations (proportions de l'image) */
   height: min(70dvh, 46rem);
+  padding: 12px;
   border-radius: 6px;
-  background: #fbfbf4;
-  background-image: repeating-linear-gradient(#fbfbf4 0 2.6em, #e6f2e4 2.6em 5.2em);
+  background: #55595c;
+  line-height: var(--lh);
   color: #1d1d1d;
 }
+.printer-out .page {
+  box-sizing: border-box;
+  width: max-content;
+  min-width: calc(132ch + 2 * var(--margin) + 2ch);
+  min-height: var(--tile);
+  margin: 0 auto 10px;
+  padding: var(--lh) calc(var(--margin) + 1ch);
+  background:
+    url(images/paper-left.png) left top / var(--margin) var(--tile) repeat-y,
+    url(images/paper-right.png) right top / var(--margin) var(--tile) repeat-y,
+    url(images/paper-band.png) left top / 100% var(--tile) repeat-y,
+    #e2e6e8;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+}
+.printer-out .page:last-child { margin-bottom: 0; }
 .console-in {
   display: flex;
   align-items: center;

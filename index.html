@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=c0ef7800">
+  <link rel="stylesheet" href="style.css?v=2c6c4a60">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -349,7 +349,7 @@
           <canvas id="screen3270" class="screen3270" tabindex="0" hidden aria-label="3270 terminal" data-i18n-aria="term.aria"></canvas>
           <button id="full-exit" type="button" class="icon-button full-exit" title="Leave full screen" data-i18n-title="term.full.exit" aria-label="Leave full screen" data-i18n-aria="term.full.exit" hidden>
             <svg class="icon"><use href="#i-shrink"/></svg></button>
-          <pre id="printer-out" class="printer-out" hidden></pre>
+          <div id="printer-out" class="printer-out" hidden></div>
           <div id="overlay" class="overlay">
             <div class="js-required" role="alert">
               <p lang="en"><strong>The emulator cannot start: this browser blocks the page's scripts.</strong>
@@ -617,6 +617,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=c0ef7800"></script>
+  <script type="module" src="main.js?v=2c6c4a60"></script>
 </body>
 </html>

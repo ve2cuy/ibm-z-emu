@@ -2,14 +2,14 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=c0ef7800';
-import { initMemo } from './memo.js?v=c0ef7800';
-import { deckText } from './decks.js?v=c0ef7800';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c0ef7800';
-import { devices, initHerc } from './herc-ui.js?v=c0ef7800';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c0ef7800';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=2c6c4a60';
+import { initMemo } from './memo.js?v=2c6c4a60';
+import { deckText } from './decks.js?v=2c6c4a60';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=2c6c4a60';
+import { devices, initHerc } from './herc-ui.js?v=2c6c4a60';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=2c6c4a60';
 
-const VERSION = '0.1.8';
+const VERSION = '0.1.9';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1067,7 +1067,21 @@ function showPrinter() {
   printerOut.classList.toggle('font-1403', prefs.printer === 0x00F);
   const text = printers[prefs.printer] ?? '';
   const atEnd = printerOut.scrollTop + printerOut.clientHeight >= printerOut.scrollHeight - 30;
-  printerOut.textContent = text.replace(/\f/g, '\n' + '─'.repeat(60) + '\n') || t('prt.empty');
+  // Une feuille par saut de page (le saut en tête de sortie ne laisse pas de feuille vide);
+  // seules les feuilles changées sont refaites.
+  const pages = text.split('\f').filter((p) => p !== '');
+  if (!pages.length) pages.push(text ? '' : t('prt.empty'));
+  const sheets = printerOut.children;
+  pages.forEach((p, i) => {
+    let sheet = sheets[i];
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.className = 'page';
+      printerOut.append(sheet);
+    }
+    if (sheet.textContent !== p) sheet.textContent = p;
+  });
+  while (sheets.length > pages.length) sheets[sheets.length - 1].remove();
   if (atEnd) printerOut.scrollTop = printerOut.scrollHeight;
 }
 languageListeners.push(showPrinter);
