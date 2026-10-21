@@ -3,6 +3,8 @@
 export const memory: WebAssembly.Memory;
 export const __wbg_emulator_free: (a: number, b: number) => void;
 export const __wbg_volumeimage_free: (a: number, b: number) => void;
+export const bench_names: () => [number, number];
+export const bench_run: (a: number, b: number) => number;
 export const blank_volume: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const emulator_attach_console: (a: number, b: number) => void;
 export const emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
@@ -50,8 +52,8 @@ export const volumeimage_new: (a: any) => [number, number, number];
 export const volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 export const __externref_table_dealloc: (a: number) => void;
-export const __wbindgen_free: (a: number, b: number, c: number) => void;
 export const __wbindgen_start: () => void;

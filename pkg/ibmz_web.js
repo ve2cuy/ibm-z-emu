@@ -618,6 +618,35 @@ export class VolumeImage {
 if (Symbol.dispose) VolumeImage.prototype[Symbol.dispose] = VolumeImage.prototype.free;
 
 /**
+ * Noms des boucles de mesure du processeur (`s370::bench`), une par ligne.
+ * @returns {string}
+ */
+export function bench_names() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.bench_names();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * Exécute la boucle de mesure `k` pendant `iters` tours : nombre d'instructions (le
+ * temps est pris par l'appelant, `tools/chrome/bench_check.py`).
+ * @param {number} k
+ * @param {number} iters
+ * @returns {number}
+ */
+export function bench_run(k, iters) {
+    const ret = wasm.bench_run(k, iters);
+    return ret;
+}
+
+/**
  * Volume vierge (VOL1, VTOC) : image CCKD de `cyls` cylindres pour 3390, 3380 ou 3350.
  * @param {number} devtype
  * @param {number} cyls
@@ -645,22 +674,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_72c66a80e7fae598: function(arg0) {
+        __wbg_flush_da9f10623a666165: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_88804ae96bef8797: function() {
+        __wbg_now_67a5133781f49557: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_101b6ee1b167fadb: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_79227500f5a5d09d: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_02dad982cb2ee196: function(arg0) {
+        __wbg_size_b24581d8240102e8: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_8474efcf6e0a9c82: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_5cbb49765381399f: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

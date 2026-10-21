@@ -161,6 +161,17 @@ export class VolumeImage {
 }
 
 /**
+ * Noms des boucles de mesure du processeur (`s370::bench`), une par ligne.
+ */
+export function bench_names(): string;
+
+/**
+ * Exécute la boucle de mesure `k` pendant `iters` tours : nombre d'instructions (le
+ * temps est pris par l'appelant, `tools/chrome/bench_check.py`).
+ */
+export function bench_run(k: number, iters: number): number;
+
+/**
  * Volume vierge (VOL1, VTOC) : image CCKD de `cyls` cylindres pour 3390, 3380 ou 3350.
  */
 export function blank_volume(devtype: number, cyls: number, volser: string): Uint8Array;
@@ -171,6 +182,8 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_emulator_free: (a: number, b: number) => void;
     readonly __wbg_volumeimage_free: (a: number, b: number) => void;
+    readonly bench_names: () => [number, number];
+    readonly bench_run: (a: number, b: number) => number;
     readonly blank_volume: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly emulator_attach_console: (a: number, b: number) => void;
     readonly emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
@@ -218,10 +231,10 @@ export interface InitOutput {
     readonly volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

@@ -16,8 +16,8 @@
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=047e721c';
-import { TK5_DEVICES } from './herc-conf.js?v=047e721c';
+import init, { Emulator } from './pkg/ibmz_web.js?v=39d9494d';
+import { TK5_DEVICES } from './herc-conf.js?v=39d9494d';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
