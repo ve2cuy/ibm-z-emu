@@ -1,6 +1,12 @@
 /* @ts-self-types="./ibmz_web.d.ts" */
 
 export class Emulator {
+    static __wrap(ptr) {
+        const obj = Object.create(Emulator.prototype);
+        obj.__wbg_ptr = ptr;
+        EmulatorFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -10,6 +16,22 @@ export class Emulator {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_emulator_free(ptr, 0);
+    }
+    /**
+     * « s370 » ou « z ».
+     * @returns {string}
+     */
+    arch() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.emulator_arch(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
      * @param {number} addr
@@ -94,13 +116,17 @@ export class Emulator {
         }
     }
     /**
+     * Ligne de l'opérateur. Faux si le système ne la reçoit pas (z/Architecture : le
+     * système n'accepte pas encore les commandes).
      * @param {number} addr
      * @param {string} line
+     * @returns {boolean}
      */
     console_type(addr, line) {
         const ptr0 = passStringToWasm0(line, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.emulator_console_type(this.__wbg_ptr, addr, ptr0, len0);
+        const ret = wasm.emulator_console_type(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
     }
     /**
      * Commandes de Hercules reçues par DIAGNOSE X'008' (une par ligne), depuis le dernier
@@ -165,7 +191,18 @@ export class Emulator {
         return ret !== 0;
     }
     /**
-     * `mem_mb` : mémoire centrale (Mo, 1 à 16); `unix_secs` : heure de l'horloge TOD.
+     * Machine z/Architecture : `mem_mb` de 16 Mo à 2 Go.
+     * @param {number} mem_mb
+     * @param {number} unix_secs
+     * @returns {Emulator}
+     */
+    static newZ(mem_mb, unix_secs) {
+        const ret = wasm.emulator_newZ(mem_mb, unix_secs);
+        return Emulator.__wrap(ret);
+    }
+    /**
+     * Machine S/370 : `mem_mb` : mémoire centrale (Mo, 1 à 16); `unix_secs` : heure de
+     * l'horloge TOD.
      * @param {number} mem_mb
      * @param {number} unix_secs
      */
@@ -200,7 +237,7 @@ export class Emulator {
         }
     }
     /**
-     * PSW courant (16 chiffres hexadécimaux).
+     * PSW courant (16 chiffres hexadécimaux; 32 en z/Architecture).
      * @returns {string}
      */
     psw() {
@@ -236,6 +273,19 @@ export class Emulator {
         return ret !== 0;
     }
     /**
+     * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
+     * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
+     * @param {number} addr
+     * @param {Uint8Array} data
+     * @returns {boolean}
+     */
+    reader_load_binary(addr, data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Touche RESTART du pupitre.
      */
     restart() {
@@ -259,6 +309,15 @@ export class Emulator {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * LOADPARM de l'IPL (z/Architecture).
+     * @param {string} text
+     */
+    set_loadparm(text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.emulator_set_loadparm(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * Durée simulée d'une instruction (ns) : règle la vitesse apparente du processeur.
@@ -685,22 +744,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_0138abbadf63a10c: function(arg0) {
+        __wbg_flush_509f4057379bcc98: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_d572ed941d9fbf9a: function() {
+        __wbg_now_6adfa580782ebb87: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_be3a7149f5546f85: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_71f23d5d3f01fc84: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_b3643f7b8a297bcf: function(arg0) {
+        __wbg_size_806019a743b682b5: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_5239c9964ae9fc58: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_85fde23130234757: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

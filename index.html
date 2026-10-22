@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=0a29960c">
+  <link rel="stylesheet" href="style.css?v=554e79d1">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -86,16 +86,41 @@
             <span class="label" data-i18n="nav.machine">Machine</span>
           </button>
           <div id="panel-machine" class="nav-panel" hidden>
-            <p class="hint" data-i18n="machine.desc">IBM 3033 processor (System/370 architecture), 16 MB of main storage, channels, 3215 console, 3270 terminals, CKD disks.</p>
-            <label class="field"><span data-i18n="mem.label">Main storage</span>
-              <select id="mem-list" autocomplete="off">
-                <option value="8">8 MB</option>
-                <option value="16">16 MB</option>
+            <label class="field"><span data-i18n="arch.label">Machine</span>
+              <select id="arch-list" autocomplete="off">
+                <option value="s370" data-i18n="arch.s370">System/370 (MVS 3.8j)</option>
+                <option value="z" data-i18n="arch.z">z/Architecture (Linux s390x)</option>
               </select>
+            </label>
+            <p id="machine-desc" class="hint"></p>
+            <label class="field"><span data-i18n="mem.label">Main storage</span>
+              <select id="mem-list" autocomplete="off"></select>
             </label>
             <label class="field"><span data-i18n="ipl.label">IPL unit (load unit address)</span>
               <input id="ipl-addr" type="text" maxlength="3" spellcheck="false" autocomplete="off" class="mono">
             </label>
+            <label id="loadparm-field" class="field" hidden><span data-i18n="loadparm.label">LOADPARM</span>
+              <input id="loadparm" type="text" maxlength="8" spellcheck="false" autocomplete="off" class="mono">
+            </label>
+            <div id="zboot" class="hc-box" hidden>
+              <p class="hint"><strong data-i18n="zboot.title">Linux from the card reader</strong></p>
+              <p class="hint" data-i18n-html="zboot.desc"></p>
+              <div class="row wrap">
+                <label class="button secondary with-icon">
+                  <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="zboot.kernel">Kernel…</span>
+                  <input id="zboot-kernel" type="file" hidden>
+                </label>
+                <label class="button secondary with-icon">
+                  <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="zboot.initrd">Initial RAM disk…</span>
+                  <input id="zboot-initrd" type="file" hidden>
+                </label>
+              </div>
+              <ul id="zboot-files" class="vol-list"></ul>
+              <label class="field"><span data-i18n="zboot.parm">Kernel parameters</span>
+                <input id="zboot-parm" type="text" spellcheck="false" autocomplete="off" class="mono">
+              </label>
+              <button id="zboot-clear" type="button" class="secondary" data-i18n="zboot.clear">Forget the files</button>
+            </div>
             <label class="field"><span data-i18n="terms.label">3270 terminals</span>
               <select id="terms-list" autocomplete="off">
                 <option value="1">1 (0C0)</option>
@@ -617,6 +642,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=0a29960c"></script>
+  <script type="module" src="main.js?v=554e79d1"></script>
 </body>
 </html>

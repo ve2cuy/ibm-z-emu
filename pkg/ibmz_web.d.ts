@@ -4,6 +4,10 @@
 export class Emulator {
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * « s370 » ou « z ».
+     */
+    arch(): string;
     attach_console(addr: number): void;
     /**
      * Branche un disque CKD (image de Hercules) à l'adresse `addr`. Rend
@@ -16,7 +20,11 @@ export class Emulator {
     attach_tape(addr: number): void;
     attach_terminal(addr: number, rows: number, cols: number, alt_rows: number, alt_cols: number): void;
     console_take(addr: number): string;
-    console_type(addr: number, line: string): void;
+    /**
+     * Ligne de l'opérateur. Faux si le système ne la reçoit pas (z/Architecture : le
+     * système n'accepte pas encore les commandes).
+     */
+    console_type(addr: number, line: string): boolean;
     /**
      * Commandes de Hercules reçues par DIAGNOSE X'008' (une par ligne), depuis le dernier
      * appel. TK5 s'en sert pour son arrêt (« script scripts/shutdown »).
@@ -43,7 +51,12 @@ export class Emulator {
      */
     ipl(addr: number): boolean;
     /**
-     * `mem_mb` : mémoire centrale (Mo, 1 à 16); `unix_secs` : heure de l'horloge TOD.
+     * Machine z/Architecture : `mem_mb` de 16 Mo à 2 Go.
+     */
+    static newZ(mem_mb: number, unix_secs: number): Emulator;
+    /**
+     * Machine S/370 : `mem_mb` : mémoire centrale (Mo, 1 à 16); `unix_secs` : heure de
+     * l'horloge TOD.
      */
     constructor(mem_mb: number, unix_secs: number);
     /**
@@ -52,7 +65,7 @@ export class Emulator {
     now_ms(): number;
     printer_take(addr: number): string;
     /**
-     * PSW courant (16 chiffres hexadécimaux).
+     * PSW courant (16 chiffres hexadécimaux; 32 en z/Architecture).
      */
     psw(): string;
     reader_left(addr: number): number;
@@ -60,6 +73,11 @@ export class Emulator {
      * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
      */
     reader_load(addr: number, text: string): boolean;
+    /**
+     * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
+     * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
+     */
+    reader_load_binary(addr: number, data: Uint8Array): boolean;
     /**
      * Touche RESTART du pupitre.
      */
@@ -69,6 +87,10 @@ export class Emulator {
      * « run », « stopped » (attente définitive) ou « loop ».
      */
     run(ms: number, max_inst: number): string;
+    /**
+     * LOADPARM de l'IPL (z/Architecture).
+     */
+    set_loadparm(text: string): void;
     /**
      * Durée simulée d'une instruction (ns) : règle la vitesse apparente du processeur.
      */
@@ -190,6 +212,7 @@ export interface InitOutput {
     readonly bench_names: () => [number, number];
     readonly bench_run: (a: number, b: number) => number;
     readonly blank_volume: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly emulator_arch: (a: number) => [number, number];
     readonly emulator_attach_console: (a: number, b: number) => void;
     readonly emulator_attach_dasd: (a: number, b: number, c: any) => [number, number, number, number];
     readonly emulator_attach_printer: (a: number, b: number, c: number) => void;
@@ -198,7 +221,7 @@ export interface InitOutput {
     readonly emulator_attach_tape: (a: number, b: number) => void;
     readonly emulator_attach_terminal: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly emulator_console_take: (a: number, b: number) => [number, number];
-    readonly emulator_console_type: (a: number, b: number, c: number, d: number) => void;
+    readonly emulator_console_type: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_diag8_take: (a: number) => [number, number];
     readonly emulator_disk_error: (a: number) => [number, number];
     readonly emulator_flush: (a: number) => void;
@@ -206,13 +229,16 @@ export interface InitOutput {
     readonly emulator_io_count: (a: number) => number;
     readonly emulator_ipl: (a: number, b: number) => number;
     readonly emulator_new: (a: number, b: number) => number;
+    readonly emulator_newZ: (a: number, b: number) => number;
     readonly emulator_now_ms: (a: number) => number;
     readonly emulator_printer_take: (a: number, b: number) => [number, number];
     readonly emulator_psw: (a: number) => [number, number];
     readonly emulator_reader_left: (a: number, b: number) => number;
     readonly emulator_reader_load: (a: number, b: number, c: number, d: number) => number;
+    readonly emulator_reader_load_binary: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_restart: (a: number) => void;
     readonly emulator_run: (a: number, b: number, c: number) => [number, number];
+    readonly emulator_set_loadparm: (a: number, b: number, c: number) => void;
     readonly emulator_set_ns_per_inst: (a: number, b: number) => void;
     readonly emulator_take_activity: (a: number) => number;
     readonly emulator_take_instructions: (a: number) => number;

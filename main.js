@@ -1,15 +1,16 @@
-// Page de l'émulateur IBM System/370 : menu, volumes (OPFS), dépôt de fichiers, fil de la
-// machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
-// et imprimantes.
+// Page de l'émulateur IBM System/370 et z/Architecture : menu, volumes (OPFS), dépôt de
+// fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
+// lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0a29960c';
-import { initMemo } from './memo.js?v=0a29960c';
-import { deckText } from './decks.js?v=0a29960c';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0a29960c';
-import { devices, initHerc } from './herc-ui.js?v=0a29960c';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0a29960c';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=554e79d1';
+import { initMemo } from './memo.js?v=554e79d1';
+import { deckText } from './decks.js?v=554e79d1';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=554e79d1';
+import { devices, initHerc } from './herc-ui.js?v=554e79d1';
+import { Z_DEVICES } from './herc-conf.js?v=554e79d1';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=554e79d1';
 
-const VERSION = '0.1.10';
+const VERSION = '0.1.11';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -29,8 +30,14 @@ const prefs = {
   sidebar: null,
   open: ['volumes'],
   lang: null,
+  arch: 's370',           // machine : s370 (MVS 3.8j) ou z (z/Architecture, Linux s390x)
   mem: 16,
   ipl: '390',
+  zmem: 256,              // z/Architecture : mémoire (Mo), unité d'IPL, LOADPARM, Linux
+  zipl: '00C',
+  loadparm: '',
+  zparm: 'ro locale=C',
+  zbootNames: {},         // noms d'origine des fichiers du lecteur (boot/kernel, boot/initrd)
   terms: 2,
   fontSize: 16,
   showPanel: true,
@@ -305,7 +312,7 @@ async function saveVolume(file) {
  * Ouvre `file` (dossier des volumes de l'OPFS) en écriture, vidé. Safari d'iOS et d'iPadOS
  * (avant la version 26) n'a pas createWritable() : un fil y écrit par un accès synchrone.
  */
-async function openWriter(dir, file) {
+async function openWriter(dir, file, dirName = 'dasd') {
   const fh = await dir.getFileHandle(file, { create: true });
   if (typeof fh.createWritable === 'function') {
     const out = await fh.createWritable();
@@ -318,7 +325,7 @@ async function openWriter(dir, file) {
     writer.postMessage(msg, transfer);
   });
   try {
-    await ask({ type: 'open', file });
+    await ask({ type: 'open', file, dir: dirName });
   } catch (e) {
     writer.terminate();
     throw e;
@@ -525,14 +532,34 @@ async function downloadPack(entry, again) {
 // ------------------------------------------------------------------ machine
 
 const memList = $('mem-list');
-// Unité de la mémoire (MB, Mo…) dans la langue choisie.
+const isZ = () => prefs.arch === 'z';
+// Tailles de la mémoire offertes selon la machine (Mo), avec l'unité dans la langue choisie.
 function memLabels() {
-  for (const o of memList.options) o.textContent = `${o.value} ${t('unit.mb')}`;
+  const sizes = isZ() ? [64, 128, 256, 512, 1024, 2048] : [8, 16];
+  const cur = isZ() ? prefs.zmem : prefs.mem;
+  memList.replaceChildren(...sizes.map((n) => new Option(n >= 1024 ? `${n / 1024} ${t('unit.gb')}` : `${n} ${t('unit.mb')}`, String(n))));
+  memList.value = String(sizes.includes(cur) ? cur : sizes[sizes.length - 1]);
 }
 languageListeners.push(memLabels);
 memLabels();
-memList.value = String(prefs.mem);
-memList.addEventListener('change', () => { prefs.mem = Number(memList.value); savePrefs(); });
+memList.addEventListener('change', () => {
+  if (isZ()) prefs.zmem = Number(memList.value);
+  else prefs.mem = Number(memList.value);
+  savePrefs();
+});
+
+/** Unités de la machine choisie : la configuration importée, sinon celles de TK5 (S/370) ou
+ *  du lecteur, de la perforatrice et de l'imprimante (z/Architecture). */
+function machineDevices() {
+  return isZ() && !prefs.devices?.length ? Z_DEVICES : devices();
+}
+
+/** Unité d'IPL de la machine choisie (trois chiffres hexadécimaux). */
+const iplPref = () => (isZ() ? prefs.zipl : prefs.ipl);
+function setIplPref(v) {
+  if (isZ()) prefs.zipl = v;
+  else prefs.ipl = v;
+}
 // Configuration au format de Hercules (herc-ui.js) : unités en service, import, export.
 languageListeners.push(initHerc({
   prefs,
@@ -545,17 +572,13 @@ languageListeners.push(initHerc({
   renderVolumes,
   status: showStatus,
   // Nouvelle configuration : terminaux, imprimantes et mémoire montrés de nouveau.
-  applied: () => {
-    termLabels();
-    memList.value = String(prefs.mem);
-    showPrinter();
-  },
+  applied: () => showMachine(),
 }));
 
 const termsList = $('terms-list');
 /** Terminaux locaux de la configuration (0C0-0C6 pour TK5). */
 function localTerminals() {
-  return devices().filter((d) => d.kind === 'terminal').map((d) => d.addr);
+  return machineDevices().filter((d) => d.kind === 'terminal').map((d) => d.addr);
 }
 // Choix du nombre de terminaux montrés, avec leurs adresses.
 function termLabels() {
@@ -571,24 +594,155 @@ termLabels();
 termsList.value = String(prefs.terms);
 termsList.addEventListener('change', () => { prefs.terms = Number(termsList.value); savePrefs(); });
 const iplInput = $('ipl-addr');
-iplInput.value = prefs.ipl;
+iplInput.value = iplPref();
 iplInput.addEventListener('change', () => {
   const v = iplInput.value.trim().toUpperCase();
-  if (/^[0-9A-F]{1,3}$/.test(v)) prefs.ipl = v.padStart(3, '0');
-  iplInput.value = prefs.ipl;
+  if (/^[0-9A-F]{1,3}$/.test(v)) setIplPref(v.padStart(3, '0'));
+  iplInput.value = iplPref();
   savePrefs();
   showDials();
 });
+
+// --- choix de la machine, LOADPARM, Linux par le lecteur (z/Architecture)
+const archList = $('arch-list');
+archList.value = prefs.arch;
+archList.addEventListener('change', () => {
+  prefs.arch = archList.value === 'z' ? 'z' : 's370';
+  savePrefs();
+  showMachine();
+});
+const loadparmInput = $('loadparm');
+loadparmInput.value = prefs.loadparm;
+loadparmInput.addEventListener('change', () => {
+  prefs.loadparm = loadparmInput.value.trim().toUpperCase().slice(0, 8);
+  loadparmInput.value = prefs.loadparm;
+  savePrefs();
+});
+const zparmInput = $('zboot-parm');
+zparmInput.value = prefs.zparm;
+zparmInput.addEventListener('change', () => {
+  prefs.zparm = zparmInput.value.trim();
+  savePrefs();
+});
+
+/** Fichiers du lecteur pour Linux (dossier boot de l'OPFS) : {kernel, initrd} -> taille. */
+const zboot = { kernel: null, initrd: null };
+const zbootReady = () => !!(zboot.kernel && zboot.initrd);
+
+async function bootDir() {
+  const root = await navigator.storage.getDirectory();
+  return root.getDirectoryHandle('boot', { create: true });
+}
+
+async function loadZboot() {
+  if (!opfsOk) return;
+  const dir = await bootDir();
+  for (const k of ['kernel', 'initrd']) {
+    try {
+      zboot[k] = (await (await dir.getFileHandle(k)).getFile()).size;
+    } catch {
+      zboot[k] = null;
+    }
+  }
+  renderZboot();
+}
+
+function renderZboot() {
+  const list = $('zboot-files');
+  const items = [['kernel', 'zboot.k'], ['initrd', 'zboot.i']].filter(([k]) => zboot[k] !== null).map(([k, label]) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'mono';
+    name.textContent = `${t(label)} : ${prefs.zbootNames[k] ?? k}`;
+    const size = document.createElement('span');
+    size.className = 'hint';
+    size.textContent = fmtSize(zboot[k]);
+    li.append(name, size);
+    return li;
+  });
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'hint';
+    li.textContent = t('zboot.none');
+    items.push(li);
+  }
+  list.replaceChildren(...items);
+  $('zboot-clear').disabled = running || (zboot.kernel === null && zboot.initrd === null);
+  for (const id of ['zboot-kernel', 'zboot-initrd']) $(id).disabled = running;
+  updateButtons();
+}
+languageListeners.push(renderZboot);
+
+for (const k of ['kernel', 'initrd']) {
+  $(`zboot-${k}`).addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f || running) return;
+    try {
+      const out = await openWriter(await bootDir(), k, 'boot');
+      const reader = f.stream().getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        await out.write(value);
+      }
+      await out.close();
+      prefs.zbootNames = { ...prefs.zbootNames, [k]: f.name };
+      savePrefs();
+      await keepStorage();
+      showStatus('zboot.saved', { name: f.name });
+    } catch (err) {
+      showStatus('error', { msg: err.message });
+    }
+    loadZboot();
+  });
+}
+
+$('zboot-clear').addEventListener('click', async () => {
+  if (running) return;
+  const dir = await bootDir();
+  for (const k of ['kernel', 'initrd']) await dir.removeEntry(k).catch(() => {});
+  prefs.zbootNames = {};
+  savePrefs();
+  loadZboot();
+});
+
+/** La machine choisie : description, mémoire, unité d'IPL, champs de z/Architecture. */
+function showMachine() {
+  archList.value = prefs.arch;
+  archList.disabled = running;
+  // Nom de la machine (titre), exemple de commande de la console.
+  const name = isZ() ? 'IBM z/Architecture' : 'IBM System/370';
+  document.title = name;
+  for (const el of document.querySelectorAll('.machine-name')) el.textContent = name;
+  const ci = $('console-input');
+  ci.dataset.i18nPlaceholder = isZ() ? 'console.placeholder.z' : 'console.placeholder';
+  ci.placeholder = t(ci.dataset.i18nPlaceholder);
+  ci.setAttribute('autocapitalize', isZ() ? 'off' : 'characters');
+  $('machine-desc').textContent = t(isZ() ? 'machine.desc.z' : 'machine.desc');
+  memLabels();
+  $('loadparm-field').hidden = !isZ();
+  $('zboot').hidden = !isZ();
+  showDials();
+  termLabels();
+  showPrinter();
+  updateButtons();
+}
+languageListeners.push(() => { $('machine-desc').textContent = t(isZ() ? 'machine.desc.z' : 'machine.desc'); });
 
 let worker = null;
 let running = false;
 let lastError = '';
 let terminals = [];
 
+/** Un IPL est possible : des volumes, ou (z/Architecture) les fichiers de Linux. */
+const canIpl = () => volumes.length > 0 || (isZ() && zbootReady());
+
 function updateButtons() {
-  powerButton.disabled = !worker || (!running && !volumes.length);
+  powerButton.disabled = !worker || (!running && !canIpl());
   powerLabel.textContent = t(running ? 'power.stop' : 'power.ipl');
-  $('btn-load').disabled = running || !volumes.length;
+  $('btn-load').disabled = running || !canIpl();
+  archList.disabled = running;
   $('btn-interrupt').disabled = !running;
   $('btn-restart').disabled = !running;
   $('vol-erase').disabled = !volumes.length || running;
@@ -598,7 +752,8 @@ function updateButtons() {
 languageListeners.push(updateButtons);
 
 function showOverlay() {
-  const need = !volumes.length && !running;
+  // Invitation au dépôt (TK5) : machine S/370 sans volume seulement.
+  const need = !volumes.length && !running && !isZ();
   overlay.hidden = !need && !errorBox.textContent;
   $('overlay-start').hidden = !need;
   $('overlay-menu').hidden = !need;
@@ -610,15 +765,27 @@ function startWorker() {
   worker.onerror = (e) => showStatus('error', { msg: `${e.message || 'worker'}${where(e.filename, e.lineno) || ' (worker.js)'}` });
 }
 
+let runArch = 's370';   // machine en marche
+
 async function ipl() {
   if (running || !worker) return;
   const vols = await listVolumes();
-  if (!vols.length) return;
-  const addr = parseInt(prefs.ipl, 16);
-  if (!vols.some((v) => v.addr === addr)) {
-    showStatus('ipl.novol', { addr: prefs.ipl });
-    return;
+  const addr = parseInt(iplPref(), 16);
+  // z/Architecture : IPL du lecteur avec les fichiers de Linux.
+  const readerIpl = isZ() && machineDevices().some((d) => d.kind === 'reader' && d.addr === addr);
+  if (readerIpl) {
+    if (!zbootReady()) {
+      showStatus('ipl.noboot', { addr: iplPref() });
+      return;
+    }
+  } else {
+    if (!vols.length) return;
+    if (!vols.some((v) => v.addr === addr)) {
+      showStatus('ipl.novol', { addr: iplPref() });
+      return;
+    }
   }
+  runArch = prefs.arch;
   terminals = localTerminals().slice(0, prefs.terms);
   buildTabs();
   consoleText = '';
@@ -631,13 +798,17 @@ async function ipl() {
   setLight('lt-load', true);
   updateButtons();
   renderVolumes();
-  showStatus('ipl.starting', { addr: prefs.ipl });
+  showStatus('ipl.starting', { addr: iplPref() });
+  renderZboot();
   worker.postMessage({
     type: 'start',
-    mem: prefs.mem,
+    arch: prefs.arch,
+    mem: isZ() ? prefs.zmem : prefs.mem,
+    loadparm: isZ() ? prefs.loadparm : '',
+    boot: readerIpl ? { parm: prefs.zparm || 'ro' } : null,
     ipl: addr,
     volumes: vols.map((v) => ({ addr: v.addr, file: v.file })),
-    devices: devices(),
+    devices: machineDevices(),
     terminals,
     relay: prefs.relay ? prefs.relayUrl : null,
   });
@@ -711,7 +882,8 @@ $('sd-close').addEventListener('click', () => sd.close());
 
 function stopMachine() {
   if (!running) return;
-  if (!shuttingDown) {
+  // L'arrêt propre (procédure SHUTDOWN de TK5) ne vaut que pour MVS 3.8j.
+  if (!shuttingDown && runArch === 's370') {
     // Arrêt propre de MVS (procédure SHUTDOWN de TK5), ou arrêt immédiat.
     if (confirm(t('power.shutdown.confirm'))) {
       shuttingDown = true;
@@ -751,7 +923,7 @@ function onWorkerMessage({ data }) {
     case 'started':
       setLight('lt-load', false);
       setLight('lt-sys', true);
-      showStatus('ipl.started', { n: data.volumes.length });
+      showStatus(runArch === 'z' ? 'ipl.started.z' : 'ipl.started', { n: data.volumes.length });
       break;
     case 'console':
       appendConsole(data.text);
@@ -800,6 +972,9 @@ function onWorkerMessage({ data }) {
     case 'beep':
       beep();
       break;
+    case 'console-refused':
+      showStatus('console.refused');
+      break;
     case 'error':
       lastError = data.msg;
       showStatus('error', { msg: data.msg });
@@ -820,6 +995,7 @@ function onWorkerMessage({ data }) {
       volMachineChanged();
       punchMachineChanged();
       sdStopped(data.reason);
+      renderZboot();
       break;
     case 'closed':
       break;
@@ -881,20 +1057,20 @@ languageListeners.push(showRelay);
 const dials = [...document.querySelectorAll('.dial')];
 
 function showDials() {
-  const d = prefs.ipl.padStart(3, '0');
+  const d = iplPref().padStart(3, '0');
   dials.forEach((b, i) => {
     b.querySelector('span').textContent = d[i];
     b.style.setProperty('--angle', `${parseInt(d[i], 16) * 22.5}deg`);
   });
-  iplInput.value = prefs.ipl;
+  iplInput.value = iplPref();
 }
 
 for (const b of dials) {
   const step = (k) => {
     const i = Number(b.dataset.digit);
-    const d = prefs.ipl.padStart(3, '0').split('');
+    const d = iplPref().padStart(3, '0').split('');
     d[i] = ((parseInt(d[i], 16) + k + 16) % 16).toString(16).toUpperCase();
-    prefs.ipl = d.join('');
+    setIplPref(d.join(''));
     savePrefs();
     showDials();
   };
@@ -1058,7 +1234,7 @@ function showPrinter() {
   if (currentTab === 'printer') unreadPrinters.delete(prefs.printer);
   // Imprimantes et perforatrices de la configuration (rôles connus pour celles de TK5).
   const known = { 0x00E: 'prt.a', 0x00F: 'prt.b', 0x002: 'prt.x', 0x30E: 'prt.log' };
-  const units = devices().filter((d) => d.kind === 'printer' || d.kind === 'punch')
+  const units = machineDevices().filter((d) => d.kind === 'printer' || d.kind === 'punch')
     .map((d) => [d.addr, d.kind === 'punch' ? 'prt.punch' : known[d.addr] ?? null, d.type]);
   if (!units.some(([a]) => a === prefs.printer) && units.length) prefs.printer = units[0][0];
   sel.replaceChildren(...units.map(([a, k, type]) => new Option(`${unreadPrinters.has(a) ? '● ' : ''}${hex3(a)} ${k ? t(k) : `${t('prt.printer')} ${type}`}`, String(a))));
@@ -1535,6 +1711,8 @@ async function main() {
     errorBox.textContent = t('opfs.missing');
   }
   startWorker();
+  showMachine();
+  await loadZboot();
   await renderVolumes();
   await loadDepot();
   showRelay();

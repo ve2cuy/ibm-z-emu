@@ -111,3 +111,25 @@ To start over, the **Repository** menu downloads the original volumes again.
   Manual").
 - The MVS 3.8j and TSO manuals are in the Bitsavers archive
   (<http://bitsavers.org/pdf/ibm/370/>).
+
+## 8. The z/Architecture machine (Linux s390x)
+
+The **Machine** menu also offers a second machine, **z/Architecture (Linux s390x)**: a
+64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
+disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.
+
+To start Linux from the card reader:
+
+1. Get the Debian 7 installer for s390x, `kernel.debian` and `initrd.debian`, from
+   <https://archive.debian.org/debian/dists/wheezy/main/installer-s390x/current/images/generic/>.
+2. In the **Machine** menu, choose **z/Architecture (Linux s390x)**, then **Kernel…** and
+   **Initial RAM disk…** (the files stay in the browser). The IPL unit is `00C` (the
+   reader).
+3. Kernel parameters: `ro locale=C` starts the installer (it asks first for a network
+   device, not emulated yet); `ro locale=C init=/bin/sh` gives a BusyBox shell right away.
+4. Click **IPL**. Linux writes on the **Console** tab (about one minute); type the commands
+   in the field below it (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
+
+A Hercules configuration with `ARCHLVL z/Arch` (import, **Machine** menu) selects this
+machine, its storage and its units; the LOADPARM field gives the load parameter of an IPL
+from disk.

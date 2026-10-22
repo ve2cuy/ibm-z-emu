@@ -120,3 +120,27 @@ d'origine.
   Manual »).
 - Les manuels de MVS 3.8j et de TSO sont dans les archives de Bitsavers
   (<http://bitsavers.org/pdf/ibm/370/>).
+
+## 8. La machine z/Architecture (Linux s390x)
+
+Le menu **Machine** offre aussi une seconde machine, **z/Architecture (Linux s390x)** : un
+processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
+(SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une
+imprimante; de 64 Mo à 2 Go de mémoire.
+
+Pour démarrer Linux par le lecteur de cartes :
+
+1. Prendre l'installateur de Debian 7 pour s390x, `kernel.debian` et `initrd.debian`, sur
+   <https://archive.debian.org/debian/dists/wheezy/main/installer-s390x/current/images/generic/>.
+2. Dans le menu **Machine**, choisir **z/Architecture (Linux s390x)**, puis **Noyau…** et
+   **Image initiale…** (les fichiers restent dans le fureteur). L'unité d'IPL est `00C`
+   (le lecteur).
+3. Paramètres du noyau : `ro locale=C` lance l'installateur (il demande d'abord une
+   interface réseau, pas encore émulée); `ro locale=C init=/bin/sh` donne tout de suite
+   un interpréteur de commandes BusyBox.
+4. Appuyer sur **IPL**. Linux écrit dans l'onglet **Console** (environ une minute); les
+   commandes se tapent dans le champ du dessous (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
+
+Une configuration Hercules avec `ARCHLVL z/Arch` (import, menu **Machine**) choisit cette
+machine, sa mémoire et ses unités; le champ LOADPARM donne le paramètre de chargement d'un
+IPL depuis un disque.

@@ -34,6 +34,14 @@ export const TK5_DEVICES = [
   ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ addr: 0x0C0 + i, kind: 'terminal', type: '3270' })),
 ];
 
+/** Unités de la machine z/Architecture sans configuration importée (sans les disques) :
+ *  lecteur (IPL de Linux), perforatrice, imprimante; la console est celle du système. */
+export const Z_DEVICES = [
+  { addr: 0x00C, kind: 'reader', type: '3505' },
+  { addr: 0x00D, kind: 'punch', type: '3525' },
+  { addr: 0x00E, kind: 'printer', type: '1403' },
+];
+
 /** Nom de volume d'un chemin : dernier élément, sans extension d'image ni d'adresse. */
 export function volumeStem(path) {
   const base = path.replace(/\\/g, '/').split('/').pop();
@@ -145,23 +153,23 @@ const hex4 = (a) => a.toString(16).toUpperCase().padStart(4, '0');
  * Écrit une configuration Hercules : `volumes` [{file, addr, devtype}], `devices` (sans les
  * disques), `mem` (Mo). Chemins relatifs : dasd/, prt/, pch/ à côté du fichier (comme TK5).
  */
-export function buildConfig({ mem, volumes, devices, version }) {
+export function buildConfig({ mem, volumes, devices, version, arch = 's370' }) {
   const out = [
     '#' + '*'.repeat(78),
     `# Hercules configuration exported by the IBM System/370 emulator (VE2CUY) ${version}`,
     '# Copy the volume files (Disks menu, download icon) into dasd/ next to this file.',
     '#' + '*'.repeat(78),
     'CPUSERIAL 000611',
-    'CPUMODEL  3033',
+    arch === 'z' ? 'CPUMODEL  2064' : 'CPUMODEL  3033',
     `MAINSIZE  ${mem}`,
     'XPNDSIZE  0',
     'NUMCPU    1',
     'MAXCPU    1',
-    'ARCHLVL   S/370',
+    arch === 'z' ? 'ARCHLVL   z/Arch' : 'ARCHLVL   S/370',
     'OSTAILOR  QUIET',
     'CNSLPORT  3270',
     'TZOFFSET  +0000',
-    'DIAG8CMD  ENABLE ECHO',
+    ...(arch === 'z' ? [] : ['DIAG8CMD  ENABLE ECHO']),
     '#',
     '# DASD',
     '#',

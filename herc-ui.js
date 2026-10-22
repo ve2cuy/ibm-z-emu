@@ -6,8 +6,8 @@
 // l'import, un volume déjà présent sous le même nom à une autre adresse est renommé; un
 // volume absent est demandé (fichiers choisis par l'usager, copiés sous le bon nom).
 
-import { t } from './i18n.js?v=0a29960c';
-import { TK5_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0a29960c';
+import { t } from './i18n.js?v=554e79d1';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=554e79d1';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
@@ -41,7 +41,8 @@ async function devtypeOf(file) {
 async function exportConfig() {
   const vols = [];
   for (const v of ctx.volumes()) vols.push({ ...v, devtype: await devtypeOf(v.file) });
-  const text = buildConfig({ mem: ctx.prefs.mem, volumes: vols, devices: devices(), version: `v${ctx.version}` });
+  const z = ctx.prefs.arch === 'z';
+  const text = buildConfig({ mem: z ? ctx.prefs.zmem : ctx.prefs.mem, volumes: vols, devices: z && !ctx.prefs.devices?.length ? Z_DEVICES : devices(), version: `v${ctx.version}`, arch: z ? 'z' : 's370' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
   a.download = ctx.prefs.devicesName && ctx.prefs.devices ? ctx.prefs.devicesName : 'ibm370.cnf';
@@ -54,14 +55,21 @@ async function exportConfig() {
 function makePlan(name, conf) {
   const p = { name, warnings: [], dasd: [], missing: [], conflicts: [], devices: [], ignored: conf.ignored, files: new Map() };
   const s = conf.system;
-  if (s.mainsize) {
+  // ARCHLVL z/Arch, ESA/390, ESAME : machine z/Architecture (mémoire de 64 Mo à 2 Go).
+  p.arch = s.arch && /z\/?arch|esame|390/i.test(s.arch) ? 'z' : 's370';
+  if (s.mainsize && p.arch === 'z') {
+    const sizes = [64, 128, 256, 512, 1024, 2048];
+    p.zmem = sizes.filter((n) => n <= s.mainsize).pop() ?? 64;
+    if (s.mainsize !== p.zmem) p.warnings.push(t('hc.w.memz', { n: s.mainsize, m: p.zmem }));
+  } else if (s.mainsize) {
     p.mem = s.mainsize <= 8 ? 8 : 16;
     if (s.mainsize !== p.mem) p.warnings.push(t('hc.w.mem', { n: s.mainsize, m: p.mem }));
   }
-  if (s.arch && !/370/.test(s.arch)) p.warnings.push(t('hc.w.arch', { arch: s.arch }));
+  if (s.arch && p.arch === 's370' && !/370/.test(s.arch)) p.warnings.push(t('hc.w.arch', { arch: s.arch }));
   if (s.numcpu > 1) p.warnings.push(t('hc.w.cpu', { n: s.numcpu }));
   p.devices = conf.devices.filter((d) => d.kind !== 'dasd').map(({ addr, kind, type }) => ({ addr, kind, type }));
-  if (!p.devices.some((d) => d.kind === 'console')) {
+  // La z/Architecture a la console du système (SCLP) : pas de 3215 ajoutée.
+  if (p.arch === 's370' && !p.devices.some((d) => d.kind === 'console')) {
     p.devices.unshift({ addr: 0x009, kind: 'console', type: '3215-C' });
     p.warnings.push(t('hc.w.console'));
   }
@@ -104,7 +112,8 @@ function renderPlan() {
   const kinds = {};
   for (const d of plan.devices) (kinds[d.kind] ??= []).push(hex3(d.addr));
   section(t('hc.s.system'), [
-    ...(plan.mem ? [t('hc.mem', { m: plan.mem })] : []),
+    ...(plan.arch === 'z' ? [t('arch.z')] : []),
+    ...(plan.zmem ?? plan.mem ? [t('hc.mem', { m: plan.zmem ?? plan.mem })] : []),
     ...Object.entries(kinds).map(([k, list]) => `${t(`hc.k.${k}`)} : ${list.join(', ')}`),
   ]);
   section(t('hc.s.volumes'), [
@@ -185,7 +194,9 @@ async function apply() {
   }
   ctx.prefs.devices = plan.devices;
   ctx.prefs.devicesName = plan.name;
+  ctx.prefs.arch = plan.arch;
   if (plan.mem) ctx.prefs.mem = plan.mem;
+  if (plan.zmem) ctx.prefs.zmem = plan.zmem;
   ctx.savePrefs();
   $('hc').close();
   await ctx.renderVolumes();
@@ -195,8 +206,10 @@ async function apply() {
 }
 
 function reset() {
+  // Configuration de TK5 : machine S/370.
   ctx.prefs.devices = null;
   ctx.prefs.devicesName = null;
+  ctx.prefs.arch = 's370';
   ctx.savePrefs();
   showConfig();
   ctx.applied();

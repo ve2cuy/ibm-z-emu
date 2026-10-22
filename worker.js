@@ -3,8 +3,11 @@
 // 200 ms. En Turbo, quand le processeur travaille, le temps simulé va aussi vite que le
 // fureteur le permet.
 //
-// Messages reçus : start {mem, ipl, volumes: [{addr, file}], devices: [{addr, kind, type}]
-// (sans les disques; vide : unités de TK5), terminals: [addr], relay},
+// Messages reçus : start {arch (s370 | z), mem, ipl, loadparm, volumes: [{addr, file}],
+// devices: [{addr, kind, type}] (sans les disques; vide : unités de TK5, ou du lecteur, de
+// la perforatrice et de l'imprimante en z/Architecture), terminals: [addr], relay,
+// boot: {parm} (z/Architecture : noyau, paramètres et image initiale de Linux dans le
+// lecteur; fichiers boot/kernel et boot/initrd de l'OPFS)},
 // relay {url} (relais TN3270 : adresse ws://…, ou nul),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
@@ -16,8 +19,8 @@
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=0a29960c';
-import { TK5_DEVICES } from './herc-conf.js?v=0a29960c';
+import init, { Emulator } from './pkg/ibmz_web.js?v=554e79d1';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=554e79d1';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
@@ -30,6 +33,7 @@ let LOCAL_TERMS = [0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0C4, 0x0C5, 0x0C6];
 
 let ready = null;
 let emu = null;
+let arch = 's370';
 let running = false;
 let terminals = [];
 let versions = new Map();
@@ -96,22 +100,34 @@ function closeVolumes() {
   handles.length = 0;
 }
 
+/** Fichier du dossier boot de l'OPFS (noyau, image initiale de Linux). */
+async function bootFile(name) {
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('boot');
+  const f = await (await dir.getFileHandle(name)).getFile();
+  return new Uint8Array(await f.arrayBuffer());
+}
+
 async function start(cfg) {
   await ready;
-  emu = new Emulator(cfg.mem, Date.now() / 1000);
+  arch = cfg.arch === 'z' ? 'z' : 's370';
+  emu = arch === 'z' ? Emulator.newZ(cfg.mem, Date.now() / 1000) : new Emulator(cfg.mem, Date.now() / 1000);
+  if (cfg.loadparm) emu.set_loadparm(cfg.loadparm);
   const infos = [];
   for (const v of cfg.volumes) {
     const disk = await openVolume(v.file);
     infos.push({ addr: v.addr, info: emu.attach_dasd(v.addr, disk) });
   }
-  const devices = cfg.devices?.length ? cfg.devices : TK5_DEVICES;
+  const devices = cfg.devices?.length ? cfg.devices : arch === 'z' ? Z_DEVICES : TK5_DEVICES;
   const of = (k) => devices.filter((d) => d.kind === k);
   CONSOLE = of('console')[0]?.addr ?? 0x009;
   READER = of('reader')[0]?.addr ?? 0x00C;
   PRINTERS = of('printer').map((d) => d.addr);
   PUNCHES = of('punch').map((d) => d.addr);
   LOCAL_TERMS = of('terminal').map((d) => d.addr);
-  emu.attach_console(CONSOLE);
+  // En z/Architecture, la console de l'opérateur est celle du système (SCLP); une 3215
+  // n'est branchée que si la configuration en a une.
+  if (arch === 's370' || of('console').length) emu.attach_console(CONSOLE);
   for (const d of of('reader')) emu.attach_reader(d.addr);
   for (const d of of('printer')) emu.attach_printer(d.addr, parseInt(d.type, 16) || 0x1403);
   for (const p of PUNCHES) emu.attach_punch(p);
@@ -121,6 +137,12 @@ async function start(cfg) {
   terminals = cfg.terminals;
   for (const a of LOCAL_TERMS) emu.attach_terminal(a, 24, 80, 24, 80);
   versions = new Map();
+  if (cfg.boot) {
+    // Linux : noyau, paramètres, image initiale, chacun suivi d'une fin de fichier.
+    emu.reader_load_binary(READER, await bootFile('kernel'));
+    emu.reader_load_binary(READER, new TextEncoder().encode(cfg.boot.parm || ' '));
+    emu.reader_load_binary(READER, await bootFile('initrd'));
+  }
   if (!emu.ipl(cfg.ipl)) throw new Error(`IPL ${cfg.ipl.toString(16).toUpperCase()} — ${infos.map((v) => v.info).join(', ')} — ${emu.disk_error()}`);
   emu.set_ns_per_inst(1000 / mips);
   post({ type: 'started', volumes: infos });
@@ -128,7 +150,8 @@ async function start(cfg) {
   relayUrl = cfg.relay || null;
   openRelay();
   autoShutdown = false;
-  initDone = false;
+  // Pas d'opérateur automatique de TK5 en z/Architecture (ni d'attentes sautées).
+  initDone = arch === 'z';
   shutdownWanted = false;
   autoSeen = '';
   simBase = 0;
@@ -414,7 +437,7 @@ self.onmessage = async ({ data }) => {
         await start(data);
         break;
       case 'console':
-        emu?.console_type(CONSOLE, data.text);
+        if (emu && !emu.console_type(CONSOLE, data.text)) post({ type: 'console-refused' });
         break;
       case 'shutdown':
         // Arrêt propre de TK5 : la procédure SHUTDOWN de MVS.

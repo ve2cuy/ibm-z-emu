@@ -1,4 +1,4 @@
-// Écrit un volume dans l'OPFS (dossier « dasd ») par un accès synchrone, pour les fureteurs
+// Écrit un volume dans l'OPFS (dossier « dasd », ou celui que donne open) par un accès synchrone, pour les fureteurs
 // sans FileSystemFileHandle.createWritable() (Safari d'iOS et d'iPadOS avant la version 26).
 // La page envoie open, puis des write (un accusé par bloc), puis close. Repris de vax-emu.
 
@@ -9,7 +9,7 @@ onmessage = async ({ data }) => {
   try {
     if (data.type === 'open') {
       const root = await navigator.storage.getDirectory();
-      const dir = await root.getDirectoryHandle('dasd', { create: true });
+      const dir = await root.getDirectoryHandle(data.dir ?? 'dasd', { create: true });
       const fh = await dir.getFileHandle(data.file, { create: true });
       handle = await fh.createSyncAccessHandle();
       handle.truncate(0);
