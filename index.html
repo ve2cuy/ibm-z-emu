@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=548ebbcb">
+  <link rel="stylesheet" href="style.css?v=99650481">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -373,6 +373,7 @@
         <div class="term-tabs" role="tablist" id="tabs">
           <button type="button" class="term-tab active" role="tab" aria-selected="true" data-tab="console" data-i18n="tab.console">Console</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="printer" data-i18n="tab.printer">Printer</button>
+          <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="events" data-i18n="tab.events">Monitor</button>
           <button id="printer-fit" type="button" class="icon-button small" aria-pressed="false" title="Whole page width" data-i18n-title="prt.fit" aria-label="Whole page width" data-i18n-aria="prt.fit" hidden>
             <svg class="icon"><use href="#i-width"/></svg></button>
           <span id="term-status" class="telnet-status" role="status"></span>
@@ -392,6 +393,7 @@
           <button id="full-exit" type="button" class="icon-button full-exit" title="Leave full screen" data-i18n-title="term.full.exit" aria-label="Leave full screen" data-i18n-aria="term.full.exit" hidden>
             <svg class="icon"><use href="#i-shrink"/></svg></button>
           <div id="printer-out" class="printer-out" hidden></div>
+          <div id="events-out" class="events-out" role="log" hidden></div>
           <div id="overlay" class="overlay">
             <div class="js-required" role="alert">
               <p lang="en"><strong>The emulator cannot start: this browser blocks the page's scripts.</strong>
@@ -665,6 +667,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=548ebbcb"></script>
+  <script type="module" src="main.js?v=99650481"></script>
 </body>
 </html>

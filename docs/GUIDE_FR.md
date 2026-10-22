@@ -123,6 +123,10 @@ d'origine.
 
 ## 8. La machine z/Architecture (Linux s390x)
 
+(En cas de problème, l'onglet **Moniteur**, à côté de Console et Imprimante, dit ce que
+l'émulateur a fait : volumes branchés, résultat de l'IPL avec l'état de l'unité et du
+canal, arrêts avec leur code d'attente, instructions pas encore émulées.)
+
 Le menu **Machine** offre aussi une seconde machine, **z/Architecture (Linux s390x)** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
 (SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une

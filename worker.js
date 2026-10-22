@@ -19,10 +19,12 @@
 // screen {addr, data}, printer {addr, text}, stats {mips, psw, wait, io, simMs},
 // shutdown {phase: started | tso {users, wait} | tasks | jes2 | eod | quiesce} (arrêt de TK5), relay {state, url, clients: [{addr, ttype}]},
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
-// leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
+// leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices),
+// monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
+// événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=548ebbcb';
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=548ebbcb';
+import init, { Emulator } from './pkg/ibmz_web.js?v=99650481';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=99650481';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
@@ -49,6 +51,7 @@ let mips = 20;          // vitesse mesurée de l'hôte (millions d'instructions 
 let flushTime = 0;
 let activity = 0;       // voyants d'activité : classes d'unités servies depuis le dernier envoi
 let activityTime = 0;
+let monTime = 0;        // dernier bilan envoyé au moniteur
 
 const SLICE_MS = 12;
 const FAST_IDLE_MS = 500;   // temps simulé d'une tranche quand les attentes sont sautées
@@ -56,6 +59,27 @@ const MAX_LAG_MS = 200;
 
 function post(msg, transfer) {
   self.postMessage(msg, transfer ?? []);
+}
+
+/** Événement pour l'onglet Moniteur. */
+function mon(key, vals = {}) {
+  post({ type: 'monitor', key, vals });
+}
+
+/** Événements de la machine (« clé|a|b|… », Emulator.events_take). */
+function machineEvents() {
+  if (!emu) return;
+  for (const line of emu.events_take().split('\n')) {
+    if (!line) continue;
+    const [k, a, b, c, d] = line.split('|');
+    mon(`r.${k}`, { a, b, c, d });
+  }
+}
+
+/** « type cylindres volume [pistes] » de attach_dasd / mount_finish. */
+function volInfo(info) {
+  const [type, cyls, volser, tracks] = info.split(' ');
+  return { type, cyls, volser: volser || '?', tracks: tracks ?? '0' };
 }
 
 async function openVolume(file) {
@@ -150,15 +174,31 @@ async function start(cfg) {
   arch = cfg.arch === 'z' ? 'z' : 's370';
   emu = arch === 'z' ? Emulator.newZ(cfg.mem, Date.now() / 1000) : new Emulator(cfg.mem, Date.now() / 1000);
   if (cfg.loadparm) emu.set_loadparm(cfg.loadparm);
+  mon('start', { arch, mem: cfg.mem, ipl: cfg.ipl.toString(16).toUpperCase().padStart(3, '0'), loadparm: cfg.loadparm || '' });
   const infos = [];
+  const hex = (a) => a.toString(16).toUpperCase().padStart(3, '0');
   for (const v of cfg.volumes) {
-    const disk = await openVolume(v.file);
-    infos.push({ addr: v.addr, info: emu.attach_dasd(v.addr, disk) });
+    try {
+      const disk = await openVolume(v.file);
+      const info = emu.attach_dasd(v.addr, disk);
+      infos.push({ addr: v.addr, info });
+      mon('vol', { addr: hex(v.addr), file: v.file, ...volInfo(info) });
+    } catch (e) {
+      mon('vol.err', { addr: hex(v.addr), file: v.file, msg: e?.message ?? String(e) });
+      throw e;
+    }
   }
   for (const m of cfg.mounts ?? []) {
-    emu.mount_begin(blobDisk(m.file));
-    for (const s of m.shadows) emu.mount_shadow(blobDisk(s));
-    infos.push({ addr: m.addr, info: emu.mount_finish(m.addr, await openOverlay(m.overlay)) });
+    try {
+      emu.mount_begin(blobDisk(m.file));
+      for (const s of m.shadows) emu.mount_shadow(blobDisk(s));
+      const info = emu.mount_finish(m.addr, await openOverlay(m.overlay));
+      infos.push({ addr: m.addr, info });
+      mon('mount', { addr: hex(m.addr), file: m.file.name, shadows: m.shadows.length, ...volInfo(info) });
+    } catch (e) {
+      mon('vol.err', { addr: hex(m.addr), file: m.file.name, msg: e?.message ?? String(e) });
+      throw e;
+    }
   }
   const devices = cfg.devices?.length ? cfg.devices : arch === 'z' ? Z_DEVICES : TK5_DEVICES;
   const of = (k) => devices.filter((d) => d.kind === k);
@@ -181,11 +221,20 @@ async function start(cfg) {
   versions = new Map();
   if (cfg.boot) {
     // Linux : noyau, paramètres, image initiale, chacun suivi d'une fin de fichier.
-    emu.reader_load_binary(READER, await bootFile('kernel'));
+    const kernel = await bootFile('kernel');
+    const initrd = await bootFile('initrd');
+    emu.reader_load_binary(READER, kernel);
     emu.reader_load_binary(READER, new TextEncoder().encode(cfg.boot.parm || ' '));
-    emu.reader_load_binary(READER, await bootFile('initrd'));
+    emu.reader_load_binary(READER, initrd);
+    mon('boot', { addr: hex(READER), k: kernel.length, i: initrd.length, parm: cfg.boot.parm || '' });
   }
-  if (!emu.ipl(cfg.ipl)) throw new Error(`IPL ${cfg.ipl.toString(16).toUpperCase()} — ${infos.map((v) => v.info).join(', ')} — ${emu.disk_error()}`);
+  const iplOk = emu.ipl(cfg.ipl);
+  machineEvents();
+  if (!iplOk) {
+    const err = emu.disk_error();
+    if (err) mon('diskerr', { msg: err });
+    throw new Error(`ipl|${hex(cfg.ipl)}`);
+  }
   emu.set_ns_per_inst(1000 / mips);
   post({ type: 'started', volumes: infos });
   running = true;
@@ -200,11 +249,14 @@ async function start(cfg) {
   realBase = performance.now();
   statTime = performance.now();
   statInst = 0;
+  monTime = performance.now();
   setTimeout(tick, 0);
 }
 
 function stop(reason) {
   running = false;
+  machineEvents();
+  mon('stop', { reason });
   closeRelay();
   relayStatus('off');
   if (emu) {
@@ -444,7 +496,13 @@ function tick() {
     simBase += emu.now_ms() - target;
   }
   drain();
+  machineEvents();
   const t1 = performance.now();
+  // Bilan pour le moniteur, chaque minute.
+  if (t1 - monTime >= 60000) {
+    monTime = t1;
+    mon('stats', { sim: Math.round(emu.now_ms() / 1000), mips: mips.toFixed(1), io: emu.io_count() });
+  }
   // Voyants d'activité du pupitre (disques, imprimantes, lecteurs) : au plus toutes les 50 ms.
   activity |= emu.take_activity();
   if (activity && t1 - activityTime >= 50) {
@@ -457,7 +515,10 @@ function tick() {
     statInst = 0;
     post({ type: 'stats', mips: rate, psw: emu.psw(), wait: emu.waiting(), io: emu.io_count(), simMs: emu.now_ms(), dbg: `t=${target.toFixed(0)} now=${emu.now_ms().toFixed(0)} mips=${mips.toFixed(1)} ms=${ms.toFixed(1)}` });
     const err = emu.disk_error();
-    if (err) post({ type: 'error', msg: err });
+    if (err) {
+      post({ type: 'error', msg: err });
+      mon('diskerr', { msg: err });
+    }
     statTime = t1;
   }
   if (t1 - flushTime > 5000) {

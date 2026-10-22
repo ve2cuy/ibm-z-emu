@@ -35,6 +35,11 @@ export class Emulator {
      */
     disk_error(): string;
     /**
+     * Événements pour l'onglet Moniteur depuis le dernier appel, un par ligne
+     * (« clé|valeur|… »).
+     */
+    events_take(): string;
+    /**
      * Écrit tout de suite les pistes modifiées.
      */
     flush(): void;
@@ -47,7 +52,8 @@ export class Emulator {
      */
     io_count(): number;
     /**
-     * IPL depuis l'unité `addr`.
+     * IPL depuis l'unité `addr`. Le moniteur reçoit le résultat : « ipl.ok|adresse|PSW »,
+     * « ipl.nodev|adresse » ou « ipl.fail|adresse|état de l'unité|état du canal ».
      */
     ipl(addr: number): boolean;
     /**
@@ -83,14 +89,14 @@ export class Emulator {
     psw(): string;
     reader_left(addr: number): number;
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     */
+    reader_load(addr: number, text: string): boolean;
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      */
     reader_load_binary(addr: number, data: Uint8Array): boolean;
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     */
-    reader_load(addr: number, text: string): boolean;
     /**
      * Touche RESTART du pupitre.
      */
@@ -237,6 +243,7 @@ export interface InitOutput {
     readonly emulator_console_type: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_diag8_take: (a: number) => [number, number];
     readonly emulator_disk_error: (a: number) => [number, number];
+    readonly emulator_events_take: (a: number) => [number, number];
     readonly emulator_flush: (a: number) => void;
     readonly emulator_interrupt_key: (a: number) => void;
     readonly emulator_io_count: (a: number) => number;

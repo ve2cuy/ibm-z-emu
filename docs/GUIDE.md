@@ -114,6 +114,10 @@ To start over, the **Repository** menu downloads the original volumes again.
 
 ## 8. The z/Architecture machine (Linux s390x)
 
+(If something goes wrong, the **Monitor** tab, next to Console and Printer, tells what the
+emulator did: volumes attached, IPL result with the unit and channel status, stops with
+their wait state code, instructions not emulated yet.)
+
 The **Machine** menu also offers a second machine, **z/Architecture (Linux s390x)**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
 disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.

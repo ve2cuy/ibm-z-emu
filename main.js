@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=548ebbcb';
-import { initMemo } from './memo.js?v=548ebbcb';
-import { deckText } from './decks.js?v=548ebbcb';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=548ebbcb';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=548ebbcb';
-import { Z_DEVICES } from './herc-conf.js?v=548ebbcb';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=548ebbcb';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=99650481';
+import { initMemo } from './memo.js?v=99650481';
+import { deckText } from './decks.js?v=99650481';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=99650481';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=99650481';
+import { Z_DEVICES } from './herc-conf.js?v=99650481';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=99650481';
 
-const VERSION = '0.1.13';
+const VERSION = '0.1.14';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -782,6 +782,7 @@ async function ipl() {
   if (readerIpl) {
     if (!zbootReady()) {
       showStatus('ipl.noboot', { addr: iplPref() });
+      logEvent('page', { key: 'ipl.noboot', addr: iplPref() });
       return;
     }
   }
@@ -790,15 +791,19 @@ async function ipl() {
   const need = mountsMissing();
   if (need.length) {
     showStatus('ipl.remount', { n: need.length });
+    logEvent('page', { key: 'ipl.remount', n: need.length });
     showPanel('machine');
     return;
   }
   const mounted = [...mounts.entries()].map(([a, m]) => ({ addr: a, stem: m.stem, file: m.file, shadows: m.shadows, overlay: overlayName({ addr: a, stem: m.stem }) }));
   const opfs = vols.filter((v) => !mounted.some((m) => m.addr === v.addr));
   if (!readerIpl) {
-    if (!opfs.length && !mounted.length) return;
-    if (!opfs.some((v) => v.addr === addr) && !mounted.some((m) => m.addr === addr)) {
+    // Un volume à cette adresse, ou une autre unité de la configuration (bande, lecteur,
+    // perforatrice : l'IPL est tenté, le moniteur dira pourquoi il échoue).
+    const unit = machineDevices().some((d) => d.addr === addr && d.kind !== 'terminal' && d.kind !== 'console');
+    if (!opfs.some((v) => v.addr === addr) && !mounted.some((m) => m.addr === addr) && !unit) {
       showStatus('ipl.novol', { addr: iplPref() });
+      logEvent('page', { key: 'ipl.novol', addr: iplPref() });
       return;
     }
   }
@@ -995,7 +1000,18 @@ function onWorkerMessage({ data }) {
       break;
     case 'error':
       lastError = data.msg;
-      showStatus('error', { msg: data.msg });
+      // Échec de l'IPL (« ipl|adresse ») : expliqué dans l'onglet Moniteur.
+      if (/^ipl\|/.test(data.msg)) {
+        lastError = t('ipl.failed', { addr: data.msg.slice(4) });
+        showStatus('error', { msg: lastError });
+        selectTab('events');
+      } else {
+        showStatus('error', { msg: data.msg });
+        logEvent('error', { msg: data.msg });
+      }
+      break;
+    case 'monitor':
+      logEvent(data.key, data.vals);
       break;
     case 'stopped':
       running = false;
@@ -1173,6 +1189,8 @@ function selectTab(name) {
   consoleBox.hidden = name !== 'console';
   canvas.hidden = !name.startsWith('t');
   printerOut.hidden = name !== 'printer';
+  eventsOut.hidden = name !== 'events';
+  if (name === 'events') eventsOut.scrollTop = eventsOut.scrollHeight;
   $('key-bar').hidden = !(name.startsWith('t') && showKeys());
   $('full-button').hidden = !name.startsWith('t');
   // Liste des imprimantes : seulement sous l'onglet Imprimante.
@@ -1196,6 +1214,79 @@ function selectTab(name) {
   showTermStatus();
 }
 for (const b of tabsBox.querySelectorAll('.term-tab')) b.onclick = () => selectTab(b.dataset.tab);
+
+// --- moniteur : événements de l'émulateur (démarrage, volumes, IPL, arrêts, erreurs),
+// gardés en clés et valeurs pour suivre la langue.
+
+const eventsOut = $('events-out');
+const events = [];   // [{time, key, vals}]
+const EV_ERROR = new Set(['error', 'vol.err', 'diskerr', 'r.ipl.fail', 'r.ipl.nodev', 'r.wait', 'r.loop', 'r.badop', 'page']);
+const EV_OK = new Set(['r.ipl.ok', 'vol', 'mount', 'boot']);
+
+/** Noms des bits d'un octet d'état (liste de i18n séparée par des virgules). */
+function bitNames(listKey, hex) {
+  const names = t(listKey).split(',');
+  const v = parseInt(hex, 16) || 0;
+  const on = names.filter((_, i) => v & (0x80 >> i));
+  return on.length ? on.join(', ') : '—';
+}
+
+function eventText({ key, vals }) {
+  const v = vals ?? {};
+  switch (key) {
+    case 'start':
+      return t('mon.start', { ...v, arch: t(v.arch === 'z' ? 'arch.z' : 'arch.s370'), lp: v.loadparm ? t('mon.lp', { v: v.loadparm }) : '' });
+    case 'boot':
+      return t('mon.boot', { ...v, k: fmtSize(v.k), i: fmtSize(v.i) });
+    case 'stop':
+      return v.reason === 'user' ? t('mon.stop.user') : t('mon.stop', { reason: t(`stop.${v.reason}`) });
+    case 'r.ipl.fail':
+      return t('mon.r.ipl.fail', { ...v, ub: bitNames('mon.ubits', v.b), cb: bitNames('mon.cbits', v.c) });
+    case 'page':
+      return t(v.key, v);
+    default:
+      return t(`mon.${key}`, v);
+  }
+}
+
+function renderEvent(e) {
+  const line = document.createElement('div');
+  if (EV_ERROR.has(e.key)) line.className = 'ev-error';
+  else if (EV_OK.has(e.key)) line.className = 'ev-ok';
+  const time = document.createElement('span');
+  time.className = 'ev-time';
+  time.textContent = `${e.time.toLocaleTimeString(langList.value === 'en' ? 'en-GB' : langList.value)}  `;
+  line.append(time, eventText(e));
+  return line;
+}
+
+function logEvent(key, vals = {}) {
+  const e = { time: new Date(), key, vals };
+  events.push(e);
+  if (events.length > 2000) {
+    events.splice(0, 500);
+    renderEvents();
+    return;
+  }
+  const atEnd = eventsOut.scrollTop + eventsOut.clientHeight >= eventsOut.scrollHeight - 30;
+  if (eventsOut.firstChild?.classList?.contains('ev-empty')) eventsOut.replaceChildren();
+  eventsOut.append(renderEvent(e));
+  if (atEnd) eventsOut.scrollTop = eventsOut.scrollHeight;
+  if (currentTab !== 'events') markTab('events');
+}
+
+function renderEvents() {
+  if (!events.length) {
+    const p = document.createElement('div');
+    p.className = 'ev-empty ev-time';
+    p.textContent = t('mon.empty');
+    eventsOut.replaceChildren(p);
+    return;
+  }
+  eventsOut.replaceChildren(...events.map(renderEvent));
+}
+languageListeners.push(renderEvents);
+renderEvents();
 
 // --- console 3215
 
@@ -1641,6 +1732,8 @@ $('copy-button').addEventListener('click', async () => {
     }
   } else if (currentTab === 'printer') {
     text = printers[prefs.printer] ?? '';
+  } else if (currentTab === 'events') {
+    text = eventsOut.textContent;
   } else {
     text = consoleText;
   }

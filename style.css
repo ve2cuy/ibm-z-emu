@@ -1717,6 +1717,20 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   .kp-svg { max-height: none; }
 }
 
+/* Onglet Moniteur : événements de l'émulateur, horodatés. */
+.events-out {
+  flex: 1;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  color: #c8d8f0;
+  font: calc(var(--term-font-size, 16px) * 0.85)/1.4 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
+  white-space: pre-wrap;
+}
+.events-out .ev-time { color: #7f8ea8; }
+.events-out .ev-error { color: #ff8080; }
+.events-out .ev-ok { color: #9ef0a0; }
+
 /* Import Hercules : volumes absents lus sur place ou copiés. */
 .hc-mode { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 8px 0 0; font-size: 0.88rem; }
 .hc-mode .radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }

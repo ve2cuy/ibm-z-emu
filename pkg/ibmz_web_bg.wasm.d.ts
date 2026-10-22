@@ -18,6 +18,7 @@ export const emulator_console_take: (a: number, b: number) => [number, number];
 export const emulator_console_type: (a: number, b: number, c: number, d: number) => number;
 export const emulator_diag8_take: (a: number) => [number, number];
 export const emulator_disk_error: (a: number) => [number, number];
+export const emulator_events_take: (a: number) => [number, number];
 export const emulator_flush: (a: number) => void;
 export const emulator_interrupt_key: (a: number) => void;
 export const emulator_io_count: (a: number) => number;

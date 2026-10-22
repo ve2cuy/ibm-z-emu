@@ -162,6 +162,23 @@ export class Emulator {
         }
     }
     /**
+     * Événements pour l'onglet Moniteur depuis le dernier appel, un par ligne
+     * (« clé|valeur|… »).
+     * @returns {string}
+     */
+    events_take() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.emulator_events_take(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Écrit tout de suite les pistes modifiées.
      */
     flush() {
@@ -182,7 +199,8 @@ export class Emulator {
         return ret;
     }
     /**
-     * IPL depuis l'unité `addr`.
+     * IPL depuis l'unité `addr`. Le moniteur reçoit le résultat : « ipl.ok|adresse|PSW »,
+     * « ipl.nodev|adresse » ou « ipl.fail|adresse|état de l'unité|état du canal ».
      * @param {number} addr
      * @returns {boolean}
      */
@@ -308,6 +326,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -318,18 +348,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -791,22 +809,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_fc8422ff78884213: function(arg0) {
+        __wbg_flush_b9b31b7905248bf3: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_4ed9922f5bee5840: function() {
+        __wbg_now_6eb4a7c4278ac6e4: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_8d915276b8279359: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_8859474afd9eec60: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_41fcc0f2e0f9785c: function(arg0) {
+        __wbg_size_1c84115f2d26e9af: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_f1ca3f552fb72aef: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_ff8b84ca2f63eb0b: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
