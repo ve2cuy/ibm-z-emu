@@ -376,6 +376,13 @@ export class Emulator {
         }
     }
     /**
+     * Nombre de processeurs (z/Architecture, avant l'IPL).
+     * @param {number} n
+     */
+    set_cpus(n) {
+        wasm.emulator_set_cpus(this.__wbg_ptr, n);
+    }
+    /**
      * LOADPARM de l'IPL (z/Architecture).
      * @param {string} text
      */
@@ -386,6 +393,8 @@ export class Emulator {
     }
     /**
      * Durée simulée d'une instruction (ns) : règle la vitesse apparente du processeur.
+     * Plusieurs processeurs : l'hôte se partage entre eux, une instruction de chacun vaut
+     * donc n fois plus de temps simulé (le temps simulé suit le temps réel).
      * @param {number} ns
      */
     set_ns_per_inst(ns) {
@@ -838,22 +847,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_7a2aad2f18443049: function(arg0) {
+        __wbg_flush_01822546ecac0abd: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_efceeb2ae42bdf34: function() {
+        __wbg_now_9a37a17dca2aa41b: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_d03b8616b19f5c44: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_40141e2178b5d89e: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_4c1a1f92310788d2: function(arg0) {
+        __wbg_size_357363787df6a485: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_f3a0a03af42b0f84: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_dc9248f42e40036a: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

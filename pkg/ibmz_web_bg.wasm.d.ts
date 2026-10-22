@@ -36,6 +36,7 @@ export const emulator_reader_load: (a: number, b: number, c: number, d: number) 
 export const emulator_reader_load_binary: (a: number, b: number, c: number, d: number) => number;
 export const emulator_restart: (a: number) => void;
 export const emulator_run: (a: number, b: number, c: number) => [number, number];
+export const emulator_set_cpus: (a: number, b: number) => void;
 export const emulator_set_loadparm: (a: number, b: number, c: number) => void;
 export const emulator_set_ns_per_inst: (a: number, b: number) => void;
 export const emulator_take_activity: (a: number) => number;

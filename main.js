@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=90947704';
-import { initMemo } from './memo.js?v=90947704';
-import { deckText } from './decks.js?v=90947704';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=90947704';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=90947704';
-import { Z_DEVICES } from './herc-conf.js?v=90947704';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=90947704';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=79b0042a';
+import { initMemo } from './memo.js?v=79b0042a';
+import { deckText } from './decks.js?v=79b0042a';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=79b0042a';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=79b0042a';
+import { Z_DEVICES } from './herc-conf.js?v=79b0042a';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=79b0042a';
 
-const VERSION = '0.1.20';
+const VERSION = '0.1.21';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -33,7 +33,8 @@ const prefs = {
   arch: 's370',           // machine : s370 (MVS 3.8j) ou z (z/Architecture, Linux s390x)
   mem: 16,
   ipl: '390',
-  zmem: 256,              // z/Architecture : mémoire (Mo), unité d'IPL, LOADPARM, Linux
+  zmem: 256,              // z/Architecture : mémoire (Mo), processeurs, unité d'IPL, LOADPARM, Linux
+  zcpus: 1,
   zipl: '00C',
   loadparm: '',
   zparm: 'ro locale=C',
@@ -639,6 +640,11 @@ archList.addEventListener('change', () => {
   savePrefs();
   showMachine();
 });
+const cpusList = $('cpus-list');
+cpusList.addEventListener('change', () => {
+  prefs.zcpus = Number(cpusList.value) || 1;
+  savePrefs();
+});
 const loadparmInput = $('loadparm');
 loadparmInput.value = prefs.loadparm;
 loadparmInput.addEventListener('change', () => {
@@ -751,6 +757,8 @@ function showMachine() {
   memLabels();
   $('loadparm-field').hidden = !isZ();
   loadparmInput.value = prefs.loadparm;
+  $('cpus-field').hidden = !isZ();
+  cpusList.value = String(prefs.zcpus ?? 1);
   $('zboot').hidden = !isZ();
   showDials();
   termLabels();
@@ -856,6 +864,7 @@ async function ipl() {
     type: 'start',
     arch: prefs.arch,
     mem: isZ() ? prefs.zmem : prefs.mem,
+    ncpu: isZ() ? prefs.zcpus ?? 1 : 1,
     loadparm: isZ() ? prefs.loadparm : '',
     boot: readerIpl ? { parm: prefs.zparm || 'ro' } : null,
     ipl: addr,
@@ -1269,7 +1278,7 @@ function eventText({ key, vals }) {
   const v = vals ?? {};
   switch (key) {
     case 'start':
-      return t('mon.start', { ...v, arch: t(v.arch === 'z' ? 'arch.z' : 'arch.s370'), lp: v.loadparm ? t('mon.lp', { v: v.loadparm }) : '' });
+      return t('mon.start', { ...v, arch: t(v.arch === 'z' ? 'arch.z' : 'arch.s370'), lp: (v.ncpu > 1 ? t('mon.cpus', { n: v.ncpu }) : '') + (v.loadparm ? t('mon.lp', { v: v.loadparm }) : '') });
     case 'boot':
       return t('mon.boot', { ...v, k: fmtSize(v.k), i: fmtSize(v.i) });
     case 'stop':
@@ -1379,8 +1388,9 @@ let lastJobPrinter = null; // imprimante de travaux (00E, 00F, 002) qui a reçu 
 function showPrinter() {
   const sel = printerSelect();
   if (currentTab === 'printer') unreadPrinters.delete(prefs.printer);
-  // Imprimantes et perforatrices de la configuration (rôles connus pour celles de TK5).
-  const known = { 0x00E: 'prt.a', 0x00F: 'prt.b', 0x002: 'prt.x', 0x30E: 'prt.log' };
+  // Imprimantes et perforatrices de la configuration (rôles connus pour celles de TK5;
+  // en z/Architecture, le type seulement : les rôles dépendent du système).
+  const known = isZ() ? {} : { 0x00E: 'prt.a', 0x00F: 'prt.b', 0x002: 'prt.x', 0x30E: 'prt.log' };
   const units = machineDevices().filter((d) => d.kind === 'printer' || d.kind === 'punch')
     .map((d) => [d.addr, d.kind === 'punch' ? 'prt.punch' : known[d.addr] ?? null, d.type]);
   if (!units.some(([a]) => a === prefs.printer) && units.length) prefs.printer = units[0][0];

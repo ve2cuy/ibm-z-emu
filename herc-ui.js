@@ -15,8 +15,8 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=90947704';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=90947704';
+import { t } from './i18n.js?v=79b0042a';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=79b0042a';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
@@ -351,7 +351,10 @@ function makePlan(name, conf) {
     if (s.mainsize !== p.mem) p.warnings.push(t('hc.w.mem', { n: s.mainsize, m: p.mem }));
   }
   if (s.arch && p.arch === 's370' && !/370/.test(s.arch)) p.warnings.push(t('hc.w.arch', { arch: s.arch }));
-  if (s.numcpu > 1) p.warnings.push(t('hc.w.cpu', { n: s.numcpu }));
+  // NUMCPU : processeurs de la machine z/Architecture (au plus 8 dans la page); un seul
+  // pour le S/370.
+  if (p.arch === 'z' && s.numcpu) p.zcpus = Math.min(8, Math.max(1, s.numcpu));
+  else if (s.numcpu > 1) p.warnings.push(t('hc.w.cpu', { n: s.numcpu }));
   if (s.loadparm) p.loadparm = s.loadparm.slice(0, 8);
   // Volumes absents : lus sur place par défaut en z/Architecture (gros volumes).
   p.mode = p.arch === 'z' ? 'mount' : 'copy';
@@ -407,6 +410,7 @@ function renderPlan() {
   section(t('hc.s.system'), [
     ...(plan.arch === 'z' ? [t('arch.z')] : []),
     ...(plan.zmem ?? plan.mem ? [t('hc.mem', { m: plan.zmem ?? plan.mem })] : []),
+    ...(plan.zcpus ? [t('hc.cpus', { n: plan.zcpus })] : []),
     ...(plan.loadparm ? [t('hc.loadparm', { v: plan.loadparm })] : []),
     ...(plan.ipl !== undefined ? [t('hc.ipl', { addr: hex3(plan.ipl) })] : []),
     ...Object.entries(kinds).map(([k, list]) => `${t(`hc.k.${k}`)} : ${list.join(', ')}`),
@@ -543,6 +547,7 @@ async function apply() {
   if (plan.ipl !== undefined) ctx.prefs.zipl = hex3(plan.ipl);
   if (plan.mem) ctx.prefs.mem = plan.mem;
   if (plan.zmem) ctx.prefs.zmem = plan.zmem;
+  if (plan.zcpus) ctx.prefs.zcpus = plan.zcpus;
   ctx.savePrefs();
   $('hc').close();
   await ctx.renderVolumes();

@@ -107,11 +107,17 @@ export class Emulator {
      */
     run(ms: number, max_inst: number): string;
     /**
+     * Nombre de processeurs (z/Architecture, avant l'IPL).
+     */
+    set_cpus(n: number): void;
+    /**
      * LOADPARM de l'IPL (z/Architecture).
      */
     set_loadparm(text: string): void;
     /**
      * Durée simulée d'une instruction (ns) : règle la vitesse apparente du processeur.
+     * Plusieurs processeurs : l'hôte se partage entre eux, une instruction de chacun vaut
+     * donc n fois plus de temps simulé (le temps simulé suit le temps réel).
      */
     set_ns_per_inst(ns: number): void;
     /**
@@ -272,6 +278,7 @@ export interface InitOutput {
     readonly emulator_reader_load_binary: (a: number, b: number, c: number, d: number) => number;
     readonly emulator_restart: (a: number) => void;
     readonly emulator_run: (a: number, b: number, c: number) => [number, number];
+    readonly emulator_set_cpus: (a: number, b: number) => void;
     readonly emulator_set_loadparm: (a: number, b: number, c: number) => void;
     readonly emulator_set_ns_per_inst: (a: number, b: number) => void;
     readonly emulator_take_activity: (a: number) => number;

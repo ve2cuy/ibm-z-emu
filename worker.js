@@ -23,8 +23,8 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=90947704';
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=90947704';
+import init, { Emulator } from './pkg/ibmz_web.js?v=79b0042a';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=79b0042a';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
@@ -174,7 +174,8 @@ async function start(cfg) {
   arch = cfg.arch === 'z' ? 'z' : 's370';
   emu = arch === 'z' ? Emulator.newZ(cfg.mem, Date.now() / 1000) : new Emulator(cfg.mem, Date.now() / 1000);
   if (cfg.loadparm) emu.set_loadparm(cfg.loadparm);
-  mon('start', { arch, mem: cfg.mem, ipl: cfg.ipl.toString(16).toUpperCase().padStart(3, '0'), loadparm: cfg.loadparm || '' });
+  if (arch === 'z' && cfg.ncpu > 1) emu.set_cpus(cfg.ncpu);
+  mon('start', { arch, mem: cfg.mem, ncpu: arch === 'z' ? cfg.ncpu || 1 : 1, ipl: cfg.ipl.toString(16).toUpperCase().padStart(3, '0'), loadparm: cfg.loadparm || '' });
   const infos = [];
   const hex = (a) => a.toString(16).toUpperCase().padStart(3, '0');
   for (const v of cfg.volumes) {
