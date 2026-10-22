@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=be7df033';
-import { initMemo } from './memo.js?v=be7df033';
-import { deckText } from './decks.js?v=be7df033';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=be7df033';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=be7df033';
-import { Z_DEVICES } from './herc-conf.js?v=be7df033';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=be7df033';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=40ccea3b';
+import { initMemo } from './memo.js?v=40ccea3b';
+import { deckText } from './decks.js?v=40ccea3b';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=40ccea3b';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=40ccea3b';
+import { Z_DEVICES } from './herc-conf.js?v=40ccea3b';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=40ccea3b';
 
-const VERSION = '0.1.16';
+const VERSION = '0.1.17';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -46,6 +46,7 @@ const prefs = {
   turbo: false,
   printer: 0x00E,
   printerFit: false,      // imprimante : toute la largeur de la feuille à l'écran
+  termFit: null,          // terminal ajusté à la fenêtre (null : oui, sauf sur écran tactile)
   relay: false,
   relayUrl: 'ws://127.0.0.1:8370',
   devices: null,          // unités d'une configuration Hercules importée (null : celles de TK5)
@@ -1226,6 +1227,8 @@ function selectTab(name) {
   const ps = $('printer-select');
   if (ps) ps.hidden = name !== 'printer';
   $('printer-fit').hidden = name !== 'printer';
+  $('term-fit').hidden = !name.startsWith('t');
+  if (!name.startsWith('t')) $('monitor').classList.remove('term-scroll');
   if (!name.startsWith('t') && isFull()) setFull(false);
   if (name.startsWith('t')) {
     drawScreen();
@@ -1489,13 +1492,16 @@ function drawScreen() {
   const box = mon.getBoundingClientRect();
   // Plein écran : la plus grande police qui tient; sinon la police choisie, réduite au besoin.
   const full = isFull();
+  // Sans ajustement (tablettes par défaut) : la police choisie, le cadre défile.
+  const fit0 = full || termFit();
+  mon.classList.toggle('term-scroll', !fit0);
   const availW = mon.clientWidth - (full ? 16 : 40);
   const availH = full ? mon.clientHeight - 16 : Math.max(200, innerHeight - box.top - 70);
   let size = full ? 200 : prefs.fontSize;
   ctx.font = `${size}px ${FONT}`;
   let w = ctx.measureText('M').width;
   const fit = Math.min(availW / (cols * w + 16), availH / (rows * size * 1.25 + 16));
-  if (fit < 1) size = Math.max(8, Math.floor(size * fit));
+  if (fit < 1 && fit0) size = Math.max(8, Math.floor(size * fit));
   ctx.font = `${size}px ${FONT}`;
   w = ctx.measureText('M').width;
   cellW = w;
@@ -1543,7 +1549,7 @@ function drawScreen() {
   const cc = cursor % cols;
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   if (flags & 2) ctx.fillRect(cc * cellW, cr * cellH, cellW, cellH);
-  else if (blinkOn || document.activeElement !== canvas) ctx.fillRect(cc * cellW, cr * cellH + cellH - 3, cellW, 3);
+  else if (blinkOn || !termFocused()) ctx.fillRect(cc * cellW, cr * cellH + cellH - 3, cellW, 3);
   if (flags & 4) beep();
   showTermStatus(d);
 }
@@ -1600,7 +1606,43 @@ function termChars(text) {
   }
 }
 
-canvas.addEventListener('keydown', (e) => {
+// Écran ajusté à la fenêtre, ou à la police choisie avec défilement (comme l'imprimante).
+function termFit() {
+  return prefs.termFit ?? !matchMedia('(pointer: coarse)').matches;
+}
+$('term-fit').setAttribute('aria-pressed', String(termFit()));
+$('term-fit').addEventListener('click', () => {
+  prefs.termFit = !termFit();
+  savePrefs();
+  $('term-fit').setAttribute('aria-pressed', String(prefs.termFit));
+  drawScreen();
+});
+
+// Tablettes : une toile ne fait pas sortir le clavier virtuel; toucher l'écran donne le
+// focus à un champ invisible, qui reçoit les touches comme la toile.
+const termInput = $('term-input');
+let touchInput = false;
+
+function termFocused() {
+  return document.activeElement === canvas || document.activeElement === $('term-input');
+}
+
+function termFocus() {
+  if (touchInput) termInput.focus({ preventScroll: true });
+  else canvas.focus();
+}
+
+// Toucher : la souris émulée qui suit (mousedown) donnerait le focus à la toile et fermerait
+// le clavier; le champ le prend au clic, dernier événement du toucher.
+canvas.addEventListener('pointerdown', (e) => {
+  touchInput = e.pointerType !== 'mouse';
+});
+canvas.addEventListener('click', () => {
+  if (touchInput) termInput.focus({ preventScroll: true });
+});
+
+function termKeydown(e) {
+  if (e.isComposing) return;
   const k = e.key;
   let key = null;
   // AltGr (Ctrl+Alt sous Windows) donne des caractères : @, [, ], {, }, #…
@@ -1637,14 +1679,50 @@ canvas.addEventListener('keydown', (e) => {
     e.preventDefault();
     termChars(k);
   }
-});
+}
+canvas.addEventListener('keydown', termKeydown);
+termInput.addEventListener('keydown', termKeydown);
 
-canvas.addEventListener('paste', (e) => {
+function termPaste(e) {
   e.preventDefault();
   termChars(e.clipboardData.getData('text'));
+}
+canvas.addEventListener('paste', termPaste);
+termInput.addEventListener('paste', termPaste);
+
+// Claviers virtuels qui ne donnent pas la touche au keydown (Android : « Unidentified »,
+// correction automatique, dictée) : le texte arrive par beforeinput. Le champ garde une
+// espace, pour que l'effacement arrière soit signalé même s'il n'y a rien à effacer.
+const TERM_INPUT_FILL = ' ';
+function termInputReset() {
+  termInput.value = TERM_INPUT_FILL;
+  termInput.setSelectionRange(1, 1);
+}
+termInput.addEventListener('focus', termInputReset);
+termInput.addEventListener('beforeinput', (e) => {
+  if (e.isComposing || e.inputType === 'insertCompositionText') return;
+  e.preventDefault();
+  if (e.inputType === 'insertText' || e.inputType === 'insertReplacementText') {
+    if (e.data) termChars(e.data);
+  } else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+    termKey('Enter');
+  } else if (e.inputType === 'deleteContentBackward') {
+    termKey('Backspace');
+  } else if (e.inputType === 'deleteContentForward') {
+    termKey('Delete');
+  }
+});
+// Saisie composée (accents, chinois) : le texte final, puis le champ est remis à zéro.
+termInput.addEventListener('compositionend', (e) => {
+  if (e.data) termChars(e.data);
+  termInputReset();
+});
+termInput.addEventListener('input', () => {
+  if (termInput.value !== TERM_INPUT_FILL) termInputReset();
 });
 
 canvas.addEventListener('mousedown', (e) => {
+  if (touchInput) e.preventDefault();
   const a = currentTerm();
   const d = screens.get(a);
   if (!d || !running) return;
@@ -1728,7 +1806,7 @@ function buildKeyBar() {
       } else {
         termKey(key);
       }
-      canvas.focus();
+      termFocus();
     });
     keyBar.append(b);
   };

@@ -1458,7 +1458,7 @@ a.icon-button { display: inline-flex; align-items: center; justify-content: cent
   pointer-events: none;
 }
 .printer-out .page:last-child { margin-bottom: 0; }
-#printer-fit[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+#printer-fit[aria-pressed="true"], #term-fit[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
 .console-in {
   display: flex;
   align-items: center;
@@ -1484,6 +1484,16 @@ canvas.screen3270 {
   aspect-ratio: auto;
   margin: 0 auto;
   max-width: 100%;
+}
+/* Écran à la police choisie (non ajusté) : le cadre défile. */
+.terminal-monitor.term-scroll { overflow-x: auto; }
+.terminal-monitor.term-scroll canvas.screen3270 { max-width: none; }
+/* Saisie des tablettes : champ invisible sous l'écran 3270, qui fait sortir le clavier
+   virtuel (une toile n'en fait pas sortir). 16 px : Safari n'agrandit pas la page. */
+.term-input {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; border: 0;
+  opacity: 0; resize: none; overflow: hidden; pointer-events: none;
+  font-size: 16px; color: transparent; caret-color: transparent; background: transparent;
 }
 
 /* Volumes, dépôt, lecteur de cartes. */

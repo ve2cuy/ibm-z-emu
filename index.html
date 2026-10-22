@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=be7df033">
+  <link rel="stylesheet" href="style.css?v=40ccea3b">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -376,6 +376,8 @@
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="events" data-i18n="tab.events">Monitor</button>
           <button id="printer-fit" type="button" class="icon-button small" aria-pressed="false" title="Whole page width" data-i18n-title="prt.fit" aria-label="Whole page width" data-i18n-aria="prt.fit" hidden>
             <svg class="icon"><use href="#i-width"/></svg></button>
+          <button id="term-fit" type="button" class="icon-button small" aria-pressed="true" title="Fit the screen to the window" data-i18n-title="term.fit" aria-label="Fit the screen to the window" data-i18n-aria="term.fit" hidden>
+            <svg class="icon"><use href="#i-width"/></svg></button>
           <span id="term-status" class="telnet-status" role="status"></span>
           <button id="full-button" type="button" class="icon-button small" title="Full screen" data-i18n-title="term.full" aria-label="Full screen" data-i18n-aria="term.full" hidden>
             <svg class="icon"><use href="#i-expand"/></svg></button>
@@ -390,6 +392,7 @@
             </form>
           </div>
           <canvas id="screen3270" class="screen3270" tabindex="0" hidden aria-label="3270 terminal" data-i18n-aria="term.aria"></canvas>
+          <textarea id="term-input" class="term-input" rows="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-hidden="true"></textarea>
           <button id="full-exit" type="button" class="icon-button full-exit" title="Leave full screen" data-i18n-title="term.full.exit" aria-label="Leave full screen" data-i18n-aria="term.full.exit" hidden>
             <svg class="icon"><use href="#i-shrink"/></svg></button>
           <div id="printer-out" class="printer-out" hidden></div>
@@ -668,6 +671,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=be7df033"></script>
+  <script type="module" src="main.js?v=40ccea3b"></script>
 </body>
 </html>

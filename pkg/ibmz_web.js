@@ -809,22 +809,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_05c29dac35c21474: function(arg0) {
+        __wbg_flush_cb85192a5cf47666: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_a246d19088f5baf1: function() {
+        __wbg_now_14751abe97ebb3c7: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_6471127c0d2a6c6b: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_25e5cc6af7bf3623: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_d1bc0b9af9ac88e8: function(arg0) {
+        __wbg_size_8fead04d8e94dbd7: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_e8707641ed6b2261: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_e22a6511f5d67e6c: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
