@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0c20c021';
-import { initMemo } from './memo.js?v=0c20c021';
-import { deckText } from './decks.js?v=0c20c021';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0c20c021';
-import { devices, initHerc, mounts, mountsMissing, overlayName } from './herc-ui.js?v=0c20c021';
-import { Z_DEVICES } from './herc-conf.js?v=0c20c021';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0c20c021';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0f206423';
+import { initMemo } from './memo.js?v=0f206423';
+import { deckText } from './decks.js?v=0f206423';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0f206423';
+import { devices, initHerc, mounts, mountsMissing, overlayName } from './herc-ui.js?v=0f206423';
+import { Z_DEVICES } from './herc-conf.js?v=0f206423';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0f206423';
 
-const VERSION = '0.1.12';
+const VERSION = '0.1.13';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -45,6 +45,7 @@ const prefs = {
   depot: 'https://ve2cuy.com/vax/ibmz',
   turbo: false,
   printer: 0x00E,
+  printerFit: false,      // imprimante : toute la largeur de la feuille à l'écran
   relay: false,
   relayUrl: 'ws://127.0.0.1:8370',
   devices: null,          // unités d'une configuration Hercules importée (null : celles de TK5)
@@ -1174,6 +1175,7 @@ function selectTab(name) {
   // Liste des imprimantes : seulement sous l'onglet Imprimante.
   const ps = $('printer-select');
   if (ps) ps.hidden = name !== 'printer';
+  $('printer-fit').hidden = name !== 'printer';
   if (!name.startsWith('t') && isFull()) setFull(false);
   if (name.startsWith('t')) {
     drawScreen();
@@ -1234,12 +1236,14 @@ function printerSelect() {
     sel.id = 'printer-select';
     sel.className = 'small-select';
     sel.addEventListener('change', () => { prefs.printer = Number(sel.value); savePrefs(); showPrinter(); });
-    $('term-status').before(sel);
+    $('printer-fit').before(sel);
   }
   return sel;
 }
 
-const PAGE_LINES = 66; // lignes d'une feuille (hauteur de .printer-out .page)
+// Feuille de 66 lignes (hauteur de .printer-out .page) : marges de 3 lignes en haut et de 2
+// en bas (padding de .page), 61 lignes imprimées (LINECT de JES2 par défaut).
+const PAGE_LINES = 61;
 const unreadPrinters = new Set();
 let lastJobPrinter = null; // imprimante de travaux (00E, 00F, 002) qui a reçu la dernière sortie
 
@@ -1258,8 +1262,8 @@ function showPrinter() {
   printerOut.classList.toggle('font-1403', prefs.printer === 0x00F);
   const text = printers[prefs.printer] ?? '';
   const atEnd = printerOut.scrollTop + printerOut.clientHeight >= printerOut.scrollHeight - 30;
-  // Feuilles de 66 lignes (11 pouces à 6 lignes au pouce) : un saut de page passe à la
-  // feuille suivante (le reste de la feuille reste blanc), une page plus longue continue
+  // Feuilles de 66 lignes (11 pouces à 6 lignes au pouce), dont 61 imprimées : un saut de
+  // page passe à la feuille suivante (le reste de la feuille reste blanc), une page plus longue continue
   // sur la suivante. Le saut en tête de sortie ne laisse pas de feuille vide; seules les
   // feuilles changées sont refaites.
   const pages = [];
@@ -1281,9 +1285,40 @@ function showPrinter() {
     if (sheet.textContent !== p) sheet.textContent = p;
   });
   while (sheets.length > pages.length) sheets[sheets.length - 1].remove();
+  fitPrinter();
   if (atEnd) printerOut.scrollTop = printerOut.scrollHeight;
 }
 languageListeners.push(showPrinter);
+
+// Toute la largeur de la feuille à l'écran : la feuille, ses bandes et ses marges suivent la
+// police de l'imprimante, qui est donc réglée pour que la feuille remplisse la largeur.
+$('printer-fit').addEventListener('click', () => {
+  prefs.printerFit = !prefs.printerFit;
+  savePrefs();
+  fitPrinter();
+});
+
+function fitPrinter() {
+  $('printer-fit').setAttribute('aria-pressed', String(prefs.printerFit));
+  const sheet = printerOut.firstElementChild;
+  if (!prefs.printerFit) {
+    printerOut.style.removeProperty('--term-font-size');
+    return;
+  }
+  if (printerOut.hidden || !sheet) return;
+  const cs = getComputedStyle(printerOut);
+  const room = printerOut.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const size = parseFloat(cs.fontSize);
+  const fit = Math.floor((size * room) / sheet.offsetWidth * 100) / 100;
+  if (!(fit > 0) || Math.abs(fit - size) < 0.05) return;
+  // Même endroit du listage après le changement de taille.
+  const at = printerOut.scrollTop / Math.max(1, printerOut.scrollHeight);
+  printerOut.style.setProperty('--term-font-size', `${fit}px`);
+  printerOut.scrollTop = at * printerOut.scrollHeight;
+}
+// Largeur de la fenêtre, onglet affiché, police de l'IBM 1403 chargée.
+new ResizeObserver(() => fitPrinter()).observe(printerOut);
+document.fonts?.addEventListener('loadingdone', () => fitPrinter());
 
 // --- terminal 3270
 

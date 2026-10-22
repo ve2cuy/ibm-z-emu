@@ -10,8 +10,8 @@
 // (OPFS, dossier shadow). Les fichiers lus sur place ne se gardent que le temps de la
 // visite (mounts); la liste des volumes, elle, est gardée (prefs.mounts).
 
-import { t } from './i18n.js?v=0c20c021';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0c20c021';
+import { t } from './i18n.js?v=0f206423';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0f206423';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;

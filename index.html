@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=0c20c021">
+  <link rel="stylesheet" href="style.css?v=0f206423">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -52,6 +52,7 @@
       <symbol id="i-last" viewBox="0 0 24 24"><path d="M18 5v14M6 6l7 6-7 6"/></symbol>
       <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></symbol>
+      <symbol id="i-width" viewBox="0 0 24 24"><path d="M3 4v16M21 4v16M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></symbol>
       <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></symbol>
       <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
@@ -368,6 +369,8 @@
         <div class="term-tabs" role="tablist" id="tabs">
           <button type="button" class="term-tab active" role="tab" aria-selected="true" data-tab="console" data-i18n="tab.console">Console</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="printer" data-i18n="tab.printer">Printer</button>
+          <button id="printer-fit" type="button" class="icon-button small" aria-pressed="false" title="Whole page width" data-i18n-title="prt.fit" aria-label="Whole page width" data-i18n-aria="prt.fit" hidden>
+            <svg class="icon"><use href="#i-width"/></svg></button>
           <span id="term-status" class="telnet-status" role="status"></span>
           <button id="full-button" type="button" class="icon-button small" title="Full screen" data-i18n-title="term.full" aria-label="Full screen" data-i18n-aria="term.full" hidden>
             <svg class="icon"><use href="#i-expand"/></svg></button>
@@ -657,6 +660,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=0c20c021"></script>
+  <script type="module" src="main.js?v=0f206423"></script>
 </body>
 </html>
