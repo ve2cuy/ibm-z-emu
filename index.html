@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=0f206423">
+  <link rel="stylesheet" href="style.css?v=548ebbcb">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -137,6 +137,9 @@
                   <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.import">Import…</span>
                   <input id="hc-file" type="file" accept=".cnf,.conf,.cfg,.txt,text/plain" hidden>
                 </label>
+                <button id="hc-dir" type="button" class="secondary with-icon" title="Choose the Hercules folder: configuration, volumes and shadow files are found from the paths in the file" data-i18n-title="hc.dir.tip">
+                  <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.dir">Open a Hercules folder…</span></button>
+                <input id="hc-dir-input" type="file" webkitdirectory multiple hidden>
                 <button id="hc-export" type="button" class="secondary with-icon" title="Write this machine's configuration for Hercules" data-i18n-title="hc.export.tip">
                   <svg class="icon"><use href="#i-download"/></svg><span data-i18n="hc.export">Export</span></button>
                 <button id="hc-reset" type="button" class="secondary" data-i18n="hc.reset" hidden>TK5 configuration</button>
@@ -144,6 +147,7 @@
               <div id="hc-mounts" hidden>
                 <p id="hc-mounts-text" class="hint"></p>
                 <div class="row wrap">
+                  <button id="hc-reopen" type="button" class="secondary" hidden></button>
                   <label id="hc-remount" class="button secondary with-icon" hidden>
                     <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.remount">Choose the files…</span>
                     <input id="hc-remount-file" type="file" multiple hidden>
@@ -463,6 +467,7 @@
   <!-- Import d'une configuration Hercules (herc-ui.js) -->
   <dialog id="hc" class="dialog hc" aria-labelledby="hc-title2">
     <h2 id="hc-title2"><span data-i18n="hc.dialog">Import a Hercules configuration</span> — <span id="hc-name" class="mono"></span></h2>
+    <select id="hc-cnf" class="small-select" hidden aria-label="Configuration" data-i18n-aria="hc.cnf"></select>
     <div id="hc-body" class="hc-body"></div>
     <div id="hc-mode" class="hc-mode" hidden>
       <span class="hint" data-i18n="hc.mode.label">Missing volumes:</span>
@@ -660,6 +665,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=0f206423"></script>
+  <script type="module" src="main.js?v=548ebbcb"></script>
 </body>
 </html>

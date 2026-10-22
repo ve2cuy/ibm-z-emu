@@ -142,11 +142,15 @@ Pour démarrer Linux par le lecteur de cartes :
    commandes se tapent dans le champ du dessous (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
 
 Une configuration Hercules avec `ARCHLVL z/Arch` (import, menu **Machine**) choisit cette
-machine, sa mémoire, ses unités, son LOADPARM et une unité d'IPL proposée. Ses volumes
-absents peuvent être **lus sur place**, sans copie dans le fureteur : choisir les images
-(`.cckd`…) avec leurs fichiers d'ombre de Hercules (`sf=`, par exemple `shadow/zares1_1`).
-Ils restent sur votre disque et ne sont jamais modifiés; ce que le système écrit va dans
-une ombre gardée par la page (**Oublier les modifications** l'efface). Le fureteur ne
-garde pas les fichiers choisis d'une visite à l'autre : après un rechargement de la page,
-**Choisir les fichiers…** (menu Machine) les retrouve. Arrêter Hercules d'abord : il garde
-ses ombres verrouillées.
+machine, sa mémoire, ses unités, son LOADPARM et une unité d'IPL proposée. Le plus simple
+est **Ouvrir un dossier Hercules…** (menu Machine) : choisir le dossier d'où Hercules est
+lancé (par exemple `D:\Hercules\R3.13`). La page y trouve la configuration
+(`hercules.cnf` d'abord), puis les volumes et leurs fichiers d'ombre d'après les chemins
+du fichier (`cckd/…`, `sf=shadow/…_*`), et les **lit sur place**, sans copie dans le
+fureteur. Ils restent sur votre disque et ne sont jamais modifiés; ce que le système
+écrit va dans une ombre gardée par la page (**Oublier les modifications** l'efface). Dans
+Chrome et Edge, la page garde l'accès au dossier : à la visite suivante, **IPL** demande
+une fois la permission et retrouve les volumes. Ailleurs (Firefox, Safari), choisir de
+nouveau le dossier après un rechargement. Avec **Importer…** (un fichier `.cnf` seul),
+choisir soi-même les images (`.cckd`…) et leurs ombres. Arrêter Hercules d'abord : il
+garde ses ombres verrouillées.

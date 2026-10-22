@@ -131,10 +131,14 @@ To start Linux from the card reader:
    in the field below it (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
 
 A Hercules configuration with `ARCHLVL z/Arch` (import, **Machine** menu) selects this
-machine, its storage, its units, its LOADPARM and a proposed IPL unit. Its missing volumes
-can be **read in place**, without copying them into the browser: choose the images
-(`.cckd`…) together with their Hercules shadow files (`sf=`, for example `shadow/zares1_1`).
+machine, its storage, its units, its LOADPARM and a proposed IPL unit. The simplest way
+is **Open a Hercules folder…** (Machine menu): choose the folder Hercules is started from
+(for example `D:\Hercules\R3.13`). The page finds the configuration in it (`hercules.cnf`
+first), then the volumes and their shadow files from the paths of the file (`cckd/…`,
+`sf=shadow/…_*`), and reads them **in place**, without copying them into the browser.
 They stay on your disk and are never modified; what the system writes goes into a shadow
-kept by the page (**Forget the changes** erases it). The browser does not keep the chosen
-files from one visit to the next: after reloading the page, **Choose the files…** (Machine
-menu) finds them again. Stop Hercules first: it keeps its shadow files locked.
+kept by the page (**Forget the changes** erases it). In Chrome and Edge, the page keeps
+access to the folder: at the next visit, **IPL** asks once for permission and finds the
+volumes again. Elsewhere (Firefox, Safari), choose the folder again after reloading.
+With **Import…** (a single `.cnf` file), choose the images (`.cckd`…) and their shadow
+files yourself. Stop Hercules first: it keeps its shadow files locked.

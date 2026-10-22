@@ -9,9 +9,14 @@
 // l'usager (lecture seule, sans copie), les écritures vont dans une ombre de la page
 // (OPFS, dossier shadow). Les fichiers lus sur place ne se gardent que le temps de la
 // visite (mounts); la liste des volumes, elle, est gardée (prefs.mounts).
+//
+// Dossier de Hercules (Chrome, Edge : showDirectoryPicker) : la configuration, les volumes
+// et leurs ombres y sont trouvés d'après les chemins du fichier (relatifs à son dossier ou
+// à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
+// est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=0f206423';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0f206423';
+import { t } from './i18n.js?v=548ebbcb';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=548ebbcb';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
@@ -22,6 +27,216 @@ export const mounts = new Map();
 /** Volumes lus sur place dont les fichiers restent à choisir (nouvelle visite). */
 export function mountsMissing() {
   return (ctx.prefs.mounts ?? []).filter((m) => !mounts.has(m.addr));
+}
+
+// ------------------------------------------------------------------ dossier de Hercules
+
+const dirOk = typeof window.showDirectoryPicker === 'function';
+let hercDir = null;    // FileSystemDirectoryHandle choisi
+let cnfList = [];      // [{path: ['cckd'], file: File}] : configurations du dossier
+
+function idb() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('ibmz', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('handles');
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+async function saveDir(h) {
+  try {
+    const db = await idb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put(h, 'herc-dir');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch { /* stockage indisponible : le dossier sera redemandé */ }
+}
+
+async function loadDir() {
+  try {
+    const db = await idb();
+    return await new Promise((resolve) => {
+      const r = db.transaction('handles').objectStore('handles').get('herc-dir');
+      r.onsuccess = () => resolve(r.result ?? null);
+      r.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Dossier au chemin `parts` (['cckd']) depuis le dossier choisi. */
+async function dirAt(parts) {
+  let d = hercDir;
+  for (const p of parts) d = await d.getDirectoryHandle(p);
+  return d;
+}
+
+const splitPath = (p) => p.replace(/\\/g, '/').split('/').filter((x) => x && x !== '.');
+
+/** Fichier d'un chemin de la configuration : relatif à son dossier, sinon à un parent. */
+async function resolveFile(rel, cnfPath) {
+  const parts = splitPath(rel);
+  for (let k = cnfPath.length; k >= 0; k--) {
+    const at = [...cnfPath.slice(0, k), ...parts];
+    try {
+      const fh = await (await dirAt(at.slice(0, -1))).getFileHandle(at[at.length - 1]);
+      return { file: await fh.getFile(), path: at.join('/') };
+    } catch { /* essai suivant */ }
+  }
+  return null;
+}
+
+/** Ombres d'un motif sf= (shadow/zares1_*) : fichiers « zares1_<rang> », dans l'ordre. */
+async function resolveShadows(pattern, cnfPath) {
+  const parts = splitPath(pattern);
+  const prefix = (parts.pop() ?? '').replace(/\*.*$/, '');
+  for (let k = cnfPath.length; k >= 0; k--) {
+    try {
+      const at = [...cnfPath.slice(0, k), ...parts];
+      const d = await dirAt(at);
+      const found = [];
+      for await (const [name, h] of d.entries()) {
+        const rest = name.slice(prefix.length);
+        if (h.kind === 'file' && name.startsWith(prefix) && /^\d+$/.test(rest)) {
+          found.push({ n: Number(rest), file: await h.getFile(), path: [...at, name].join('/') });
+        }
+      }
+      if (found.length) return found.sort((a, b) => a.n - b.n);
+    } catch { /* essai suivant */ }
+  }
+  return [];
+}
+
+/** Configurations (.cnf, .conf) du dossier et de ses sous-dossiers directs. */
+async function findConfigs() {
+  const out = [];
+  const scan = async (d, path) => {
+    for await (const [name, h] of d.entries()) {
+      if (h.kind === 'file' && /\.(cnf|conf)$/i.test(name)) out.push({ path, file: await h.getFile() });
+      else if (h.kind === 'directory' && !path.length) await scan(h, [name]);
+    }
+  };
+  await scan(hercDir, []);
+  // hercules.cnf d'abord, puis les autres par nom.
+  return out.sort((a, b) => (b.file.name.toLowerCase() === 'hercules.cnf') - (a.file.name.toLowerCase() === 'hercules.cnf')
+    || a.file.name.localeCompare(b.file.name));
+}
+
+/** Volumes absents du plan : trouvés dans le dossier (images et ombres). */
+async function resolvePlan() {
+  for (const v of plan.missing) {
+    if (!v.path) continue;
+    const f = await resolveFile(v.path, plan.cnfPath);
+    if (!f) {
+      v.notFound = v.path;
+      continue;
+    }
+    plan.files.set(v.stem, f.file);
+    plan.paths.set(v.stem, f.path);
+    if (v.sf) {
+      const list = await resolveShadows(v.sf, plan.cnfPath);
+      if (list.length) {
+        plan.shadows.set(v.stem, list.map((s) => s.file));
+        plan.shadowPaths.set(v.stem, list.map((s) => s.path));
+      }
+    }
+  }
+}
+
+/** Dossier fait des fichiers d'un champ « dossier » (webkitdirectory : Firefox, Safari),
+ *  rangés d'après leur chemin relatif; mêmes méthodes qu'un FileSystemDirectoryHandle. */
+function dirFromFiles(files) {
+  const node = (name) => ({ name, dirs: new Map(), files: new Map() });
+  const top = node('');
+  for (const f of files) {
+    const parts = splitPath(f.webkitRelativePath || f.name);
+    let d = top;
+    for (const p of parts.slice(0, -1)) d = d.dirs.get(p) ?? d.dirs.set(p, node(p)).get(p);
+    d.files.set(parts[parts.length - 1], f);
+  }
+  // Le premier niveau est le dossier choisi lui-même.
+  const root = top.dirs.size === 1 && !top.files.size ? [...top.dirs.values()][0] : top;
+  const handle = (n) => ({
+    kind: 'directory',
+    name: n.name,
+    async getDirectoryHandle(x) {
+      if (!n.dirs.has(x)) throw new Error('NotFoundError');
+      return handle(n.dirs.get(x));
+    },
+    async getFileHandle(x) {
+      const f = n.files.get(x);
+      if (!f) throw new Error('NotFoundError');
+      return { kind: 'file', name: x, getFile: async () => f };
+    },
+    async *entries() {
+      for (const [x, d] of n.dirs) yield [x, handle(d)];
+      for (const [x, f] of n.files) yield [x, { kind: 'file', name: x, getFile: async () => f }];
+    },
+    queryPermission: async () => 'granted',
+  });
+  return handle(root);
+}
+
+async function openFolder(files = null) {
+  if (files) {
+    hercDir = dirFromFiles(files);
+  } else {
+    try {
+      hercDir = await window.showDirectoryPicker({ id: 'hercules', mode: 'read' });
+    } catch {
+      return; // choix annulé
+    }
+    await saveDir(hercDir);
+  }
+  ctx.prefs.hercDirName = hercDir.name;
+  ctx.savePrefs();
+  cnfList = await findConfigs();
+  if (!cnfList.length) {
+    ctx.status('hc.dir.nocnf', { name: hercDir.name });
+    return;
+  }
+  await importConfig(cnfList[0].file, cnfList[0].path);
+}
+
+/** Nouvelle visite : les volumes lus sur place, retrouvés dans le dossier gardé (accès
+ *  redemandé : à appeler pendant un clic). Rend le nombre de volumes retrouvés. */
+export async function remountFromDir() {
+  const want = (ctx.prefs.mounts ?? []).filter((m) => m.path && !mounts.has(m.addr));
+  if (!want.length) return 0;
+  const h = hercDir ?? await loadDir();
+  if (!h) return 0;
+  try {
+    let perm = await h.queryPermission({ mode: 'read' });
+    if (perm !== 'granted') perm = await h.requestPermission({ mode: 'read' });
+    if (perm !== 'granted') {
+      ctx.status('hc.reopen.denied', { name: h.name });
+      return 0;
+    }
+  } catch {
+    return 0;
+  }
+  hercDir = h;
+  let found = 0;
+  for (const m of want) {
+    try {
+      const open = async (p) => {
+        const at = splitPath(p);
+        return (await (await dirAt(at.slice(0, -1))).getFileHandle(at[at.length - 1])).getFile();
+      };
+      const file = await open(m.path);
+      const shadows = [];
+      for (const p of m.shadowPaths ?? []) shadows.push(await open(p));
+      mounts.set(m.addr, { stem: m.stem, file, shadows });
+      found++;
+    } catch { /* fichier déplacé : à choisir à la main */ }
+  }
+  showConfig();
+  return found;
 }
 
 /** Genre d'un fichier d'après son en-tête : image (CKD_P370, CKD_C370), ombre (CKD_S370). */
@@ -94,7 +309,7 @@ async function exportConfig() {
 
 /** Plan d'import : ce qui sera changé, et ce qui ne peut pas l'être. */
 function makePlan(name, conf) {
-  const p = { name, warnings: [], dasd: [], missing: [], conflicts: [], devices: [], ignored: conf.ignored, files: new Map(), shadows: new Map() };
+  const p = { name, warnings: [], dasd: [], missing: [], conflicts: [], devices: [], ignored: conf.ignored, files: new Map(), shadows: new Map(), paths: new Map(), shadowPaths: new Map() };
   const s = conf.system;
   // ARCHLVL z/Arch, ESA/390, ESAME : machine z/Architecture (mémoire de 64 Mo à 2 Go).
   p.arch = s.arch && /z\/?arch|esame|390/i.test(s.arch) ? 'z' : 's370';
@@ -136,7 +351,7 @@ function makePlan(name, conf) {
     } else if (have) {
       p.dasd.push({ addr: d.addr, stem, file: have.file, to: want, action: 'rename' });
     } else {
-      p.missing.push({ addr: d.addr, stem, type: d.type, to: want, sf: !!d.sf });
+      p.missing.push({ addr: d.addr, stem, type: d.type, to: want, path: d.path, sf: d.sf });
     }
   }
   return p;
@@ -172,6 +387,7 @@ function renderPlan() {
       : t('hc.v.rename', { addr: hex3(v.addr), file: v.file, to: v.to }))),
     ...plan.missing.map((v) => {
       const f = plan.files.get(v.stem);
+      if (!f && v.notFound) return t('hc.v.notfound', { addr: hex3(v.addr), path: v.notFound, dir: hercDir?.name ?? '' });
       if (!f) return t('hc.v.missing', { addr: hex3(v.addr), stem: v.stem, type: v.type });
       if (plan.mode === 'copy') return t('hc.v.chosen', { addr: hex3(v.addr), file: f.name, to: v.to });
       const n = plan.shadows.get(v.stem)?.length ?? 0;
@@ -195,6 +411,13 @@ function renderPlan() {
   }
   const waiting = plan.missing.filter((v) => !plan.files.has(v.stem)).length;
   $('hc-files').hidden = !plan.missing.length;
+  // Plusieurs configurations dans le dossier : choix.
+  const sel = $('hc-cnf');
+  sel.hidden = cnfList.length < 2 || !plan.cnfPath;
+  if (!sel.hidden) {
+    sel.replaceChildren(...cnfList.map((c, i) => new Option([...c.path, c.file.name].join('/'), String(i))));
+    sel.value = String(cnfList.findIndex((c) => c.file.name === plan.name && c.path.join('/') === plan.cnfPath.join('/')));
+  }
   $('hc-mode').hidden = !plan.missing.length;
   for (const r of document.querySelectorAll('input[name="hc-mode"]')) r.checked = r.value === plan.mode;
   $('hc-running').hidden = !ctx.running();
@@ -202,15 +425,24 @@ function renderPlan() {
   $('hc-note').textContent = waiting ? t('hc.note.missing', { n: waiting }) : '';
 }
 
-async function importConfig(file) {
+/** Lit une configuration; `cnfPath` : son dossier dans le dossier de Hercules choisi
+ *  (les volumes et leurs ombres y sont alors cherchés), ou null (fichier seul). */
+async function importConfig(file, cnfPath = null) {
   const conf = parseConfig(await file.text());
   if (!conf.devices.length && !conf.system.mainsize) {
     ctx.status('hc.empty', { name: file.name });
     return;
   }
+  if (!cnfPath) cnfList = [];
   plan = makePlan(file.name, conf);
+  plan.cnfPath = cnfPath;
+  if (cnfPath && hercDir) {
+    ctx.status('hc.dir.reading', { name: hercDir.name });
+    await resolvePlan();
+    ctx.status('', {});
+  }
   renderPlan();
-  $('hc').showModal();
+  if (!$('hc').open) $('hc').showModal();
 }
 
 /** Fichiers des volumes manquants : images rapprochées par leur nom (sans extension),
@@ -252,7 +484,11 @@ async function apply() {
     if (plan.mode === 'mount') {
       // Lu sur place : rien n'est copié.
       mounts.set(v.addr, { stem: v.stem, file: f, shadows: plan.shadows.get(v.stem) ?? [] });
-      mounted.push({ addr: v.addr, stem: v.stem, name: f.name, shadows: plan.shadows.get(v.stem)?.length ?? 0 });
+      // Chemins dans le dossier de Hercules : la visite suivante y retrouve les fichiers.
+      mounted.push({
+        addr: v.addr, stem: v.stem, name: f.name, shadows: plan.shadows.get(v.stem)?.length ?? 0,
+        path: plan.paths.get(v.stem), shadowPaths: plan.shadowPaths.get(v.stem) ?? [],
+      });
       done++;
       continue;
     }
@@ -311,6 +547,9 @@ export function showConfig() {
     ? t('hc.mounts.need', { n: all.length, m: need.length })
     : t('hc.mounts', { n: all.length });
   $('hc-remount').hidden = !need.length;
+  const reopen = $('hc-reopen');
+  reopen.hidden = !need.length || !dirOk || !need.some((m) => m.path);
+  reopen.textContent = t('hc.reopen', { name: ctx.prefs.hercDirName ?? '' });
 }
 
 /** Nouvelle visite : les fichiers des volumes lus sur place, choisis de nouveau. */
@@ -370,6 +609,25 @@ export function initHerc(context) {
     if (files.length) remount(files);
   });
   $('hc-overlay-clear').addEventListener('click', () => clearOverlays());
+  // Dossier : showDirectoryPicker (accès gardé), sinon un champ « dossier ».
+  $('hc-dir').addEventListener('click', () => {
+    if (dirOk) openFolder().catch((err) => ctx.status('error', { msg: err.message }));
+    else $('hc-dir-input').click();
+  });
+  $('hc-dir-input').addEventListener('change', (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) openFolder(files).catch((err) => ctx.status('error', { msg: err.message }));
+  });
+  $('hc-reopen').addEventListener('click', async () => {
+    const n = await remountFromDir();
+    if (n) ctx.status('hc.remounted', { n, m: (ctx.prefs.mounts ?? []).length });
+    ctx.applied();
+  });
+  $('hc-cnf').addEventListener('change', (e) => {
+    const c = cnfList[Number(e.target.value)];
+    if (c) importConfig(c.file, c.path);
+  });
   $('hc-apply').addEventListener('click', () => apply().catch((err) => ctx.status('error', { msg: err.message })));
   $('hc-cancel').addEventListener('click', () => $('hc').close());
   showConfig();

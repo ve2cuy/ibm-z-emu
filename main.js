@@ -2,13 +2,13 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0f206423';
-import { initMemo } from './memo.js?v=0f206423';
-import { deckText } from './decks.js?v=0f206423';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0f206423';
-import { devices, initHerc, mounts, mountsMissing, overlayName } from './herc-ui.js?v=0f206423';
-import { Z_DEVICES } from './herc-conf.js?v=0f206423';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0f206423';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=548ebbcb';
+import { initMemo } from './memo.js?v=548ebbcb';
+import { deckText } from './decks.js?v=548ebbcb';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=548ebbcb';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=548ebbcb';
+import { Z_DEVICES } from './herc-conf.js?v=548ebbcb';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=548ebbcb';
 
 const VERSION = '0.1.13';
 const V = new URL(import.meta.url).search;
@@ -772,6 +772,9 @@ let runArch = 's370';   // machine en marche
 
 async function ipl() {
   if (running || !worker) return;
+  // Volumes lus sur place d'une visite précédente : retrouvés dans le dossier de Hercules
+  // gardé (l'accès se redemande pendant ce clic, avant toute autre attente).
+  if (mountsMissing().length) await remountFromDir();
   const vols = await listVolumes();
   const addr = parseInt(iplPref(), 16);
   // z/Architecture : IPL du lecteur avec les fichiers de Linux.
