@@ -1436,9 +1436,10 @@ a.icon-button { display: inline-flex; align-items: center; justify-content: cent
   box-sizing: border-box;
   width: max-content;
   min-width: calc(132ch + 2 * var(--margin) + 2ch);
-  min-height: var(--tile);
+  height: calc(66 * var(--lh));                 /* 11 pouces : 66 lignes, 11 tuiles */
   margin: 0 auto 10px;
-  padding: var(--lh) calc(var(--margin) + 1ch);
+  padding: 0 calc(var(--margin) + 1ch);
+  overflow: hidden;
   background:
     url(images/paper-left.png) left top / var(--margin) var(--tile) repeat-y,
     url(images/paper-right.png) right top / var(--margin) var(--tile) repeat-y,

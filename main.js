@@ -2,14 +2,14 @@
 // machine (worker.js), console de l'opérateur, terminaux 3270, pupitre, lecteur de cartes
 // et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=2c6c4a60';
-import { initMemo } from './memo.js?v=2c6c4a60';
-import { deckText } from './decks.js?v=2c6c4a60';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=2c6c4a60';
-import { devices, initHerc } from './herc-ui.js?v=2c6c4a60';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=2c6c4a60';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0a29960c';
+import { initMemo } from './memo.js?v=0a29960c';
+import { deckText } from './decks.js?v=0a29960c';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0a29960c';
+import { devices, initHerc } from './herc-ui.js?v=0a29960c';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0a29960c';
 
-const VERSION = '0.1.9';
+const VERSION = '0.1.10';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1049,6 +1049,7 @@ function printerSelect() {
   return sel;
 }
 
+const PAGE_LINES = 66; // lignes d'une feuille (hauteur de .printer-out .page)
 const unreadPrinters = new Set();
 let lastJobPrinter = null; // imprimante de travaux (00E, 00F, 002) qui a reçu la dernière sortie
 
@@ -1067,9 +1068,17 @@ function showPrinter() {
   printerOut.classList.toggle('font-1403', prefs.printer === 0x00F);
   const text = printers[prefs.printer] ?? '';
   const atEnd = printerOut.scrollTop + printerOut.clientHeight >= printerOut.scrollHeight - 30;
-  // Une feuille par saut de page (le saut en tête de sortie ne laisse pas de feuille vide);
-  // seules les feuilles changées sont refaites.
-  const pages = text.split('\f').filter((p) => p !== '');
+  // Feuilles de 66 lignes (11 pouces à 6 lignes au pouce) : un saut de page passe à la
+  // feuille suivante (le reste de la feuille reste blanc), une page plus longue continue
+  // sur la suivante. Le saut en tête de sortie ne laisse pas de feuille vide; seules les
+  // feuilles changées sont refaites.
+  const pages = [];
+  for (const page of text.split('\f')) {
+    if (page === '') continue;
+    const lines = page.split('\n');
+    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+    for (let i = 0; i < lines.length; i += PAGE_LINES) pages.push(lines.slice(i, i + PAGE_LINES).join('\n'));
+  }
   if (!pages.length) pages.push(text ? '' : t('prt.empty'));
   const sheets = printerOut.children;
   pages.forEach((p, i) => {
