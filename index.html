@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=99650481">
+  <link rel="stylesheet" href="style.css?v=c555d83f">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -479,6 +479,7 @@
     <p id="hc-note" class="hint"></p>
     <p id="hc-running" class="hint error" data-i18n="hc.running" hidden>Stop the machine to apply this configuration.</p>
     <div class="dialog-actions">
+      <button id="hc-pickdir" type="button" title="Choose the Hercules folder: the volumes and their shadow files are found from the paths in the file" data-i18n-title="hc.dir.tip" hidden><span data-i18n="hc.pickdir">Choose the Hercules folder…</span></button>
       <label id="hc-files" class="button secondary" title="Images (.cckd…) and their Hercules shadow files" data-i18n-title="hc.files.tip"><span data-i18n="hc.files">Choose the missing volumes…</span>
         <input id="hc-vols" type="file" multiple hidden></label>
       <span class="grow"></span>
@@ -667,6 +668,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=99650481"></script>
+  <script type="module" src="main.js?v=c555d83f"></script>
 </body>
 </html>

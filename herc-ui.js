@@ -15,8 +15,8 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=99650481';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=99650481';
+import { t } from './i18n.js?v=c555d83f';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=c555d83f';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
@@ -34,6 +34,7 @@ export function mountsMissing() {
 const dirOk = typeof window.showDirectoryPicker === 'function';
 let hercDir = null;    // FileSystemDirectoryHandle choisi
 let cnfList = [];      // [{path: ['cckd'], file: File}] : configurations du dossier
+let pickForPlan = false; // champ « dossier » ouvert depuis le dialogue d'import
 
 function idb() {
   return new Promise((resolve, reject) => {
@@ -78,11 +79,14 @@ async function dirAt(parts) {
 
 const splitPath = (p) => p.replace(/\\/g, '/').split('/').filter((x) => x && x !== '.');
 
-/** Fichier d'un chemin de la configuration : relatif à son dossier, sinon à un parent. */
+/** Fichier d'un chemin de la configuration : relatif à son dossier, sinon à un parent;
+ *  enfin sans ses premiers dossiers (le dossier choisi est celui des volumes). */
 async function resolveFile(rel, cnfPath) {
   const parts = splitPath(rel);
-  for (let k = cnfPath.length; k >= 0; k--) {
-    const at = [...cnfPath.slice(0, k), ...parts];
+  const tries = [];
+  for (let k = cnfPath.length; k >= 0; k--) tries.push([...cnfPath.slice(0, k), ...parts]);
+  for (let d = 1; d < parts.length; d++) tries.push(parts.slice(d));
+  for (const at of tries) {
     try {
       const fh = await (await dirAt(at.slice(0, -1))).getFileHandle(at[at.length - 1]);
       return { file: await fh.getFile(), path: at.join('/') };
@@ -180,6 +184,31 @@ function dirFromFiles(files) {
     queryPermission: async () => 'granted',
   });
   return handle(root);
+}
+
+/** Dialogue ouvert pour un fichier .cnf seul : le dossier de Hercules choisi ensuite y
+ *  trouve les volumes et leurs ombres (la configuration y est retrouvée par son nom, pour
+ *  que ses chemins relatifs s'appliquent). */
+async function folderForPlan(files = null) {
+  if (files) hercDir = dirFromFiles(files);
+  else {
+    try {
+      hercDir = await window.showDirectoryPicker({ id: 'hercules', mode: 'read' });
+    } catch {
+      return;
+    }
+    await saveDir(hercDir);
+  }
+  ctx.prefs.hercDirName = hercDir.name;
+  ctx.savePrefs();
+  cnfList = await findConfigs();
+  const same = cnfList.find((c) => c.file.name === plan.name);
+  plan.cnfPath = same ? same.path : [];
+  for (const v of plan.missing) delete v.notFound;
+  ctx.status('hc.dir.reading', { name: hercDir.name });
+  await resolvePlan();
+  ctx.status('', {});
+  renderPlan();
 }
 
 async function openFolder(files = null) {
@@ -410,7 +439,8 @@ function renderPlan() {
     box.append(d);
   }
   const waiting = plan.missing.filter((v) => !plan.files.has(v.stem)).length;
-  $('hc-files').hidden = !plan.missing.length;
+  $('hc-files').hidden = !waiting;
+  $('hc-pickdir').hidden = !waiting;
   // Plusieurs configurations dans le dossier : choix.
   const sel = $('hc-cnf');
   sel.hidden = cnfList.length < 2 || !plan.cnfPath;
@@ -504,6 +534,8 @@ async function apply() {
   // Volumes lus sur place : ceux de cette configuration remplacent les précédents.
   for (const a of [...mounts.keys()]) if (!mounted.some((m) => m.addr === a)) mounts.delete(a);
   ctx.prefs.mounts = mounted;
+  // Volumes restés absents (l'IPL saura dire lequel manque).
+  ctx.prefs.missingVols = plan.missing.filter((v) => !plan.files.has(v.stem)).map((v) => ({ addr: v.addr, stem: v.stem }));
   ctx.prefs.devices = plan.devices;
   ctx.prefs.devicesName = plan.name;
   ctx.prefs.arch = plan.arch;
@@ -516,7 +548,8 @@ async function apply() {
   await ctx.renderVolumes();
   showConfig();
   ctx.applied();
-  ctx.status('hc.applied', { name: plan.name, n: done });
+  const left = ctx.prefs.missingVols.length;
+  ctx.status(left ? 'hc.applied.missing' : 'hc.applied', { name: plan.name, n: done, m: left });
 }
 
 function reset() {
@@ -524,6 +557,7 @@ function reset() {
   ctx.prefs.devices = null;
   ctx.prefs.devicesName = null;
   ctx.prefs.mounts = [];
+  ctx.prefs.missingVols = [];
   mounts.clear();
   ctx.prefs.arch = 's370';
   ctx.savePrefs();
@@ -617,7 +651,18 @@ export function initHerc(context) {
   $('hc-dir-input').addEventListener('change', (e) => {
     const files = [...e.target.files];
     e.target.value = '';
-    if (files.length) openFolder(files).catch((err) => ctx.status('error', { msg: err.message }));
+    if (!files.length) return;
+    // Depuis le dialogue (fichier .cnf seul) : volumes de ce plan; sinon nouvel import.
+    const run = pickForPlan ? folderForPlan(files) : openFolder(files);
+    pickForPlan = false;
+    run.catch((err) => ctx.status('error', { msg: err.message }));
+  });
+  $('hc-pickdir').addEventListener('click', () => {
+    if (dirOk) folderForPlan().catch((err) => ctx.status('error', { msg: err.message }));
+    else {
+      pickForPlan = true;
+      $('hc-dir-input').click();
+    }
   });
   $('hc-reopen').addEventListener('click', async () => {
     const n = await remountFromDir();

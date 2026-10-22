@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=99650481';
-import { initMemo } from './memo.js?v=99650481';
-import { deckText } from './decks.js?v=99650481';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=99650481';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=99650481';
-import { Z_DEVICES } from './herc-conf.js?v=99650481';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=99650481';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=c555d83f';
+import { initMemo } from './memo.js?v=c555d83f';
+import { deckText } from './decks.js?v=c555d83f';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c555d83f';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=c555d83f';
+import { Z_DEVICES } from './herc-conf.js?v=c555d83f';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c555d83f';
 
-const VERSION = '0.1.14';
+const VERSION = '0.1.15';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -802,8 +802,11 @@ async function ipl() {
     // perforatrice : l'IPL est tenté, le moniteur dira pourquoi il échoue).
     const unit = machineDevices().some((d) => d.addr === addr && d.kind !== 'terminal' && d.kind !== 'console');
     if (!opfs.some((v) => v.addr === addr) && !mounted.some((m) => m.addr === addr) && !unit) {
-      showStatus('ipl.novol', { addr: iplPref() });
-      logEvent('page', { key: 'ipl.novol', addr: iplPref() });
+      // Volume de la configuration importée, mais absent (fichiers pas choisis).
+      const want = prefs.missingVols?.find((m) => m.addr === addr);
+      const key = want ? 'ipl.novol.cnf' : 'ipl.novol';
+      showStatus(key, { addr: iplPref(), stem: want?.stem ?? '' });
+      logEvent('page', { key, addr: iplPref(), stem: want?.stem ?? '' });
       return;
     }
   }
