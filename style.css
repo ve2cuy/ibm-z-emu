@@ -1735,12 +1735,13 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   flex: 1;
   margin: 0;
   padding: 10px 12px;
-  overflow: auto;
   color: #c8d8f0;
   font: calc(var(--term-font-size, 16px) * 0.85)/1.4 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
-  /* Un événement par ligne; les longues lignes défilent à l'horizontale. */
+  /* Un événement par ligne; les longues lignes défilent à l'horizontale. Hauteur bornée
+     (comme l'imprimante) : les événements défilent à la verticale. */
   white-space: pre;
-  overflow-x: auto;
+  height: min(70dvh, 46rem);
+  overflow: auto;
 }
 .events-out > div { width: max-content; min-width: 100%; }
 .events-out .ev-time { color: #7f8ea8; }
