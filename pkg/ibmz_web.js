@@ -326,6 +326,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -336,18 +348,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -799,6 +799,35 @@ export function blank_volume(devtype, cyls, volser) {
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
 }
+
+/**
+ * Noms des boucles de mesure du processeur z/Architecture (`zarch::bench`).
+ * @returns {string}
+ */
+export function zbench_names() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.zbench_names();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * Exécute la boucle de mesure z/Architecture `k` pendant `iters` tours : nombre
+ * d'instructions.
+ * @param {number} k
+ * @param {number} iters
+ * @returns {number}
+ */
+export function zbench_run(k, iters) {
+    const ret = wasm.zbench_run(k, iters);
+    return ret;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -809,22 +838,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_b91af6c9a44b1f2f: function(arg0) {
+        __wbg_flush_c9041e535a80d4bb: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_8d31de21d98e3a18: function() {
+        __wbg_now_ae43c8d7c6e48e95: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_1065a9fe1fbaae1b: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_48da301583ef2e3f: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_071238f3b37f1bc9: function(arg0) {
+        __wbg_size_09fcd0d35d0c7a2d: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_9976840fd71b501b: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_831879d9a4eef8dc: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

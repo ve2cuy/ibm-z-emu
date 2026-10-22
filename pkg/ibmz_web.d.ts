@@ -89,14 +89,14 @@ export class Emulator {
     psw(): string;
     reader_left(addr: number): number;
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     */
+    reader_load(addr: number, text: string): boolean;
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      */
     reader_load_binary(addr: number, data: Uint8Array): boolean;
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     */
-    reader_load(addr: number, text: string): boolean;
     /**
      * Touche RESTART du pupitre.
      */
@@ -222,6 +222,17 @@ export function bench_run(k: number, iters: number): number;
  */
 export function blank_volume(devtype: number, cyls: number, volser: string): Uint8Array;
 
+/**
+ * Noms des boucles de mesure du processeur z/Architecture (`zarch::bench`).
+ */
+export function zbench_names(): string;
+
+/**
+ * Exécute la boucle de mesure z/Architecture `k` pendant `iters` tours : nombre
+ * d'instructions.
+ */
+export function zbench_run(k: number, iters: number): number;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -285,6 +296,8 @@ export interface InitOutput {
     readonly volumeimage_push_shadow: (a: number, b: any) => [number, number];
     readonly volumeimage_raw: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly volumeimage_write: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number, number];
+    readonly zbench_names: () => [number, number];
+    readonly zbench_run: (a: number, b: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
