@@ -326,18 +326,6 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -348,6 +336,18 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -809,22 +809,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_b9fa86c9e53cba24: function(arg0) {
+        __wbg_flush_05c29dac35c21474: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_28c074590e3b0510: function() {
+        __wbg_now_a246d19088f5baf1: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_3880876c033da451: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_6471127c0d2a6c6b: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_8be11bcf78b7bf90: function(arg0) {
+        __wbg_size_d1bc0b9af9ac88e8: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_da92758cf83da2ad: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_e8707641ed6b2261: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

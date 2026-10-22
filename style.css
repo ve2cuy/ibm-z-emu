@@ -1490,6 +1490,9 @@ canvas.screen3270 {
 .vol-list { margin: 6px 0; padding: 0; list-style: none; font-size: 0.85rem; }
 .vol-list li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .vol-list li .mono { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Volumes lus sur place (dossier de Hercules) : marque et état. */
+.vol-list li.mounted .mono { color: var(--accent-ink); }
+.vol-list li.mounted.need .mono { color: var(--text-dim, #888); font-style: italic; }
 .icon-button.small { width: 28px; height: 28px; }
 .depot-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .depot-card p { margin: 0; }
@@ -1725,11 +1728,15 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   overflow: auto;
   color: #c8d8f0;
   font: calc(var(--term-font-size, 16px) * 0.85)/1.4 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
-  white-space: pre-wrap;
+  /* Un événement par ligne; les longues lignes défilent à l'horizontale. */
+  white-space: pre;
+  overflow-x: auto;
 }
+.events-out > div { width: max-content; min-width: 100%; }
 .events-out .ev-time { color: #7f8ea8; }
 .events-out .ev-error { color: #ff8080; }
 .events-out .ev-ok { color: #9ef0a0; }
+.events-out .ev-warn { color: #f0d070; }
 
 /* Import Hercules : volumes absents lus sur place ou copiés. */
 .hc-mode { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 8px 0 0; font-size: 0.88rem; }

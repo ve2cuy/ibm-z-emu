@@ -89,14 +89,14 @@ export class Emulator {
     psw(): string;
     reader_left(addr: number): number;
     /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     */
-    reader_load(addr: number, text: string): boolean;
-    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      */
     reader_load_binary(addr: number, data: Uint8Array): boolean;
+    /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     */
+    reader_load(addr: number, text: string): boolean;
     /**
      * Touche RESTART du pupitre.
      */

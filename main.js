@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=c555d83f';
-import { initMemo } from './memo.js?v=c555d83f';
-import { deckText } from './decks.js?v=c555d83f';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c555d83f';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=c555d83f';
-import { Z_DEVICES } from './herc-conf.js?v=c555d83f';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c555d83f';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=be7df033';
+import { initMemo } from './memo.js?v=be7df033';
+import { deckText } from './decks.js?v=be7df033';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=be7df033';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=be7df033';
+import { Z_DEVICES } from './herc-conf.js?v=be7df033';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=be7df033';
 
-const VERSION = '0.1.15';
+const VERSION = '0.1.16';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -274,7 +274,10 @@ async function renderVolumes() {
   await listVolumes();
   const list = $('vol-list');
   list.replaceChildren();
+  // Un volume lu sur place remplace celui de l'OPFS à la même adresse (comme à l'IPL).
+  const lus = prefs.mounts ?? [];
   for (const v of volumes) {
+    if (lus.some((m) => m.addr === v.addr)) continue;
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'mono';
@@ -285,10 +288,30 @@ async function renderVolumes() {
     li.append(name, size, iconButton('download', t('vol.save'), () => saveVolume(v.file)));
     list.append(li);
   }
-  const total = volumes.reduce((s, v) => s + v.size, 0);
-  $('vol-summary').textContent = volumes.length
-    ? t('vol.summary', { n: volumes.length, size: fmtSize(total) })
-    : t('vol.none');
+  // Volumes lus sur place : fichier du disque de l'usager (et ses ombres), ou à choisir de
+  // nouveau (nouvelle visite).
+  let lusSize = 0;
+  for (const m of [...lus].sort((a, b) => a.addr - b.addr)) {
+    const here = mounts.get(m.addr);
+    const li = document.createElement('li');
+    li.className = here ? 'mounted' : 'mounted need';
+    const name = document.createElement('span');
+    name.className = 'mono';
+    name.textContent = `${hex3(m.addr)}  ${m.name}${m.shadows ? ` +${m.shadows}` : ''}`;
+    name.title = here ? t('vol.mounted.tip', { path: m.path ?? m.name, n: m.shadows }) : t('vol.mounted.need');
+    const size = document.createElement('span');
+    size.className = 'hint';
+    size.textContent = here ? fmtSize(here.file.size) : t('vol.mounted.none');
+    if (here) lusSize += here.file.size;
+    li.append(name, size);
+    list.append(li);
+  }
+  const shown = volumes.filter((v) => !lus.some((m) => m.addr === v.addr));
+  const total = shown.reduce((s, v) => s + v.size, 0);
+  const parts = [];
+  if (shown.length) parts.push(t('vol.summary', { n: shown.length, size: fmtSize(total) }));
+  if (lus.length) parts.push(t('vol.mounted', { n: lus.length, size: fmtSize(lusSize), dir: prefs.hercDirName ?? '' }));
+  $('vol-summary').textContent = parts.length ? parts.join(' ') : t('vol.none');
   $('vol-erase').disabled = !volumes.length || running;
   $('vol-file').disabled = running;
   try {
@@ -573,7 +596,10 @@ languageListeners.push(initHerc({
   renderVolumes,
   status: showStatus,
   // Nouvelle configuration : terminaux, imprimantes et mémoire montrés de nouveau.
-  applied: () => showMachine(),
+  applied: () => {
+    showMachine();
+    renderVolumes();
+  },
 }));
 
 const termsList = $('terms-list');
@@ -1223,7 +1249,9 @@ for (const b of tabsBox.querySelectorAll('.term-tab')) b.onclick = () => selectT
 
 const eventsOut = $('events-out');
 const events = [];   // [{time, key, vals}]
-const EV_ERROR = new Set(['error', 'vol.err', 'diskerr', 'r.ipl.fail', 'r.ipl.nodev', 'r.wait', 'r.loop', 'r.badop', 'page']);
+const EV_ERROR = new Set(['error', 'vol.err', 'diskerr', 'r.ipl.fail', 'r.ipl.nodev', 'r.wait', 'r.loop', 'page']);
+// Avertissement : souvent un sondage du système, qui se passe ensuite de l'instruction.
+const EV_WARN = new Set(['r.badop']);
 const EV_OK = new Set(['r.ipl.ok', 'vol', 'mount', 'boot']);
 
 /** Noms des bits d'un octet d'état (liste de i18n séparée par des virgules). */
@@ -1255,6 +1283,7 @@ function eventText({ key, vals }) {
 function renderEvent(e) {
   const line = document.createElement('div');
   if (EV_ERROR.has(e.key)) line.className = 'ev-error';
+  else if (EV_WARN.has(e.key)) line.className = 'ev-warn';
   else if (EV_OK.has(e.key)) line.className = 'ev-ok';
   const time = document.createElement('span');
   time.className = 'ev-time';

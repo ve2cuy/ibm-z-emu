@@ -23,8 +23,8 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=c555d83f';
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=c555d83f';
+import init, { Emulator } from './pkg/ibmz_web.js?v=be7df033';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=be7df033';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules

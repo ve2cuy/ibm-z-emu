@@ -15,8 +15,8 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=c555d83f';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=c555d83f';
+import { t } from './i18n.js?v=be7df033';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=be7df033';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
@@ -599,6 +599,7 @@ async function remount(files) {
   showConfig();
   ctx.status('hc.remounted', { n: found, m: (ctx.prefs.mounts ?? []).length });
   ctx.applied();
+  await ctx.renderVolumes();
 }
 
 /** Efface l'ombre de la page des volumes lus sur place (retour à l'état des fichiers). */
