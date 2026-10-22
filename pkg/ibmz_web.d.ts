@@ -51,6 +51,19 @@ export class Emulator {
      */
     ipl(addr: number): boolean;
     /**
+     * Volume lu sur place (fichier du disque de l'usager, lecture seule) : l'image de
+     * Hercules d'abord, puis ses ombres dans l'ordre de création (`mount_shadow`), puis
+     * l'ombre de la page (`mount_finish`), où vont les écritures.
+     */
+    mount_begin(disk: any): void;
+    /**
+     * Branche le volume monté à l'adresse `addr`, avec l'ombre de la page `overlay`
+     * (fichier de l'OPFS, vide la première fois). Rend « type cylindres volume pistes »,
+     * pistes : celles que l'ombre de la page garde déjà.
+     */
+    mount_finish(addr: number, overlay: any): string;
+    mount_shadow(disk: any): void;
+    /**
      * Machine z/Architecture : `mem_mb` de 16 Mo à 2 Go.
      */
     static newZ(mem_mb: number, unix_secs: number): Emulator;
@@ -228,6 +241,9 @@ export interface InitOutput {
     readonly emulator_interrupt_key: (a: number) => void;
     readonly emulator_io_count: (a: number) => number;
     readonly emulator_ipl: (a: number, b: number) => number;
+    readonly emulator_mount_begin: (a: number, b: any) => [number, number];
+    readonly emulator_mount_finish: (a: number, b: number, c: any) => [number, number, number, number];
+    readonly emulator_mount_shadow: (a: number, b: any) => [number, number];
     readonly emulator_new: (a: number, b: number) => number;
     readonly emulator_newZ: (a: number, b: number) => number;
     readonly emulator_now_ms: (a: number) => number;

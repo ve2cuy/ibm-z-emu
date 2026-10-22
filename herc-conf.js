@@ -118,7 +118,9 @@ export function parseConfig(text) {
         return;
       }
       const path = kind === 'dasd' ? (args.split(/\s+/)[0] ?? '') : '';
-      for (const addr of addrs) devices.push({ addr, kind, type, path, line: n });
+      // Fichiers d'ombre de Hercules (sf=shadow/zares1_*).
+      const sf = kind === 'dasd' ? (/(?:^|\s)sf=(\S+)/i.exec(args)?.[1] ?? '') : '';
+      for (const addr of addrs) devices.push({ addr, kind, type, path, sf, line: n });
       return;
     }
     const kw = head.toUpperCase();
@@ -135,6 +137,8 @@ export function parseConfig(text) {
       case 'CPUMODEL': system.cpumodel = rest; break;
       case 'CPUSERIAL': system.cpuserial = rest; break;
       case 'CNSLPORT': system.cnslport = rest; break;
+      // LOADPARM : un point tient lieu d'un blanc.
+      case 'LOADPARM': system.loadparm = rest.replace(/\./g, ' ').trimEnd().toUpperCase(); break;
       case 'INCLUDE': case 'IGNORE':
         ignored.push({ line: n, text: raw.trim(), why: kw === 'INCLUDE' ? 'include' : 'statement' });
         break;

@@ -1705,3 +1705,8 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   .kp-tools > button.with-icon { flex: 1 1 auto; }
   .kp-svg { max-height: none; }
 }
+
+/* Import Hercules : volumes absents lus sur place ou copiés. */
+.hc-mode { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 8px 0 0; font-size: 0.88rem; }
+.hc-mode .radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.hc-mode .radio input { position: static; opacity: 1; width: auto; height: auto; margin: 0; }

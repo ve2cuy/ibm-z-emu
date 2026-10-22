@@ -7,7 +7,9 @@
 // devices: [{addr, kind, type}] (sans les disques; vide : unités de TK5, ou du lecteur, de
 // la perforatrice et de l'imprimante en z/Architecture), terminals: [addr], relay,
 // boot: {parm} (z/Architecture : noyau, paramètres et image initiale de Linux dans le
-// lecteur; fichiers boot/kernel et boot/initrd de l'OPFS)},
+// lecteur; fichiers boot/kernel et boot/initrd de l'OPFS), mounts: [{addr, stem, file,
+// shadows: [File], overlay}] (volumes lus sur place : image et ombres de Hercules choisies
+// sur le disque, en lecture seule; écritures dans l'ombre de la page, shadow/<overlay>)},
 // relay {url} (relais TN3270 : adresse ws://…, ou nul),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
@@ -19,8 +21,8 @@
 // stopped {reason}, closed, error {msg}, cards {left}, vol {id, ok, result | error},
 // leds {mask} (activité : 1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=554e79d1';
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=554e79d1';
+import init, { Emulator } from './pkg/ibmz_web.js?v=0c20c021';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=0c20c021';
 
 const version = new URL(import.meta.url).search;
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
@@ -62,6 +64,11 @@ async function openVolume(file) {
   const fh = await dir.getFileHandle(file);
   const h = await fh.createSyncAccessHandle();
   handles.push(h);
+  return syncDisk(h);
+}
+
+/** Fichier de l'OPFS ouvert en accès synchrone. */
+function syncDisk(h) {
   return {
     read(off, buf) {
       try {
@@ -88,6 +95,36 @@ async function openVolume(file) {
     size() { return h.getSize(); },
     flush() { try { h.flush(); } catch { /* rien */ } },
   };
+}
+
+/** Fichier du disque de l'usager (File), lu sur place, en lecture seule. */
+function blobDisk(blob) {
+  const reader = new FileReaderSync();
+  return {
+    read(off, buf) {
+      try {
+        const ab = reader.readAsArrayBuffer(blob.slice(off, off + buf.length));
+        if (ab.byteLength !== buf.length) return false;
+        buf.set(new Uint8Array(ab));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    write: () => false,
+    size: () => blob.size,
+    flush() { /* rien */ },
+  };
+}
+
+/** Ombre de la page d'un volume lu sur place (OPFS, dossier shadow; créée vide). */
+async function openOverlay(name) {
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('shadow', { create: true });
+  const fh = await dir.getFileHandle(name, { create: true });
+  const h = await fh.createSyncAccessHandle();
+  handles.push(h);
+  return syncDisk(h);
 }
 
 function closeVolumes() {
@@ -117,6 +154,11 @@ async function start(cfg) {
   for (const v of cfg.volumes) {
     const disk = await openVolume(v.file);
     infos.push({ addr: v.addr, info: emu.attach_dasd(v.addr, disk) });
+  }
+  for (const m of cfg.mounts ?? []) {
+    emu.mount_begin(blobDisk(m.file));
+    for (const s of m.shadows) emu.mount_shadow(blobDisk(s));
+    infos.push({ addr: m.addr, info: emu.mount_finish(m.addr, await openOverlay(m.overlay)) });
   }
   const devices = cfg.devices?.length ? cfg.devices : arch === 'z' ? Z_DEVICES : TK5_DEVICES;
   const of = (k) => devices.filter((d) => d.kind === k);

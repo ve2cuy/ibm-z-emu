@@ -142,5 +142,11 @@ Pour démarrer Linux par le lecteur de cartes :
    commandes se tapent dans le champ du dessous (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
 
 Une configuration Hercules avec `ARCHLVL z/Arch` (import, menu **Machine**) choisit cette
-machine, sa mémoire et ses unités; le champ LOADPARM donne le paramètre de chargement d'un
-IPL depuis un disque.
+machine, sa mémoire, ses unités, son LOADPARM et une unité d'IPL proposée. Ses volumes
+absents peuvent être **lus sur place**, sans copie dans le fureteur : choisir les images
+(`.cckd`…) avec leurs fichiers d'ombre de Hercules (`sf=`, par exemple `shadow/zares1_1`).
+Ils restent sur votre disque et ne sont jamais modifiés; ce que le système écrit va dans
+une ombre gardée par la page (**Oublier les modifications** l'efface). Le fureteur ne
+garde pas les fichiers choisis d'une visite à l'autre : après un rechargement de la page,
+**Choisir les fichiers…** (menu Machine) les retrouve. Arrêter Hercules d'abord : il garde
+ses ombres verrouillées.

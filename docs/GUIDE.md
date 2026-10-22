@@ -131,5 +131,10 @@ To start Linux from the card reader:
    in the field below it (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
 
 A Hercules configuration with `ARCHLVL z/Arch` (import, **Machine** menu) selects this
-machine, its storage and its units; the LOADPARM field gives the load parameter of an IPL
-from disk.
+machine, its storage, its units, its LOADPARM and a proposed IPL unit. Its missing volumes
+can be **read in place**, without copying them into the browser: choose the images
+(`.cckd`…) together with their Hercules shadow files (`sf=`, for example `shadow/zares1_1`).
+They stay on your disk and are never modified; what the system writes goes into a shadow
+kept by the page (**Forget the changes** erases it). The browser does not keep the chosen
+files from one visit to the next: after reloading the page, **Choose the files…** (Machine
+menu) finds them again. Stop Hercules first: it keeps its shadow files locked.

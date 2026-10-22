@@ -22,7 +22,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=554e79d1">
+  <link rel="stylesheet" href="style.css?v=0c20c021">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -139,6 +139,16 @@
                 <button id="hc-export" type="button" class="secondary with-icon" title="Write this machine's configuration for Hercules" data-i18n-title="hc.export.tip">
                   <svg class="icon"><use href="#i-download"/></svg><span data-i18n="hc.export">Export</span></button>
                 <button id="hc-reset" type="button" class="secondary" data-i18n="hc.reset" hidden>TK5 configuration</button>
+              </div>
+              <div id="hc-mounts" hidden>
+                <p id="hc-mounts-text" class="hint"></p>
+                <div class="row wrap">
+                  <label id="hc-remount" class="button secondary with-icon" hidden>
+                    <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.remount">Choose the files…</span>
+                    <input id="hc-remount-file" type="file" multiple hidden>
+                  </label>
+                  <button id="hc-overlay-clear" type="button" class="secondary" data-i18n="hc.overlay.clear">Forget the changes</button>
+                </div>
               </div>
             </div>
           </div>
@@ -451,10 +461,15 @@
   <dialog id="hc" class="dialog hc" aria-labelledby="hc-title2">
     <h2 id="hc-title2"><span data-i18n="hc.dialog">Import a Hercules configuration</span> — <span id="hc-name" class="mono"></span></h2>
     <div id="hc-body" class="hc-body"></div>
+    <div id="hc-mode" class="hc-mode" hidden>
+      <span class="hint" data-i18n="hc.mode.label">Missing volumes:</span>
+      <label class="radio"><input type="radio" name="hc-mode" value="mount"> <span data-i18n="hc.mode.mount">read in place</span></label>
+      <label class="radio"><input type="radio" name="hc-mode" value="copy"> <span data-i18n="hc.mode.copy">copy into this browser</span></label>
+    </div>
     <p id="hc-note" class="hint"></p>
     <p id="hc-running" class="hint error" data-i18n="hc.running" hidden>Stop the machine to apply this configuration.</p>
     <div class="dialog-actions">
-      <label id="hc-files" class="button secondary"><span data-i18n="hc.files">Choose the missing volumes…</span>
+      <label id="hc-files" class="button secondary" title="Images (.cckd…) and their Hercules shadow files" data-i18n-title="hc.files.tip"><span data-i18n="hc.files">Choose the missing volumes…</span>
         <input id="hc-vols" type="file" multiple hidden></label>
       <span class="grow"></span>
       <button id="hc-cancel" type="button" class="secondary" data-i18n="vm.cancel">Cancel</button>
@@ -642,6 +657,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=554e79d1"></script>
+  <script type="module" src="main.js?v=0c20c021"></script>
 </body>
 </html>

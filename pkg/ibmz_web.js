@@ -191,6 +191,53 @@ export class Emulator {
         return ret !== 0;
     }
     /**
+     * Volume lu sur place (fichier du disque de l'usager, lecture seule) : l'image de
+     * Hercules d'abord, puis ses ombres dans l'ordre de création (`mount_shadow`), puis
+     * l'ombre de la page (`mount_finish`), où vont les écritures.
+     * @param {any} disk
+     */
+    mount_begin(disk) {
+        const ret = wasm.emulator_mount_begin(this.__wbg_ptr, disk);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * Branche le volume monté à l'adresse `addr`, avec l'ombre de la page `overlay`
+     * (fichier de l'OPFS, vide la première fois). Rend « type cylindres volume pistes »,
+     * pistes : celles que l'ombre de la page garde déjà.
+     * @param {number} addr
+     * @param {any} overlay
+     * @returns {string}
+     */
+    mount_finish(addr, overlay) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.emulator_mount_finish(this.__wbg_ptr, addr, overlay);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @param {any} disk
+     */
+    mount_shadow(disk) {
+        const ret = wasm.emulator_mount_shadow(this.__wbg_ptr, disk);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Machine z/Architecture : `mem_mb` de 16 Mo à 2 Go.
      * @param {number} mem_mb
      * @param {number} unix_secs
@@ -744,22 +791,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_509f4057379bcc98: function(arg0) {
+        __wbg_flush_6c77b42454c35046: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_6adfa580782ebb87: function() {
+        __wbg_now_41c4c714be8d735d: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_71f23d5d3f01fc84: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_1329a62c921ba61b: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_806019a743b682b5: function(arg0) {
+        __wbg_size_99e7f9d1a295e91d: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_85fde23130234757: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_da1458fe12207877: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

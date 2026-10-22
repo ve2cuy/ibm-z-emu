@@ -4,13 +4,54 @@
 //
 // Règle de la page : l'extension du nom d'un volume est son adresse (tk5res.390). À
 // l'import, un volume déjà présent sous le même nom à une autre adresse est renommé; un
-// volume absent est demandé (fichiers choisis par l'usager, copiés sous le bon nom).
+// volume absent est demandé (fichiers choisis par l'usager), puis copié sous le bon nom,
+// ou bien lu sur place : l'image de Hercules et ses ombres restent sur le disque de
+// l'usager (lecture seule, sans copie), les écritures vont dans une ombre de la page
+// (OPFS, dossier shadow). Les fichiers lus sur place ne se gardent que le temps de la
+// visite (mounts); la liste des volumes, elle, est gardée (prefs.mounts).
 
-import { t } from './i18n.js?v=554e79d1';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=554e79d1';
+import { t } from './i18n.js?v=0c20c021';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0c20c021';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
 let plan = null;
+
+/** Volumes lus sur place, pour cette visite : adresse -> {stem, file, shadows: [File]}. */
+export const mounts = new Map();
+
+/** Volumes lus sur place dont les fichiers restent à choisir (nouvelle visite). */
+export function mountsMissing() {
+  return (ctx.prefs.mounts ?? []).filter((m) => !mounts.has(m.addr));
+}
+
+/** Genre d'un fichier d'après son en-tête : image (CKD_P370, CKD_C370), ombre (CKD_S370). */
+async function headerKind(f) {
+  const h = String.fromCharCode(...new Uint8Array(await f.slice(0, 8).arrayBuffer()));
+  if (h === 'CKD_S370') return 'shadow';
+  return h.startsWith('CKD_') ? 'image' : null;
+}
+
+/** Ombre de Hercules : nom de l'image et rang (zares1_2 -> zares1, 2). */
+function shadowOf(name) {
+  const m = /^(.*)_(\d+)$/.exec(name.replace(/\\/g, '/').split('/').pop());
+  return m ? { stem: volumeStem(m[1]), n: Number(m[2]) } : null;
+}
+
+/** Range des fichiers choisis : images par nom, ombres sous leur image, dans l'ordre. */
+async function classify(files) {
+  const images = new Map();
+  const shadows = new Map();
+  for (const f of files) {
+    const kind = await headerKind(f);
+    if (kind === 'image') images.set(volumeStem(f.name), f);
+    else if (kind === 'shadow') {
+      const s = shadowOf(f.name);
+      if (s) (shadows.get(s.stem) ?? shadows.set(s.stem, []).get(s.stem)).push({ n: s.n, file: f });
+    }
+  }
+  for (const list of shadows.values()) list.sort((a, b) => a.n - b.n);
+  return { images, shadows };
+}
 
 const $ = (id) => document.getElementById(id);
 const hex3 = (a) => a.toString(16).toUpperCase().padStart(3, '0');
@@ -53,7 +94,7 @@ async function exportConfig() {
 
 /** Plan d'import : ce qui sera changé, et ce qui ne peut pas l'être. */
 function makePlan(name, conf) {
-  const p = { name, warnings: [], dasd: [], missing: [], conflicts: [], devices: [], ignored: conf.ignored, files: new Map() };
+  const p = { name, warnings: [], dasd: [], missing: [], conflicts: [], devices: [], ignored: conf.ignored, files: new Map(), shadows: new Map() };
   const s = conf.system;
   // ARCHLVL z/Arch, ESA/390, ESAME : machine z/Architecture (mémoire de 64 Mo à 2 Go).
   p.arch = s.arch && /z\/?arch|esame|390/i.test(s.arch) ? 'z' : 's370';
@@ -67,6 +108,14 @@ function makePlan(name, conf) {
   }
   if (s.arch && p.arch === 's370' && !/370/.test(s.arch)) p.warnings.push(t('hc.w.arch', { arch: s.arch }));
   if (s.numcpu > 1) p.warnings.push(t('hc.w.cpu', { n: s.numcpu }));
+  if (s.loadparm) p.loadparm = s.loadparm.slice(0, 8);
+  // Volumes absents : lus sur place par défaut en z/Architecture (gros volumes).
+  p.mode = p.arch === 'z' ? 'mount' : 'copy';
+  // Unité d'IPL proposée (z/Architecture) : le premier volume « …res… », sinon le premier.
+  const dasd = conf.devices.filter((x) => x.kind === 'dasd');
+  if (p.arch === 'z' && dasd.length) {
+    p.ipl = (dasd.find((x) => /res/i.test(volumeStem(x.path || ''))) ?? dasd[0]).addr;
+  }
   p.devices = conf.devices.filter((d) => d.kind !== 'dasd').map(({ addr, kind, type }) => ({ addr, kind, type }));
   // La z/Architecture a la console du système (SCLP) : pas de 3215 ajoutée.
   if (p.arch === 's370' && !p.devices.some((d) => d.kind === 'console')) {
@@ -87,7 +136,7 @@ function makePlan(name, conf) {
     } else if (have) {
       p.dasd.push({ addr: d.addr, stem, file: have.file, to: want, action: 'rename' });
     } else {
-      p.missing.push({ addr: d.addr, stem, type: d.type, to: want });
+      p.missing.push({ addr: d.addr, stem, type: d.type, to: want, sf: !!d.sf });
     }
   }
   return p;
@@ -114,6 +163,8 @@ function renderPlan() {
   section(t('hc.s.system'), [
     ...(plan.arch === 'z' ? [t('arch.z')] : []),
     ...(plan.zmem ?? plan.mem ? [t('hc.mem', { m: plan.zmem ?? plan.mem })] : []),
+    ...(plan.loadparm ? [t('hc.loadparm', { v: plan.loadparm })] : []),
+    ...(plan.ipl !== undefined ? [t('hc.ipl', { addr: hex3(plan.ipl) })] : []),
     ...Object.entries(kinds).map(([k, list]) => `${t(`hc.k.${k}`)} : ${list.join(', ')}`),
   ]);
   section(t('hc.s.volumes'), [
@@ -121,12 +172,20 @@ function renderPlan() {
       : t('hc.v.rename', { addr: hex3(v.addr), file: v.file, to: v.to }))),
     ...plan.missing.map((v) => {
       const f = plan.files.get(v.stem);
-      return f ? t('hc.v.chosen', { addr: hex3(v.addr), file: f.name, to: v.to })
-        : t('hc.v.missing', { addr: hex3(v.addr), stem: v.stem, type: v.type });
+      if (!f) return t('hc.v.missing', { addr: hex3(v.addr), stem: v.stem, type: v.type });
+      if (plan.mode === 'copy') return t('hc.v.chosen', { addr: hex3(v.addr), file: f.name, to: v.to });
+      const n = plan.shadows.get(v.stem)?.length ?? 0;
+      return t('hc.v.mount', { addr: hex3(v.addr), file: f.name, shadows: n ? t('hc.v.shadows', { n }) : '' });
     }),
   ]);
   section(t('hc.s.conflicts'), plan.conflicts.map((c) => t('hc.v.conflict', { addr: hex3(c.addr), stem: c.stem, occupant: c.occupant })));
-  section(t('hc.s.warnings'), plan.warnings);
+  // Ombres de Hercules attendues (sf=) mais pas choisies : le volume serait vu sans elles.
+  const noShadow = plan.mode === 'mount' ? plan.missing.filter((v) => v.sf && plan.files.has(v.stem) && !plan.shadows.has(v.stem)) : [];
+  section(t('hc.s.warnings'), [
+    ...plan.warnings,
+    ...(noShadow.length ? [t('hc.w.noshadow', { list: noShadow.map((v) => v.stem).join(', ') })] : []),
+    ...(plan.mode === 'copy' && plan.missing.some((v) => v.sf) ? [t('hc.w.copyshadow')] : []),
+  ]);
   if (plan.ignored.length) {
     const d = el('details');
     d.append(el('summary', null, t('hc.s.ignored', { n: plan.ignored.length })));
@@ -136,6 +195,8 @@ function renderPlan() {
   }
   const waiting = plan.missing.filter((v) => !plan.files.has(v.stem)).length;
   $('hc-files').hidden = !plan.missing.length;
+  $('hc-mode').hidden = !plan.missing.length;
+  for (const r of document.querySelectorAll('input[name="hc-mode"]')) r.checked = r.value === plan.mode;
   $('hc-running').hidden = !ctx.running();
   $('hc-apply').disabled = ctx.running();
   $('hc-note').textContent = waiting ? t('hc.note.missing', { n: waiting }) : '';
@@ -152,11 +213,15 @@ async function importConfig(file) {
   $('hc').showModal();
 }
 
-/** Fichiers des volumes manquants : rapprochés par leur nom (sans extension). */
-function chooseFiles(files) {
-  for (const f of files) {
-    const stem = volumeStem(f.name);
+/** Fichiers des volumes manquants : images rapprochées par leur nom (sans extension),
+ *  ombres de Hercules (zares1_1…) rangées sous leur image. */
+async function chooseFiles(files) {
+  const { images, shadows } = await classify(files);
+  for (const [stem, f] of images) {
     if (plan.missing.some((v) => v.stem === stem)) plan.files.set(stem, f);
+  }
+  for (const [stem, list] of shadows) {
+    if (plan.missing.some((v) => v.stem === stem)) plan.shadows.set(stem, list.map((s) => s.file));
   }
   renderPlan();
 }
@@ -180,9 +245,17 @@ async function apply() {
     await renameVolume(dir, v.file, v.to);
     done++;
   }
+  const mounted = [];
   for (const v of plan.missing) {
     const f = plan.files.get(v.stem);
     if (!f) continue;
+    if (plan.mode === 'mount') {
+      // Lu sur place : rien n'est copié.
+      mounts.set(v.addr, { stem: v.stem, file: f, shadows: plan.shadows.get(v.stem) ?? [] });
+      mounted.push({ addr: v.addr, stem: v.stem, name: f.name, shadows: plan.shadows.get(v.stem)?.length ?? 0 });
+      done++;
+      continue;
+    }
     const head = new Uint8Array(await f.slice(0, 8).arrayBuffer());
     if (String.fromCharCode(...head.slice(0, 4)) !== 'CKD_') {
       ctx.status('vol.badfile', { name: f.name });
@@ -192,9 +265,14 @@ async function apply() {
     await ctx.writeVolume(v.to, f.stream());
     done++;
   }
+  // Volumes lus sur place : ceux de cette configuration remplacent les précédents.
+  for (const a of [...mounts.keys()]) if (!mounted.some((m) => m.addr === a)) mounts.delete(a);
+  ctx.prefs.mounts = mounted;
   ctx.prefs.devices = plan.devices;
   ctx.prefs.devicesName = plan.name;
   ctx.prefs.arch = plan.arch;
+  if (plan.loadparm !== undefined && plan.arch === 'z') ctx.prefs.loadparm = plan.loadparm;
+  if (plan.ipl !== undefined) ctx.prefs.zipl = hex3(plan.ipl);
   if (plan.mem) ctx.prefs.mem = plan.mem;
   if (plan.zmem) ctx.prefs.zmem = plan.zmem;
   ctx.savePrefs();
@@ -206,9 +284,11 @@ async function apply() {
 }
 
 function reset() {
-  // Configuration de TK5 : machine S/370.
+  // Configuration de TK5 : machine S/370, sans volume lu sur place.
   ctx.prefs.devices = null;
   ctx.prefs.devicesName = null;
+  ctx.prefs.mounts = [];
+  mounts.clear();
   ctx.prefs.arch = 's370';
   ctx.savePrefs();
   showConfig();
@@ -223,6 +303,43 @@ export function showConfig() {
     ? t('hc.current.imported', { name: ctx.prefs.devicesName ?? '?', n: ctx.prefs.devices.length })
     : t('hc.current.tk5');
   $('hc-reset').hidden = !imported;
+  // Volumes lus sur place : nombre, fichiers à choisir de nouveau, ombre de la page.
+  const all = ctx.prefs.mounts ?? [];
+  const need = mountsMissing();
+  $('hc-mounts').hidden = !all.length;
+  $('hc-mounts-text').textContent = need.length
+    ? t('hc.mounts.need', { n: all.length, m: need.length })
+    : t('hc.mounts', { n: all.length });
+  $('hc-remount').hidden = !need.length;
+}
+
+/** Nouvelle visite : les fichiers des volumes lus sur place, choisis de nouveau. */
+async function remount(files) {
+  const { images, shadows } = await classify(files);
+  let found = 0;
+  for (const m of ctx.prefs.mounts ?? []) {
+    const f = images.get(m.stem);
+    if (!f) continue;
+    mounts.set(m.addr, { stem: m.stem, file: f, shadows: (shadows.get(m.stem) ?? []).map((s) => s.file) });
+    found++;
+  }
+  showConfig();
+  ctx.status('hc.remounted', { n: found, m: (ctx.prefs.mounts ?? []).length });
+  ctx.applied();
+}
+
+/** Efface l'ombre de la page des volumes lus sur place (retour à l'état des fichiers). */
+async function clearOverlays() {
+  if (ctx.running() || !confirm(t('hc.overlay.confirm'))) return;
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('shadow', { create: true });
+  for (const m of ctx.prefs.mounts ?? []) await dir.removeEntry(overlayName(m)).catch(() => {});
+  ctx.status('hc.overlay.done');
+}
+
+/** Nom de l'ombre de la page d'un volume lu sur place (zares1.a81.ovl). */
+export function overlayName(m) {
+  return `${m.stem}.${hex3(m.addr).toLowerCase()}.ovl`;
 }
 
 export function initHerc(context) {
@@ -239,6 +356,20 @@ export function initHerc(context) {
     e.target.value = '';
     if (files.length) chooseFiles(files);
   });
+  for (const r of document.querySelectorAll('input[name="hc-mode"]')) {
+    r.addEventListener('change', () => {
+      if (plan && r.checked) {
+        plan.mode = r.value;
+        renderPlan();
+      }
+    });
+  }
+  $('hc-remount-file').addEventListener('change', (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) remount(files);
+  });
+  $('hc-overlay-clear').addEventListener('click', () => clearOverlays());
   $('hc-apply').addEventListener('click', () => apply().catch((err) => ctx.status('error', { msg: err.message })));
   $('hc-cancel').addEventListener('click', () => $('hc').close());
   showConfig();

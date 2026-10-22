@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=554e79d1';
-import { initMemo } from './memo.js?v=554e79d1';
-import { deckText } from './decks.js?v=554e79d1';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=554e79d1';
-import { devices, initHerc } from './herc-ui.js?v=554e79d1';
-import { Z_DEVICES } from './herc-conf.js?v=554e79d1';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=554e79d1';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0c20c021';
+import { initMemo } from './memo.js?v=0c20c021';
+import { deckText } from './decks.js?v=0c20c021';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0c20c021';
+import { devices, initHerc, mounts, mountsMissing, overlayName } from './herc-ui.js?v=0c20c021';
+import { Z_DEVICES } from './herc-conf.js?v=0c20c021';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0c20c021';
 
-const VERSION = '0.1.11';
+const VERSION = '0.1.12';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -722,6 +722,7 @@ function showMachine() {
   $('machine-desc').textContent = t(isZ() ? 'machine.desc.z' : 'machine.desc');
   memLabels();
   $('loadparm-field').hidden = !isZ();
+  loadparmInput.value = prefs.loadparm;
   $('zboot').hidden = !isZ();
   showDials();
   termLabels();
@@ -735,8 +736,9 @@ let running = false;
 let lastError = '';
 let terminals = [];
 
-/** Un IPL est possible : des volumes, ou (z/Architecture) les fichiers de Linux. */
-const canIpl = () => volumes.length > 0 || (isZ() && zbootReady());
+/** Un IPL est possible : des volumes (copiés ou lus sur place), ou (z/Architecture) les
+ *  fichiers de Linux. */
+const canIpl = () => volumes.length > 0 || (prefs.mounts?.length ?? 0) > 0 || (isZ() && zbootReady());
 
 function updateButtons() {
   powerButton.disabled = !worker || (!running && !canIpl());
@@ -778,9 +780,20 @@ async function ipl() {
       showStatus('ipl.noboot', { addr: iplPref() });
       return;
     }
-  } else {
-    if (!vols.length) return;
-    if (!vols.some((v) => v.addr === addr)) {
+  }
+  // Volumes lus sur place : fichiers choisis pendant cette visite; ils remplacent un volume
+  // de l'OPFS à la même adresse.
+  const need = mountsMissing();
+  if (need.length) {
+    showStatus('ipl.remount', { n: need.length });
+    showPanel('machine');
+    return;
+  }
+  const mounted = [...mounts.entries()].map(([a, m]) => ({ addr: a, stem: m.stem, file: m.file, shadows: m.shadows, overlay: overlayName({ addr: a, stem: m.stem }) }));
+  const opfs = vols.filter((v) => !mounted.some((m) => m.addr === v.addr));
+  if (!readerIpl) {
+    if (!opfs.length && !mounted.length) return;
+    if (!opfs.some((v) => v.addr === addr) && !mounted.some((m) => m.addr === addr)) {
       showStatus('ipl.novol', { addr: iplPref() });
       return;
     }
@@ -807,7 +820,8 @@ async function ipl() {
     loadparm: isZ() ? prefs.loadparm : '',
     boot: readerIpl ? { parm: prefs.zparm || 'ro' } : null,
     ipl: addr,
-    volumes: vols.map((v) => ({ addr: v.addr, file: v.file })),
+    volumes: opfs.map((v) => ({ addr: v.addr, file: v.file })),
+    mounts: mounted,
     devices: machineDevices(),
     terminals,
     relay: prefs.relay ? prefs.relayUrl : null,
