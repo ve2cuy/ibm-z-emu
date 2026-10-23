@@ -118,7 +118,7 @@ To start over, the **Repository** menu downloads the original volumes again.
 emulator did: volumes attached, IPL result with the unit and channel status, stops with
 their wait state code, instructions not emulated yet.)
 
-The **Machine** menu also offers a second machine, **z/Architecture (Linux s390x)**: a
+The **Machine** menu also offers a second machine, **z/Architecture**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
 disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.
 **Processors**: 1 to 8. In a desktop browser that allows shared memory (Chrome, Edge, and
@@ -126,11 +126,15 @@ recent Firefox and Safari), each processor runs in its own thread, on its own co
 reloads once at the first visit to turn this on, and the **Monitor** tab says how many
 threads are running. Otherwise, the processors take turns in a single thread.
 
-To start Linux from the card reader:
+To start Linux from the card reader, the quickest way: in the **Machine** menu, under the
+reader, click **Debian 7 from the repository** (10 MB, also offered in the **Repository**
+menu). The kernel and the initial RAM disk of the Debian 7 installer are kept in the
+browser, and the machine is set for it (z/Architecture, IPL from `00C`, parameters
+`ro locale=C init=/bin/sh`): click **IPL**. Or, by hand:
 
 1. Get the Debian 7 installer for s390x, `kernel.debian` and `initrd.debian`, from
    <https://archive.debian.org/debian/dists/wheezy/main/installer-s390x/current/images/generic/>.
-2. In the **Machine** menu, choose **z/Architecture (Linux s390x)**, then **Kernel…** and
+2. In the **Machine** menu, choose **z/Architecture**, then **Kernel…** and
    **Initial RAM disk…** (the files stay in the browser). The IPL unit is `00C` (the
    reader).
 3. Kernel parameters: `ro locale=C` starts the installer (it asks first for a network

@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=2df22e1e">
+  <link rel="stylesheet" href="style.css?v=7e55a9a0">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -104,7 +104,7 @@
             <label class="field"><span data-i18n="arch.label">Machine</span>
               <select id="arch-list" autocomplete="off">
                 <option value="s370" data-i18n="arch.s370">System/370 (MVS 3.8j)</option>
-                <option value="z" data-i18n="arch.z">z/Architecture (Linux s390x)</option>
+                <option value="z" data-i18n="arch.z">z/Architecture</option>
               </select>
             </label>
             <p id="machine-desc" class="hint"></p>
@@ -135,6 +135,9 @@
                   <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="zboot.initrd">Initial RAM disk…</span>
                   <input id="zboot-initrd" type="file" hidden>
                 </label>
+                <button id="zboot-depot" type="button" class="secondary with-icon" hidden>
+                  <svg class="icon"><use href="#i-download"/></svg><span></span>
+                </button>
               </div>
               <ul id="zboot-files" class="vol-list"></ul>
               <label class="field"><span data-i18n="zboot.parm">Kernel parameters</span>
@@ -691,6 +694,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=2df22e1e"></script>
+  <script type="module" src="main.js?v=7e55a9a0"></script>
 </body>
 </html>

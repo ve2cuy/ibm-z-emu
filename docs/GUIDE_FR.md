@@ -127,7 +127,7 @@ d'origine.
 l'émulateur a fait : volumes branchés, résultat de l'IPL avec l'état de l'unité et du
 canal, arrêts avec leur code d'attente, instructions pas encore émulées.)
 
-Le menu **Machine** offre aussi une seconde machine, **z/Architecture (Linux s390x)** : un
+Le menu **Machine** offre aussi une seconde machine, **z/Architecture** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
 (SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une
 imprimante; de 64 Mo à 2 Go de mémoire. **Processeurs** : de 1 à 8. Dans un fureteur de
@@ -136,11 +136,15 @@ processeur tourne dans son propre fil, sur son propre cœur : la page se recharg
 la première visite pour le permettre, et l'onglet **Moniteur** dit combien de fils tournent.
 Sinon, les processeurs tournent à tour de rôle dans un seul fil.
 
-Pour démarrer Linux par le lecteur de cartes :
+Pour démarrer Linux par le lecteur de cartes, le plus simple : dans le menu **Machine**,
+sous le lecteur, cliquer **Debian 7 du dépôt** (10 Mo, offert aussi dans le menu
+**Dépôt**). Le noyau et l'image initiale de l'installateur de Debian 7 sont gardés dans le
+fureteur, et la machine est réglée pour lui (z/Architecture, IPL depuis `00C`, paramètres
+`ro locale=C init=/bin/sh`) : appuyer sur **IPL**. Ou, à la main :
 
 1. Prendre l'installateur de Debian 7 pour s390x, `kernel.debian` et `initrd.debian`, sur
    <https://archive.debian.org/debian/dists/wheezy/main/installer-s390x/current/images/generic/>.
-2. Dans le menu **Machine**, choisir **z/Architecture (Linux s390x)**, puis **Noyau…** et
+2. Dans le menu **Machine**, choisir **z/Architecture**, puis **Noyau…** et
    **Image initiale…** (les fichiers restent dans le fureteur). L'unité d'IPL est `00C`
    (le lecteur).
 3. Paramètres du noyau : `ro locale=C` lance l'installateur (il demande d'abord une

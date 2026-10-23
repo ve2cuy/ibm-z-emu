@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=2df22e1e';
-import { initMemo } from './memo.js?v=2df22e1e';
-import { deckText } from './decks.js?v=2df22e1e';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=2df22e1e';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=2df22e1e';
-import { Z_DEVICES } from './herc-conf.js?v=2df22e1e';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=2df22e1e';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=7e55a9a0';
+import { initMemo } from './memo.js?v=7e55a9a0';
+import { deckText } from './decks.js?v=7e55a9a0';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=7e55a9a0';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=7e55a9a0';
+import { Z_DEVICES } from './herc-conf.js?v=7e55a9a0';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=7e55a9a0';
 
-const VERSION = '0.1.23';
+const VERSION = '0.1.24';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -503,7 +503,7 @@ function renderDepot() {
     const lic = document.createElement('p');
     lic.className = 'hint small';
     lic.textContent = localized(entry, 'license');
-    const have = entry.files.every((f) => volumes.some((v) => v.file === f.file && v.size === f.size));
+    const have = depotHave(entry);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = have ? 'secondary with-icon' : 'with-icon';
@@ -516,12 +516,38 @@ function renderDepot() {
     card.append(title, desc, b, lic);
     box.append(card);
   }
+  renderZbootDepot();
 }
 languageListeners.push(renderDepot);
 
+/** Le paquet est déjà dans ce fureteur (volumes, ou fichiers de Linux du dossier boot). */
+function depotHave(entry) {
+  if (entry.kind === 'linux') {
+    return entry.files.every((f) => zboot[f.role] === f.size && prefs.zbootNames?.[f.role] === f.file);
+  }
+  return entry.files.every((f) => volumes.some((v) => v.file === f.file && v.size === f.size));
+}
+
+/** Paquet de Linux du dépôt (Debian pour s390x), pour le bouton du lecteur (z/Architecture). */
+function renderZbootDepot() {
+  const b = $('zboot-depot');
+  const entry = depot.find((e) => e.kind === 'linux');
+  b.hidden = !entry;
+  if (!entry) return;
+  b.querySelector('span').textContent = t('zboot.depot', { size: fmtSize(entry.size) });
+  b.title = localized(entry, 'title');
+  b.disabled = downloading || running;
+}
+languageListeners.push(renderZbootDepot);
+$('zboot-depot').addEventListener('click', () => {
+  const entry = depot.find((e) => e.kind === 'linux');
+  if (entry) downloadPack(entry, false);
+});
+
 async function downloadPack(entry, again) {
   if (downloading || running) return;
-  if (again && !confirm(t('depot.again.confirm'))) return;
+  // Volumes : les changements faits par MVS seraient perdus. Linux : fichiers d'origine.
+  if (again && entry.kind !== 'linux' && !confirm(t('depot.again.confirm'))) return;
   downloading = true;
   renderDepot();
   const prog = $('depot-progress');
@@ -533,13 +559,17 @@ async function downloadPack(entry, again) {
     prog.querySelector('.text').textContent = t('depot.progress', { name, done: fmtSize(done), total: fmtSize(total) });
   };
   try {
-    for (const f of entry.files) {
-      show(f.file);
-      const r = await fetch(`${prefs.depot}/dasd/${entry.id}/${f.file}`);
-      if (!r.ok || !r.body) throw new Error(`${f.file} : HTTP ${r.status}`);
-      await writeVolume(f.file, r.body, (n) => { done += n; show(f.file); });
+    if (entry.kind === 'linux') {
+      await downloadLinux(entry, (f, n) => { done += n; show(f); });
+    } else {
+      for (const f of entry.files) {
+        show(f.file);
+        const r = await fetch(`${prefs.depot}/dasd/${entry.id}/${f.file}`);
+        if (!r.ok || !r.body) throw new Error(`${f.file} : HTTP ${r.status}`);
+        await writeVolume(f.file, r.body, (n) => { done += n; show(f.file); });
+      }
     }
-    if (entry.ipl) {
+    if (entry.ipl && entry.kind !== 'linux') {
       prefs.ipl = entry.ipl;
       savePrefs();
       showDials();
@@ -552,7 +582,45 @@ async function downloadPack(entry, again) {
     downloading = false;
     prog.hidden = true;
     renderVolumes();
+    renderDepot();
   }
+}
+
+/**
+ * Paquet de Linux : noyau et image initiale rangés dans le dossier boot (comme les fichiers
+ * choisis à la main), puis la machine z/Architecture prête pour l'IPL du lecteur.
+ */
+async function downloadLinux(entry, progress) {
+  for (const f of entry.files) {
+    progress(f.file, 0);
+    const r = await fetch(`${prefs.depot}/dasd/${entry.id}/${f.file}`);
+    if (!r.ok || !r.body) throw new Error(`${f.file} : HTTP ${r.status}`);
+    const out = await openWriter(await bootDir(), f.role, 'boot');
+    try {
+      const reader = r.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        await out.write(value);
+        progress(f.file, value.length);
+      }
+      await out.close();
+    } catch (e) {
+      await out.abort();
+      throw e;
+    }
+    prefs.zbootNames = { ...prefs.zbootNames, [f.role]: f.file };
+  }
+  prefs.arch = 'z';
+  if (entry.ipl) prefs.zipl = entry.ipl;
+  if (entry.parm) {
+    prefs.zparm = entry.parm;
+    zparmInput.value = entry.parm;
+  }
+  savePrefs();
+  showMachine();
+  showDials();
+  await loadZboot();
 }
 
 // ------------------------------------------------------------------ machine
@@ -703,6 +771,7 @@ function renderZboot() {
   list.replaceChildren(...items);
   $('zboot-clear').disabled = running || (zboot.kernel === null && zboot.initrd === null);
   for (const id of ['zboot-kernel', 'zboot-initrd']) $(id).disabled = running;
+  renderZbootDepot();
   updateButtons();
 }
 languageListeners.push(renderZboot);
@@ -741,6 +810,26 @@ $('zboot-clear').addEventListener('click', async () => {
   loadZboot();
 });
 
+/** z/Architecture : l'unité d'IPL est le lecteur (Linux par ses fichiers). */
+function iplFromReader() {
+  const addr = parseInt(iplPref(), 16);
+  return isZ() && machineDevices().some((d) => d.kind === 'reader' && d.addr === addr);
+}
+
+// Système chargé sur la machine z/Architecture : Linux (IPL du lecteur, ou reconnu sur la
+// console), sinon z/OS.
+let zLinux = false;
+
+/** Exemple du champ de commande de la console, selon le système chargé (ou à charger). */
+function consoleHint() {
+  const ci = $('console-input');
+  const linux = running ? zLinux : iplFromReader();
+  const key = !isZ() ? 'console.placeholder' : linux ? 'console.placeholder.z' : 'console.placeholder.zos';
+  ci.dataset.i18nPlaceholder = key;
+  ci.placeholder = t(key);
+  ci.setAttribute('autocapitalize', linux ? 'off' : 'characters');
+}
+
 /** La machine choisie : description, mémoire, unité d'IPL, champs de z/Architecture. */
 function showMachine() {
   archList.value = prefs.arch;
@@ -749,10 +838,7 @@ function showMachine() {
   const name = isZ() ? 'IBM z/Architecture' : 'IBM System/370';
   document.title = name;
   for (const el of document.querySelectorAll('.machine-name')) el.textContent = name;
-  const ci = $('console-input');
-  ci.dataset.i18nPlaceholder = isZ() ? 'console.placeholder.z' : 'console.placeholder';
-  ci.placeholder = t(ci.dataset.i18nPlaceholder);
-  ci.setAttribute('autocapitalize', isZ() ? 'off' : 'characters');
+  consoleHint();
   $('machine-desc').textContent = t(isZ() ? 'machine.desc.z' : 'machine.desc');
   memLabels();
   $('loadparm-field').hidden = !isZ();
@@ -813,7 +899,7 @@ async function ipl() {
   const vols = await listVolumes();
   const addr = parseInt(iplPref(), 16);
   // z/Architecture : IPL du lecteur avec les fichiers de Linux.
-  const readerIpl = isZ() && machineDevices().some((d) => d.kind === 'reader' && d.addr === addr);
+  const readerIpl = iplFromReader();
   if (readerIpl) {
     if (!zbootReady()) {
       showStatus('ipl.noboot', { addr: iplPref() });
@@ -853,6 +939,8 @@ async function ipl() {
   for (const k of Object.keys(printers)) delete printers[k];
   showPrinter();
   running = true;
+  zLinux = readerIpl;
+  consoleHint();
   volMachineChanged();
   punchMachineChanged();
   setLight('lt-load', true);
@@ -988,10 +1076,20 @@ function onWorkerMessage({ data }) {
       showStatus(runArch === 'z' ? 'ipl.started.z' : 'ipl.started', { n: data.volumes.length });
       break;
     case 'console':
+      if (isZ() && !zLinux && data.text.includes('Linux version')) {
+        zLinux = true;
+        consoleHint();
+      }
       appendConsole(data.text);
       volConsole(data.text);
       break;
     case 'screen':
+      // Alarme (WCC) : un bip à l'arrivée de l'écran, pour le terminal affiché seulement;
+      // l'indicateur est effacé (l'écran est redessiné au clignotement du curseur).
+      if (data.data[4] & 4) {
+        data.data[4] &= ~4;
+        if (currentTab === `t${data.addr}`) beep();
+      }
       screens.set(data.addr, data.data);
       if (currentTab === `t${data.addr}`) drawScreen();
       else markTab(`t${data.addr}`);
@@ -1064,6 +1162,7 @@ function onWorkerMessage({ data }) {
       if (data.reason === 'error' && lastError) showStatus('error', { msg: lastError });
       else showStatus(data.reason === 'user' ? 'power.stopped' : `stop.${data.reason}`);
       updateButtons();
+      consoleHint();
       renderVolumes();
       volMachineChanged();
       punchMachineChanged();
@@ -1136,6 +1235,7 @@ function showDials() {
     b.style.setProperty('--angle', `${parseInt(d[i], 16) * 22.5}deg`);
   });
   iplInput.value = iplPref();
+  consoleHint();
 }
 
 for (const b of dials) {
@@ -1560,7 +1660,6 @@ function drawScreen() {
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   if (flags & 2) ctx.fillRect(cc * cellW, cr * cellH, cellW, cellH);
   else if (blinkOn || !termFocused()) ctx.fillRect(cc * cellW, cr * cellH + cellH - 3, cellW, 3);
-  if (flags & 4) beep();
   showTermStatus(d);
 }
 
