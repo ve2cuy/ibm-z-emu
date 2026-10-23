@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=8db6bf20';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=2df22e1e';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -88,13 +88,29 @@ function volInfo(info) {
   return { type, cyls, volser: volser || '?', tracks: tracks ?? '0' };
 }
 
+/**
+ * Accès synchrone à un fichier de l'OPFS. Un autre accès encore ouvert sur le même fichier
+ * (Worker d'une page qu'on vient de recharger, appel du gestionnaire de volumes en cours)
+ * le refuse : nouvel essai pendant 3 s.
+ */
+async function syncHandle(fh) {
+  for (let k = 0; ; k++) {
+    try {
+      const h = await fh.createSyncAccessHandle();
+      handles.push(h);
+      return h;
+    } catch (e) {
+      if (e?.name !== 'NoModificationAllowedError' || k >= 30) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
 async function openVolume(file) {
   const root = await navigator.storage.getDirectory();
   const dir = await root.getDirectoryHandle('dasd');
   const fh = await dir.getFileHandle(file);
-  const h = await fh.createSyncAccessHandle();
-  handles.push(h);
-  return syncDisk(h);
+  return syncDisk(await syncHandle(fh));
 }
 
 /** Fichier de l'OPFS ouvert en accès synchrone. */
@@ -152,9 +168,7 @@ async function openOverlay(name) {
   const root = await navigator.storage.getDirectory();
   const dir = await root.getDirectoryHandle('shadow', { create: true });
   const fh = await dir.getFileHandle(name, { create: true });
-  const h = await fh.createSyncAccessHandle();
-  handles.push(h);
-  return syncDisk(h);
+  return syncDisk(await syncHandle(fh));
 }
 
 function closeVolumes() {
@@ -177,6 +191,8 @@ async function bootFile(name) {
 
 async function start(cfg) {
   await ready;
+  // Restes d'une marche qui ne s'est pas terminée par stop() (exception) : volumes fermés.
+  if (emu || handles.length) await release();
   arch = cfg.arch === 'z' ? 'z' : 's370';
   emu = arch === 'z' ? Emulator.newZ(cfg.mem, Date.now() / 1000) : new Emulator(cfg.mem, Date.now() / 1000);
   if (cfg.loadparm) emu.set_loadparm(cfg.loadparm);
@@ -263,18 +279,24 @@ async function start(cfg) {
 
 async function stop(reason) {
   running = false;
-  machineEvents();
+  try { machineEvents(); } catch { /* machine en défaut */ }
   mon('stop', { reason });
-  await stopThreads();
-  closeRelay();
-  relayStatus('off');
-  if (emu) {
-    try { emu.flush(); } catch { /* rien */ }
-  }
-  closeVolumes();
-  emu?.free();
-  emu = null;
+  await release();
   post({ type: 'stopped', reason });
+}
+
+/** Fin de la machine : fils des processeurs, relais, volumes fermés (même en défaut). */
+async function release() {
+  running = false;
+  try { await stopThreads(); } catch { cpuWorkers.forEach((w) => w.terminate()); cpuWorkers = []; }
+  try {
+    closeRelay();
+    relayStatus('off');
+  } catch { /* rien */ }
+  try { emu?.flush(); } catch { /* rien */ }
+  closeVolumes();
+  try { emu?.free(); } catch { /* rien */ }
+  emu = null;
 }
 
 // Relais TN3270 (ibmz-relay sur ce PC) : les clients TN3270 du réseau local prennent un
@@ -472,6 +494,17 @@ function drain() {
 
 function tick() {
   if (!running) return;
+  try {
+    step();
+  } catch (e) {
+    // Exception de la machine : arrêt, volumes fermés (sinon le prochain IPL ne peut pas
+    // les rouvrir).
+    post({ type: 'error', msg: e?.message ?? String(e) });
+    stop('error');
+  }
+}
+
+function step() {
   const t0 = performance.now();
   let target = simBase + (t0 - realBase);
   const now = emu.now_ms();
