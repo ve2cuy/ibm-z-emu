@@ -347,6 +347,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -357,18 +369,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -928,30 +928,30 @@ function __wbg_get_imports(memory) {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_e7df6235a68a62cb: function(arg0) {
+        __wbg_flush_d59caed2cc38ce14: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_7d112c8f6c9e60b9: function() {
-            const ret = Date.now();
-            return ret;
-        },
-        __wbg_now_ed9ffcbdb9eaaaad: function() {
+        __wbg_now_1896eb2c8cc9c990: function() {
             const ret = performance.now();
             return ret;
         },
-        __wbg_read_3b0a7e9c297eb1f0: function(arg0, arg1, arg2, arg3) {
+        __wbg_now_b203d4eedd7eea5f: function() {
+            const ret = Date.now();
+            return ret;
+        },
+        __wbg_read_f78cec8e32eb424d: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_487b9c694fc86e91: function(arg0) {
+        __wbg_size_0d8473d216b623fa: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_static_accessor_TIME_ORIGIN_5c33f3faa6746670: function() {
+        __wbg_static_accessor_TIME_ORIGIN_5b815354dc78ce5a: function() {
             const ret = performance.timeOrigin;
             return ret;
         },
-        __wbg_write_481d74d8881fe131: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_97881de75f9225bf: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
