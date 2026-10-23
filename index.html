@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=7e55a9a0">
+  <link rel="stylesheet" href="style.css?v=daec1414">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -397,6 +397,9 @@
           <button type="button" class="term-tab active" role="tab" aria-selected="true" data-tab="console" data-i18n="tab.console">Console</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="printer" data-i18n="tab.printer">Printer</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="events" data-i18n="tab.events">Monitor</button>
+          <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="journal" data-i18n="tab.journal">Log</button>
+          <button id="journal-clear" type="button" class="icon-button small" title="Clear the log" data-i18n-title="journal.clear" aria-label="Clear the log" data-i18n-aria="journal.clear" hidden>
+            <svg class="icon"><use href="#i-trash"/></svg></button>
           <button id="printer-fit" type="button" class="icon-button small" aria-pressed="false" title="Whole page width" data-i18n-title="prt.fit" aria-label="Whole page width" data-i18n-aria="prt.fit" hidden>
             <svg class="icon"><use href="#i-width"/></svg></button>
           <button id="term-fit" type="button" class="icon-button small" aria-pressed="true" title="Fit the screen to the window" data-i18n-title="term.fit" aria-label="Fit the screen to the window" data-i18n-aria="term.fit" hidden>
@@ -420,6 +423,7 @@
             <svg class="icon"><use href="#i-shrink"/></svg></button>
           <div id="printer-out" class="printer-out" hidden></div>
           <div id="events-out" class="events-out" role="log" hidden></div>
+          <pre id="journal-out" class="journal-out" hidden></pre>
           <div id="overlay" class="overlay">
             <div class="js-required" role="alert">
               <p lang="en"><strong>The emulator cannot start: this browser blocks the page's scripts.</strong>
@@ -694,6 +698,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=7e55a9a0"></script>
+  <script type="module" src="main.js?v=daec1414"></script>
 </body>
 </html>

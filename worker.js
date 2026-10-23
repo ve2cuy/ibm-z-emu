@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=7e55a9a0';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=daec1414';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -47,6 +47,7 @@ let arch = 's370';
 let running = false;
 let terminals = [];
 let versions = new Map();
+let hostWrites = new Map(); // écritures du système par terminal (journal)
 const handles = [];
 let simBase = 0;
 let realBase = 0;
@@ -100,7 +101,9 @@ async function syncHandle(fh) {
       handles.push(h);
       return h;
     } catch (e) {
-      if (e?.name !== 'NoModificationAllowedError' || k >= 30) throw e;
+      if (e?.name !== 'NoModificationAllowedError') throw e;
+      // Toujours tenu : sans doute un autre onglet de l'émulateur, machine en marche.
+      if (k >= 30) throw new Error(`locked|${fh.name}`);
       await new Promise((r) => setTimeout(r, 100));
     }
   }
@@ -242,6 +245,7 @@ async function start(cfg) {
   terminals = cfg.terminals;
   for (const a of LOCAL_TERMS) emu.attach_terminal(a, 24, 80, 24, 80);
   versions = new Map();
+  hostWrites = new Map();
   if (cfg.boot) {
     // Linux : noyau, paramètres, image initiale, chacun suivi d'une fin de fichier.
     const kernel = await bootFile('kernel');
@@ -482,8 +486,12 @@ function drain() {
     const v = emu.term_version(a);
     if (v !== versions.get(a)) {
       versions.set(a, v);
+      // host : le système a écrit (pas seulement une frappe) : l'écran va au journal.
+      const w = emu.term_host_writes(a);
+      const host = w !== hostWrites.get(a);
+      hostWrites.set(a, w);
       const data = emu.term_render(a);
-      post({ type: 'screen', addr: a, data }, [data.buffer]);
+      post({ type: 'screen', addr: a, data, host }, [data.buffer]);
     }
   }
   for (const p of [...PRINTERS, ...PUNCHES]) {

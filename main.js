@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=7e55a9a0';
-import { initMemo } from './memo.js?v=7e55a9a0';
-import { deckText } from './decks.js?v=7e55a9a0';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=7e55a9a0';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=7e55a9a0';
-import { Z_DEVICES } from './herc-conf.js?v=7e55a9a0';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=7e55a9a0';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=daec1414';
+import { initMemo } from './memo.js?v=daec1414';
+import { deckText } from './decks.js?v=daec1414';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=daec1414';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=daec1414';
+import { Z_DEVICES } from './herc-conf.js?v=daec1414';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=daec1414';
 
-const VERSION = '0.1.24';
+const VERSION = '0.1.25';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1091,6 +1091,7 @@ function onWorkerMessage({ data }) {
         if (currentTab === `t${data.addr}`) beep();
       }
       screens.set(data.addr, data.data);
+      if (data.host) journalLater(data.addr);
       if (currentTab === `t${data.addr}`) drawScreen();
       else markTab(`t${data.addr}`);
       break;
@@ -1138,7 +1139,11 @@ function onWorkerMessage({ data }) {
     case 'error':
       lastError = data.msg;
       // Échec de l'IPL (« ipl|adresse ») : expliqué dans l'onglet Moniteur.
-      if (/^ipl\|/.test(data.msg)) {
+      if (/^locked\|/.test(data.msg)) {
+        lastError = t('vol.locked', { file: data.msg.slice(7) });
+        showStatus('error', { msg: lastError });
+        logEvent('error', { msg: lastError });
+      } else if (/^ipl\|/.test(data.msg)) {
         lastError = t('ipl.failed', { addr: data.msg.slice(4) });
         showStatus('error', { msg: lastError });
         selectTab('events');
@@ -1330,6 +1335,9 @@ function selectTab(name) {
   printerOut.hidden = name !== 'printer';
   eventsOut.hidden = name !== 'events';
   if (name === 'events') eventsOut.scrollTop = eventsOut.scrollHeight;
+  journalOut.hidden = name !== 'journal';
+  $('journal-clear').hidden = name !== 'journal';
+  if (name === 'journal') journalOut.scrollTop = journalOut.scrollHeight;
   $('key-bar').hidden = !(name.startsWith('t') && showKeys());
   $('full-button').hidden = !name.startsWith('t');
   // Liste des imprimantes : seulement sous l'onglet Imprimante.
@@ -1360,6 +1368,63 @@ for (const b of tabsBox.querySelectorAll('.term-tab')) b.onclick = () => selectT
 // gardés en clés et valeurs pour suivre la langue.
 
 const eventsOut = $('events-out');
+
+// --- onglet Journal : les écrans écrits par le système sur les terminaux, à la suite (texte
+// ordinaire : il se sélectionne et se copie). Un écran y va quand il est stable (le système
+// l'écrit souvent en plusieurs fois); un écran identique au précédent n'est pas répété.
+const journalOut = $('journal-out');
+const JOURNAL_MAX = 3_000_000; // caractères gardés (les plus anciens partent)
+const journalTimers = new Map();
+const journalLast = new Map();
+let journalSize = 0;
+
+function journalLater(addr) {
+  clearTimeout(journalTimers.get(addr));
+  journalTimers.set(addr, setTimeout(() => journalAdd(addr), 500));
+}
+
+function screenText(d) {
+  const lines = [];
+  for (let r = 0; r < d[0]; r++) {
+    let line = '';
+    for (let c = 0; c < d[1]; c++) {
+      const p = r * d[1] + c;
+      line += d[6 + 2 * p] & 0x40 ? ' ' : String.fromCharCode(d[5 + 2 * p] || 32);
+    }
+    lines.push(line.trimEnd());
+  }
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return lines.join('\n');
+}
+
+function journalAdd(addr) {
+  journalTimers.delete(addr);
+  const d = screens.get(addr);
+  if (!d) return;
+  const text = screenText(d);
+  if (!text || text === journalLast.get(addr)) return;
+  journalLast.set(addr, text);
+  journalAppend(`── ${t('tab.terminal')} ${hex3(addr)} · ${new Date().toLocaleTimeString()} ──\n${text}\n\n`);
+}
+
+function journalAppend(s) {
+  // Défilement : suit la fin seulement si on y était (une sélection en cours reste).
+  const atEnd = journalOut.scrollHeight - journalOut.scrollTop - journalOut.clientHeight < 40;
+  journalOut.append(document.createTextNode(s));
+  journalSize += s.length;
+  while (journalSize > JOURNAL_MAX && journalOut.firstChild) {
+    journalSize -= journalOut.firstChild.textContent.length;
+    journalOut.firstChild.remove();
+  }
+  if (atEnd && !journalOut.hidden) journalOut.scrollTop = journalOut.scrollHeight;
+  if (currentTab !== 'journal') markTab('journal');
+}
+
+$('journal-clear').addEventListener('click', () => {
+  journalOut.replaceChildren();
+  journalSize = 0;
+  journalLast.clear();
+});
 const events = [];   // [{time, key, vals}]
 const EV_ERROR = new Set(['error', 'vol.err', 'diskerr', 'r.ipl.fail', 'r.ipl.nodev', 'r.wait', 'r.loop', 'page']);
 // Avertissement : souvent un sondage du système, qui se passe ensuite de l'instruction.
@@ -1654,6 +1719,12 @@ function drawScreen() {
       if (hl === 2) ctx.fillRect(x, y + cellH - 2, cellW, 1);
     }
   }
+  // Sélection (copier une partie de l'écran).
+  if (sel && sel.addr === a) {
+    const b = selBox();
+    ctx.fillStyle = 'rgba(110, 160, 255, 0.38)';
+    ctx.fillRect(b.c0 * cellW, b.r0 * cellH, (b.c1 - b.c0 + 1) * cellW, (b.r1 - b.r0 + 1) * cellH);
+  }
   // Curseur (bloc en mode insertion, trait sinon).
   const cr = Math.floor(cursor / cols);
   const cc = cursor % cols;
@@ -1700,11 +1771,13 @@ function beep() {
 }
 
 function termKey(key) {
+  clearSel();
   const a = currentTerm();
   if (a !== null && running && !remoteTerms().has(a)) worker.postMessage({ type: 'key', addr: a, key });
 }
 
 function termChars(text) {
+  clearSel();
   const a = currentTerm();
   if (a === null || !running || remoteTerms().has(a)) return;
   // Retour à la ligne : touche NewLine; tabulation : Tab.
@@ -1778,7 +1851,12 @@ function termKeydown(e) {
   else if (k === 'Delete') key = 'Delete';
   else if (k === 'Insert') key = 'Insert';
   else if (ctrl && (k === 'r' || k === 'R' || e.code === 'KeyR')) key = 'Reset';
-  else if ((ctrl || e.metaKey) && (k === 'v' || k === 'c')) return; // coller, copier
+  else if ((ctrl || e.metaKey) && (k === 'c' || k === 'C') && sel) {
+    // Copier la sélection.
+    e.preventDefault();
+    copyText(selText());
+    return;
+  } else if ((ctrl || e.metaKey) && (k === 'v' || k === 'c')) return; // coller, copier
   if (key) {
     e.preventDefault();
     termKey(key);
@@ -1830,17 +1908,110 @@ termInput.addEventListener('input', () => {
   if (termInput.value !== TERM_INPUT_FILL) termInputReset();
 });
 
-canvas.addEventListener('mousedown', (e) => {
-  if (touchInput) e.preventDefault();
-  const a = currentTerm();
-  const d = screens.get(a);
-  if (!d || !running) return;
+// Souris : un clic place le curseur; glisser sélectionne un rectangle de l'écran (copié par
+// Ctrl+C ou le bouton Copier); un double-clic, un mot.
+let sel = null;  // {addr, r0, c0, r1, c1} : cellule de départ et cellule courante
+let drag = null; // {addr, row, col, inside, moved}
+
+/** Cellule sous le pointeur (ramenée dans l'écran) et si le pointeur est dans l'écran. */
+function cellAt(e, d) {
   const r = canvas.getBoundingClientRect();
   const col = Math.floor((e.clientX - r.left - 8) / cellW);
   const row = Math.floor((e.clientY - r.top - 8) / cellH);
-  if (row >= 0 && row < d[0] && col >= 0 && col < d[1]) {
-    worker.postMessage({ type: 'click', addr: a, pos: row * d[1] + col });
+  const inside = row >= 0 && row < d[0] && col >= 0 && col < d[1];
+  return { row: Math.min(d[0] - 1, Math.max(0, row)), col: Math.min(d[1] - 1, Math.max(0, col)), inside };
+}
+
+/** Rectangle de la sélection, coins dans l'ordre. */
+function selBox() {
+  return {
+    r0: Math.min(sel.r0, sel.r1), r1: Math.max(sel.r0, sel.r1),
+    c0: Math.min(sel.c0, sel.c1), c1: Math.max(sel.c0, sel.c1),
+  };
+}
+
+/** Texte de la sélection : une ligne par rangée, champs cachés en espaces. */
+function selText() {
+  const d = screens.get(sel.addr);
+  if (!d) return '';
+  const b = selBox();
+  const lines = [];
+  for (let r = b.r0; r <= b.r1 && r < d[0]; r++) {
+    let line = '';
+    for (let c = b.c0; c <= b.c1 && c < d[1]; c++) {
+      const p = r * d[1] + c;
+      line += d[6 + 2 * p] & 0x40 ? ' ' : String.fromCharCode(d[5 + 2 * p]);
+    }
+    lines.push(line.trimEnd());
   }
+  return lines.join('\n');
+}
+
+function clearSel() {
+  if (!sel) return;
+  sel = null;
+  drawScreen();
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showStatus('clip.copied');
+  } catch {
+    showStatus('clip.denied');
+  }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (touchInput) e.preventDefault();
+  if (e.button !== 0) return;
+  const a = currentTerm();
+  const d = screens.get(a);
+  if (!d) return;
+  const { row, col, inside } = cellAt(e, d);
+  drag = { addr: a, row, col, inside, moved: false };
+  clearSel();
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!drag || touchInput) return;
+  const d = screens.get(drag.addr);
+  if (!d || currentTerm() !== drag.addr) return;
+  const { row, col } = cellAt(e, d);
+  if (!drag.moved && row === drag.row && col === drag.col) return;
+  drag.moved = true;
+  sel = { addr: drag.addr, r0: drag.row, c0: drag.col, r1: row, c1: col };
+  drawScreen();
+});
+
+window.addEventListener('mouseup', () => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  // Simple clic : le curseur va à la cellule.
+  const screen = screens.get(d.addr);
+  if (!d.moved && d.inside && running && screen) {
+    worker.postMessage({ type: 'click', addr: d.addr, pos: d.row * screen[1] + d.col });
+  }
+});
+
+canvas.addEventListener('dblclick', (e) => {
+  const a = currentTerm();
+  const d = screens.get(a);
+  if (!d) return;
+  const { row, col, inside } = cellAt(e, d);
+  if (!inside) return;
+  const blank = (c) => {
+    const p = row * d[1] + c;
+    return d[5 + 2 * p] === 32 || d[5 + 2 * p] === 0 || (d[6 + 2 * p] & 0x40) !== 0;
+  };
+  if (blank(col)) return;
+  let c0 = col;
+  let c1 = col;
+  while (c0 > 0 && !blank(c0 - 1)) c0--;
+  while (c1 < d[1] - 1 && !blank(c1 + 1)) c1++;
+  sel = { addr: a, r0: row, c0, r1: row, c1 };
+  drawScreen();
 });
 
 window.addEventListener('resize', () => drawScreen());
@@ -1936,7 +2107,9 @@ buildKeyBar();
 $('copy-button').addEventListener('click', async () => {
   let text = '';
   const a = currentTerm();
-  if (a !== null) {
+  if (a !== null && sel && sel.addr === a) {
+    text = selText();
+  } else if (a !== null) {
     const d = screens.get(a);
     if (d) {
       const rows = d[0];
@@ -1953,6 +2126,10 @@ $('copy-button').addEventListener('click', async () => {
     text = printers[prefs.printer] ?? '';
   } else if (currentTab === 'events') {
     text = eventsOut.textContent;
+  } else if (currentTab === 'journal') {
+    // La sélection faite dans le journal, sinon tout le journal.
+    const s = getSelection();
+    text = s && !s.isCollapsed && journalOut.contains(s.anchorNode) ? s.toString() : journalOut.textContent;
   } else {
     text = consoleText;
   }

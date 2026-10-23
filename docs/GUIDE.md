@@ -118,6 +118,12 @@ To start over, the **Repository** menu downloads the original volumes again.
 emulator did: volumes attached, IPL result with the unit and channel status, stops with
 their wait state code, instructions not emulated yet.)
 
+On a terminal, drag with the mouse to select a block of the screen (a double click selects
+a word), then **Ctrl+C** or the **Copy** button; without a selection, the button copies the
+whole screen. The **Log** tab keeps every screen the system wrote on the terminals, one
+after the other, with the terminal and the time: its text is selected and copied like any
+text on a page (**Copy** takes the selection, or the whole log).
+
 The **Machine** menu also offers a second machine, **z/Architecture**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
 disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.

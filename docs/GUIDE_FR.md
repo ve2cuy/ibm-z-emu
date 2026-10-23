@@ -127,6 +127,12 @@ d'origine.
 l'émulateur a fait : volumes branchés, résultat de l'IPL avec l'état de l'unité et du
 canal, arrêts avec leur code d'attente, instructions pas encore émulées.)
 
+Sur un terminal, glisser avec la souris sélectionne un bloc de l'écran (un double-clic, un
+mot), copié par **Ctrl+C** ou le bouton **Copier**; sans sélection, le bouton copie tout
+l'écran. L'onglet **Journal** garde tous les écrans que le système a écrits sur les
+terminaux, à la suite, avec le terminal et l'heure : son texte se sélectionne et se copie
+comme celui d'une page (**Copier** prend la sélection, ou tout le journal).
+
 Le menu **Machine** offre aussi une seconde machine, **z/Architecture** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
 (SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une

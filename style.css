@@ -1744,6 +1744,19 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   overflow: auto;
 }
 .events-out > div { width: max-content; min-width: 100%; }
+/* Onglet Journal : écrans des terminaux à la suite, en texte ordinaire (sélection). */
+.journal-out {
+  margin: 0;
+  padding: 10px 12px;
+  height: min(70dvh, 46rem);
+  overflow: auto;
+  border-radius: 6px;
+  background: #000;
+  color: #9ef0a0;
+  font: calc(var(--term-font-size, 16px) * 0.85)/1.3 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
+  white-space: pre;
+  user-select: text;
+}
 .events-out .ev-time { color: #7f8ea8; }
 .events-out .ev-error { color: #ff8080; }
 .events-out .ev-ok { color: #9ef0a0; }
