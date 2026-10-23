@@ -2,13 +2,13 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=0c6f716a';
-import { initMemo } from './memo.js?v=0c6f716a';
-import { deckText } from './decks.js?v=0c6f716a';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=0c6f716a';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=0c6f716a';
-import { Z_DEVICES } from './herc-conf.js?v=0c6f716a';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=0c6f716a';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=8db6bf20';
+import { initMemo } from './memo.js?v=8db6bf20';
+import { deckText } from './decks.js?v=8db6bf20';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=8db6bf20';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=8db6bf20';
+import { Z_DEVICES } from './herc-conf.js?v=8db6bf20';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=8db6bf20';
 
 const VERSION = '0.1.22';
 const V = new URL(import.meta.url).search;
