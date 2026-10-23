@@ -121,6 +121,10 @@ their wait state code, instructions not emulated yet.)
 The **Machine** menu also offers a second machine, **z/Architecture (Linux s390x)**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
 disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.
+**Processors**: 1 to 8. In a desktop browser that allows shared memory (Chrome, Edge, and
+recent Firefox and Safari), each processor runs in its own thread, on its own core: the page
+reloads once at the first visit to turn this on, and the **Monitor** tab says how many
+threads are running. Otherwise, the processors take turns in a single thread.
 
 To start Linux from the card reader:
 

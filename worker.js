@@ -23,10 +23,16 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import init, { Emulator } from './pkg/ibmz_web.js?v=79b0042a';
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=79b0042a';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=0c6f716a';
 
 const version = new URL(import.meta.url).search;
+// Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
+// par processeur; sinon le module ordinaire (pkg).
+let Emulator = null;
+let mtModule = null;   // WebAssembly.Module de pkg-mt (donné aux fils des processeurs)
+let mtMemory = null;   // sa mémoire partagée
+let cpuWorkers = [];
+let lastRate = 0;      // vitesse mesurée à la dernière seconde (MIPS)
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
 // importée) : fixées à chaque démarrage.
 let CONSOLE = 0x009;
@@ -237,6 +243,7 @@ async function start(cfg) {
     throw new Error(`ipl|${hex(cfg.ipl)}`);
   }
   emu.set_ns_per_inst(1000 / mips);
+  if (arch === 'z' && cfg.ncpu > 1) startThreads(cfg.ncpu);
   post({ type: 'started', volumes: infos });
   running = true;
   relayUrl = cfg.relay || null;
@@ -254,10 +261,11 @@ async function start(cfg) {
   setTimeout(tick, 0);
 }
 
-function stop(reason) {
+async function stop(reason) {
   running = false;
   machineEvents();
   mon('stop', { reason });
+  await stopThreads();
   closeRelay();
   relayStatus('off');
   if (emu) {
@@ -481,7 +489,9 @@ function tick() {
   else if (turbo && !emu.waiting()) ms = Math.max(ms, SLICE_MS * 4);
   const maxInst = Math.round(mips * 1000 * SLICE_MS);
   let state = 'run';
-  if (ms > 0) {
+  // Un fil par processeur : le temps simulé suit l'horloge de l'hôte; ce fil-ci fait
+  // seulement les E-S et l'affichage, à chaque passage.
+  if (ms > 0 || cpuWorkers.length) {
     state = emu.run(ms, maxInst);
     const dt = performance.now() - t0;
     const inst = emu.take_instructions();
@@ -502,7 +512,9 @@ function tick() {
   // Bilan pour le moniteur, chaque minute.
   if (t1 - monTime >= 60000) {
     monTime = t1;
-    mon('stats', { sim: Math.round(emu.now_ms() / 1000), mips: mips.toFixed(1), io: emu.io_count() });
+    // Un fil par processeur : vitesse mesurée (tous les processeurs), pas le budget.
+    const shown = cpuWorkers.length ? lastRate : mips;
+    mon('stats', { sim: Math.round(emu.now_ms() / 1000), mips: shown.toFixed(1), io: emu.io_count() });
   }
   // Voyants d'activité du pupitre (disques, imprimantes, lecteurs) : au plus toutes les 50 ms.
   activity |= emu.take_activity();
@@ -513,6 +525,7 @@ function tick() {
   }
   if (t1 - statTime >= 1000) {
     const rate = statInst / (t1 - statTime) / 1000;
+    lastRate = rate;
     statInst = 0;
     post({ type: 'stats', mips: rate, psw: emu.psw(), wait: emu.waiting(), io: emu.io_count(), simMs: emu.now_ms(), dbg: `t=${target.toFixed(0)} now=${emu.now_ms().toFixed(0)} mips=${mips.toFixed(1)} ms=${ms.toFixed(1)}` });
     const err = emu.disk_error();
@@ -619,4 +632,84 @@ function volCall({ id, addr, op, dsn = '', member = '', limit = 0 }) {
   }
 }
 
-ready = init(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url)).then(() => post({ type: 'ready' }));
+async function loadWasm() {
+  if (self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
+    try {
+      const pkg = await import(`./pkg-mt/ibmz_web.js${version}`);
+      mtModule = await WebAssembly.compileStreaming(fetch(new URL(`./pkg-mt/ibmz_web_bg.wasm${version}`, import.meta.url)));
+      const wasm = await pkg.default({ module_or_path: mtModule });
+      mtMemory = wasm.memory;
+      Emulator = pkg.Emulator;
+      return;
+    } catch {
+      mtModule = null;
+      mtMemory = null;
+    }
+  }
+  const pkg = await import(`./pkg/ibmz_web.js${version}`);
+  await pkg.default(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url));
+  Emulator = pkg.Emulator;
+}
+
+/** Un fil par processeur (z/Architecture, plusieurs processeurs, page isolée). */
+function startThreads(n) {
+  if (!mtModule) {
+    mon('threads.no', { n });
+    return;
+  }
+  const ptr = emu.start_threads();
+  if (!ptr) {
+    mon('threads.no', { n });
+    return;
+  }
+  cpuWorkers = [];
+  for (let i = 0; i < n; i++) {
+    const w = new Worker(new URL(`./cpu-worker.js${version}`, import.meta.url), { type: 'module' });
+    w.onerror = (e) => mon('error', { msg: `cpu-worker ${i} : ${e.message}` });
+    w.postMessage({ module: mtModule, memory: mtMemory, ptr, idx: i, version });
+    cpuWorkers.push(w);
+  }
+  mon('threads', { n, cores: navigator.hardwareConcurrency || 0 });
+  ioLoop();
+}
+
+/** Tâche brève suivante de la boucle d'événements (sans le délai minimal de setTimeout). */
+function yieldNow() {
+  return new Promise((resolve) => {
+    const c = new MessageChannel();
+    c.port1.onmessage = resolve;
+    c.port2.postMessage(0);
+  });
+}
+
+/**
+ * Fil des E-S (un fil par processeur) : réveillé par la sonnette des processeurs (début
+ * d'E-S en attente) ou à la prochaine échéance des E-S, il exécute les programmes de canal
+ * (les disques de la page ne sont accessibles que de ce Worker). Sans Atomics.waitAsync :
+ * à chaque passage de tick seulement.
+ */
+async function ioLoop() {
+  if (typeof Atomics.waitAsync !== 'function') return;
+  await yieldNow(); // après le démarrage (running)
+  const bell = new Int32Array(mtMemory.buffer);
+  const idx = emu.io_bell_addr() >>> 2;
+  while (running && cpuWorkers.length) {
+    const v = Atomics.load(bell, idx);
+    emu.io_service();
+    const ms = Math.max(0.02, Math.min(SLICE_MS, emu.io_next_ms()));
+    const r = Atomics.waitAsync(bell, idx, v, ms);
+    if (r.async) await r.value;
+    else await yieldNow();
+  }
+}
+
+/** Fin des fils des processeurs (avant de libérer la machine). */
+async function stopThreads() {
+  if (!emu || !emu.threads()) return;
+  emu.stop_threads();
+  for (let k = 0; k < 300 && !emu.threads_done(); k++) await new Promise((r) => setTimeout(r, 10));
+  for (const w of cpuWorkers) w.terminate();
+  cpuWorkers = [];
+}
+
+ready = loadWasm().then(() => post({ type: 'ready' }));

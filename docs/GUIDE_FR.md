@@ -130,7 +130,11 @@ canal, arrêts avec leur code d'attente, instructions pas encore émulées.)
 Le menu **Machine** offre aussi une seconde machine, **z/Architecture (Linux s390x)** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
 (SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une
-imprimante; de 64 Mo à 2 Go de mémoire.
+imprimante; de 64 Mo à 2 Go de mémoire. **Processeurs** : de 1 à 8. Dans un fureteur de
+bureau qui permet la mémoire partagée (Chrome, Edge, Firefox et Safari récents), chaque
+processeur tourne dans son propre fil, sur son propre cœur : la page se recharge une fois à
+la première visite pour le permettre, et l'onglet **Moniteur** dit combien de fils tournent.
+Sinon, les processeurs tournent à tour de rôle dans un seul fil.
 
 Pour démarrer Linux par le lecteur de cartes :
 

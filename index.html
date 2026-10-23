@@ -12,6 +12,20 @@
       if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
     } catch { /* stockage indisponible */ }
     document.documentElement.classList.replace('no-js', 'js-loading');
+    // Isolement de la page (coi-sw.js : en-têtes COOP et COEP) : la première fois, le
+    // service worker s'installe et la page se recharge une fois.
+    if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('coi-sw.js').then(() => navigator.serviceWorker.ready).then(() => {
+        try {
+          // Le document chargé avant le service worker n'a pas les en-têtes : une seule
+          // fois, rechargement (le drapeau évite une boucle si l'isolement est refusé).
+          if (!window.crossOriginIsolated && !sessionStorage.getItem('ibmz-coi')) {
+            sessionStorage.setItem('ibmz-coi', '1');
+            location.reload();
+          }
+        } catch { /* stockage indisponible : pas de rechargement */ }
+      }).catch(() => { /* pas de service worker : un seul fil */ });
+    }
     setTimeout(() => {
       const root = document.documentElement;
       if (root.classList.contains('js-ready')) return;
@@ -22,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=79b0042a">
+  <link rel="stylesheet" href="style.css?v=0c6f716a">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -677,6 +691,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=79b0042a"></script>
+  <script type="module" src="main.js?v=0c6f716a"></script>
 </body>
 </html>

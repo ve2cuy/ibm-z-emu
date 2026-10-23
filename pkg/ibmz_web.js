@@ -1,5 +1,3 @@
-/* @ts-self-types="./ibmz_web.d.ts" */
-
 export class Emulator {
     static __wrap(ptr) {
         const obj = Object.create(Emulator.prototype);
@@ -191,12 +189,35 @@ export class Emulator {
         wasm.emulator_interrupt_key(this.__wbg_ptr);
     }
     /**
+     * Adresse de la sonnette du fil des E-S dans la mémoire partagée (`Int32Array`).
+     * @returns {number}
+     */
+    io_bell_addr() {
+        const ret = wasm.emulator_io_bell_addr(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * Entrées-sorties faites depuis le démarrage.
      * @returns {number}
      */
     io_count() {
         const ret = wasm.emulator_io_count(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * Délai (ms) jusqu'à la prochaine échéance des E-S (`Infinity` : aucune).
+     * @returns {number}
+     */
+    io_next_ms() {
+        const ret = wasm.emulator_io_next_ms(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Fil des E-S (un fil par processeur) : programmes de canal en attente, unités, fins
+     * d'E-S.
+     */
+    io_service() {
+        wasm.emulator_io_service(this.__wbg_ptr);
     }
     /**
      * IPL depuis l'unité `addr`. Le moniteur reçoit le résultat : « ipl.ok|adresse|PSW »,
@@ -401,6 +422,22 @@ export class Emulator {
         wasm.emulator_set_ns_per_inst(this.__wbg_ptr, ns);
     }
     /**
+     * Un fil par processeur (z/Architecture, plusieurs processeurs, après l'IPL) : rend
+     * l'adresse de la machine à donner à `cpu_thread` dans chaque Web Worker de
+     * processeur, ou 0 si ce n'est pas possible.
+     * @returns {number}
+     */
+    start_threads() {
+        const ret = wasm.emulator_start_threads(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Arrêt des fils des processeurs (avant `free`); `threads_done` dit quand c'est fait.
+     */
+    stop_threads() {
+        wasm.emulator_stop_threads(this.__wbg_ptr);
+    }
+    /**
      * Voyants d'activité : masque des classes d'unités qui ont reçu un SIO depuis le
      * dernier appel (1 disques, 2 imprimantes, 4 lecteurs, 8 perforatrices).
      * @returns {number}
@@ -535,6 +572,21 @@ export class Emulator {
     term_version(addr) {
         const ret = wasm.emulator_term_version(this.__wbg_ptr, addr);
         return ret;
+    }
+    /**
+     * Nombre de fils de processeurs (0 : un seul fil).
+     * @returns {number}
+     */
+    threads() {
+        const ret = wasm.emulator_threads(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    threads_done() {
+        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * Gestionnaire de volumes, machine en marche : opération de lecture `op` (voir
@@ -810,6 +862,26 @@ export function blank_volume(devtype, cyls, volser) {
 }
 
 /**
+ * Fil d'un processeur (Web Worker de la page, mémoire partagée) : `ptr` vient de
+ * `Emulator::start_threads`. Ne rend la main qu'à l'arrêt (`stop_threads`).
+ * @param {number} ptr
+ * @param {number} idx
+ */
+export function cpu_thread(ptr, idx) {
+    wasm.cpu_thread(ptr, idx);
+}
+
+/**
+ * Le module a été construit avec les atomics (mémoire partagée : un fil par processeur
+ * possible).
+ * @returns {boolean}
+ */
+export function threads_supported() {
+    const ret = wasm.threads_supported();
+    return ret !== 0;
+}
+
+/**
  * Noms des boucles de mesure du processeur z/Architecture (`zarch::bench`).
  * @returns {string}
  */
@@ -847,22 +919,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_01822546ecac0abd: function(arg0) {
+        __wbg_flush_aa25350117adf9ba: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_9a37a17dca2aa41b: function() {
+        __wbg_now_ec53d9cf48ddec43: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_40141e2178b5d89e: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_665b1f762cd58161: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_357363787df6a485: function(arg0) {
+        __wbg_size_ed220de51d8d5619: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_dc9248f42e40036a: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_b432c4d584360915: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
