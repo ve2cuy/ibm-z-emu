@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=109a0947';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=6fe28f3a';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -673,9 +673,26 @@ function tick() {
   } catch (e) {
     // Exception de la machine : arrêt, volumes fermés (sinon le prochain IPL ne peut pas
     // les rouvrir).
-    post({ type: 'error', msg: e?.message ?? String(e) });
+    report(e);
     stop('error');
   }
+}
+
+// Première erreur fatale du module (manque de mémoire, panique) : l'appel interrompu laisse
+// la machine « occupée », et chaque appel suivant donne « recursive use of an object… ».
+// Seule la première est annoncée (c'est la cause), les suivantes sont tues.
+let fatalError = null;
+
+function report(e) {
+  const msg = e?.message ?? String(e);
+  if (fatalError) return;
+  if (e instanceof WebAssembly.RuntimeError || /recursive use of an object|unreachable|out of memory/i.test(msg)) {
+    fatalError = msg;
+    mon('fatal', { msg });
+    // La page recrée ce fil (module neuf) avant le prochain IPL.
+    post({ type: 'fatal' });
+  }
+  post({ type: 'error', msg });
 }
 
 function step() {
@@ -820,7 +837,9 @@ self.onmessage = async ({ data }) => {
         break;
     }
   } catch (e) {
-    post({ type: 'error', msg: e?.message ?? String(e) });
+    report(e);
+    // Machine en défaut (erreur fatale du module) : arrêt, volumes fermés.
+    if (fatalError && running) stop('error');
     if (data.type === 'start') {
       closeVolumes();
       emu = null;

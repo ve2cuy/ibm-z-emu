@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=109a0947';
-import { initMemo } from './memo.js?v=109a0947';
-import { deckText } from './decks.js?v=109a0947';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=109a0947';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=109a0947';
-import { Z_DEVICES } from './herc-conf.js?v=109a0947';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=109a0947';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=6fe28f3a';
+import { initMemo } from './memo.js?v=6fe28f3a';
+import { deckText } from './decks.js?v=6fe28f3a';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=6fe28f3a';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=6fe28f3a';
+import { Z_DEVICES } from './herc-conf.js?v=6fe28f3a';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=6fe28f3a';
 
-const VERSION = '0.1.29';
+const VERSION = '0.1.30';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -890,9 +890,16 @@ function startWorker() {
 }
 
 let runArch = 's370';   // machine en marche
+let workerBroken = false; // erreur fatale du module : fil à recréer avant le prochain IPL
 
 async function ipl() {
   if (running || !worker) return;
+  // Erreur fatale du module à la marche précédente : un fil neuf (module rechargé).
+  if (workerBroken) {
+    worker.terminate();
+    startWorker();
+    workerBroken = false;
+  }
   // Volumes lus sur place d'une visite précédente : retrouvés dans le dossier de Hercules
   // gardé (l'accès se redemande pendant ce clic, avant toute autre attente).
   if (mountsMissing().length) await remountFromDir();
@@ -1205,6 +1212,9 @@ function onWorkerMessage({ data }) {
       break;
     case 'monitor':
       logEvent(data.key, data.vals);
+      break;
+    case 'fatal':
+      workerBroken = true;
       break;
     case 'stopped':
       running = false;
