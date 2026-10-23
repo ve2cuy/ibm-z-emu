@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=f57f733b';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=109a0947';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -481,10 +481,11 @@ function shutnow(users) {
 // Opérateur automatique de l'arrêt du système de la machine z/Architecture (IPL d'un
 // disque), par la console du système (SCLP) : V CN(*),ACTIVATE; D A,L choisit la procédure
 // d'arrêt (SHUTDB si DB2 tourne, SHUTALL si CICS ou MQ, sinon SHUTDOWN); réponse Y à la
-// question de zFS (BPXI078D); toutes les 20 s, D A,L : passé le temps de la procédure, chaque tâche
+// question de zFS (BPXI078D), SIC à celle de TSO (IKT010D); toutes les 20 s, D A,L : passé le temps de la procédure, chaque tâche
 // restante reçoit P, puis C, puis FORCE nom,ARM, puis FORCE; quand il ne reste que JES2 :
 // $PI, WRITELOG CLOSE, $PJES2 ($HASP607 : nouvel essai, puis $PJES2,ABEND et PURGE);
-// $HASP085 -> Z EOD; IEE334I : la machine s'arrête. Étapes annoncées à la page (shutdown).
+// $HASP085 -> Z EOD; IEE334I (ou IEE497I : fini avec des erreurs; sinon 2 min plus tard) :
+// la machine s'arrête. Étapes annoncées à la page (shutdown).
 const ZSD_PROC_MS = 150_000; // temps laissé à la procédure d'arrêt
 const ZSD_LIST_MS = 20_000;  // intervalle des D A,L
 let zsd = null;
@@ -545,23 +546,29 @@ function zsdOnList(names) {
   }
   if (now - zsd.procAt >= ZSD_PROC_MS) {
     post({ type: 'shutdown', phase: 'remain', names: rest });
-    const steps = ['P ', 'C ', 'FORCE ', 'FORCE '];
     let delay = 0;
     for (const n of rest) {
       const k = zsd.tries.get(n) ?? 0;
       zsd.tries.set(n, k + 1);
+      const steps = zsdSteps(n);
       if (k >= steps.length) continue;
-      const cmd = k === 2 ? `FORCE ${n},ARM` : `${steps[k]}${n}`;
-      zsdLater(() => zsdType(cmd), delay);
+      zsdLater(() => zsdType(steps[k]), delay);
       delay += 1500;
     }
     // Plus rien à essayer : JES2 quand même (au besoin $PJES2,ABEND).
-    if (rest.every((n) => zsd.tries.get(n) > steps.length)) {
+    if (rest.every((n) => zsd.tries.get(n) > zsdSteps(n).length)) {
       zsdJes2();
       return;
     }
   }
   zsdLater(zsdList, ZSD_LIST_MS);
+}
+
+/** Commandes successives pour arrêter une tâche restante. DLF veut d'abord un mode d'arrêt
+ *  (COF544I sinon); les tâches qui refusent CANCEL (IEE838I) passent à FORCE,ARM. */
+function zsdSteps(n) {
+  if (n === 'DLF') return ['F DLF,MODE=QUICK', 'P DLF', 'FORCE DLF,ARM', 'FORCE DLF'];
+  return [`P ${n}`, `C ${n}`, `FORCE ${n},ARM`, `FORCE ${n}`];
 }
 
 function zsdJes2() {
@@ -594,6 +601,12 @@ function zsdFeed(text) {
     post({ type: 'shutdown', phase: 'zfs' });
     zsdLater(() => zsdType(`R ${m[1]},Y`), 1000);
   }
+  // TSO avec des usagers connectés (IKT010D) : SIC, arrêt en déconnectant les usagers.
+  for (const m of text.matchAll(/\b(\d{1,4})\s+IKT010D/g)) {
+    if (zsd.replied.has(m[1])) continue;
+    zsd.replied.add(m[1]);
+    zsdLater(() => zsdType(`R ${m[1]},SIC`), 1000);
+  }
   for (const m of text.matchAll(/\b(\d{1,4})\s+\$HASP098/g)) {
     if (zsd.replied.has(m[1])) continue;
     zsd.replied.add(m[1]);
@@ -608,14 +621,24 @@ function zsdFeed(text) {
     zsd.eod = true;
     post({ type: 'shutdown', phase: 'eod' });
     zsdLater(() => zsdType('Z EOD'), 1000);
+    // Ni IEE334I ni IEE497I : la machine s'arrête quand même (JES2 est fini).
+    zsdLater(() => zsdEnd('timeout'), 120_000);
   }
-  if (text.includes('IEE334I')) {
-    // Journaux fermés : la machine peut s'arrêter (volumes écrits et fermés).
-    zsdLater(() => {
-      zsd = null;
-      stop('stopped');
-    }, 2000);
-  }
+  // Journaux fermés (IEE334I), ou fermés avec une erreur (IEE497I HALT COMPLETED WITH
+  // ERRORS, par exemple LOGREC : IEE498I) : la machine peut s'arrêter.
+  if (text.includes('IEE334I')) zsdEnd('ok');
+  else if (text.includes('IEE497I')) zsdEnd('errors');
+}
+
+/** Fin de l'arrêt : la machine s'arrête (volumes écrits et fermés) 2 s plus tard. */
+function zsdEnd(how) {
+  if (!zsd || zsd.ending) return;
+  zsd.ending = true;
+  if (how !== 'ok') post({ type: 'shutdown', phase: 'eodwarn', how });
+  zsdLater(() => {
+    zsd = null;
+    stop('stopped');
+  }, 2000);
 }
 
 /** Sorties de la machine : console, écrans changés, imprimantes. */

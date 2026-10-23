@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=f57f733b';
-import { initMemo } from './memo.js?v=f57f733b';
-import { deckText } from './decks.js?v=f57f733b';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=f57f733b';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=f57f733b';
-import { Z_DEVICES } from './herc-conf.js?v=f57f733b';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=f57f733b';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=109a0947';
+import { initMemo } from './memo.js?v=109a0947';
+import { deckText } from './decks.js?v=109a0947';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=109a0947';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=109a0947';
+import { Z_DEVICES } from './herc-conf.js?v=109a0947';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=109a0947';
 
-const VERSION = '0.1.28';
+const VERSION = '0.1.29';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -978,6 +978,7 @@ const SD_STEPS = {
 };
 let sdArch = 's370';
 let sdAt = 0;
+let sdNote = ''; // remarque ajoutée au résultat (fin de journée avec des erreurs)
 let sdStart = 0;
 let sdClock = 0;
 
@@ -1024,8 +1025,13 @@ function sdOpen(arch = 's370') {
   if (!sd.open) sd.showModal();
 }
 
-function sdPhase({ phase, users, wait, proc, names }) {
+function sdPhase({ phase, users, wait, proc, names, how }) {
   if (!sdStart) sdOpen(runArch);
+  if (phase === 'eodwarn') {
+    // Fin de journée avec des erreurs (IEE497I), ou sans réponse : dit à la fin.
+    sdNote = t(how === 'timeout' ? 'sd.z.eodtimeout' : 'sd.z.eoderr');
+    return;
+  }
   if (phase === 'started') sdMark('tso');
   else if (phase === 'tso') {
     $('sd-tso').textContent = users === 0 ? t('sd.tso.none')
@@ -1051,7 +1057,8 @@ function sdStopped(reason) {
     if (ok) li.classList.add('done');
   }
   $('sd-warning').hidden = true;
-  $('sd-result').textContent = t(ok ? 'sd.done' : 'sd.other', { s });
+  $('sd-result').textContent = t(ok ? 'sd.done' : 'sd.other', { s }) + (ok && sdNote ? ` ${sdNote}` : '');
+  sdNote = '';
   $('sd-result').classList.toggle('ok', ok);
   $('sd-result').classList.toggle('error', !ok);
   $('sd-time').textContent = '';

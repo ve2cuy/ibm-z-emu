@@ -928,30 +928,30 @@ function __wbg_get_imports(memory) {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_d59caed2cc38ce14: function(arg0) {
+        __wbg_flush_a1cd299c4ea259b0: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_1896eb2c8cc9c990: function() {
+        __wbg_now_897647c0d7002719: function() {
             const ret = performance.now();
             return ret;
         },
-        __wbg_now_b203d4eedd7eea5f: function() {
+        __wbg_now_94f10c019a755707: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_f78cec8e32eb424d: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_caa807b877790d6a: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_0d8473d216b623fa: function(arg0) {
+        __wbg_size_f0480b4499c7d682: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_static_accessor_TIME_ORIGIN_5b815354dc78ce5a: function() {
+        __wbg_static_accessor_TIME_ORIGIN_e2ef60c713b3ae3f: function() {
             const ret = performance.timeOrigin;
             return ret;
         },
-        __wbg_write_97881de75f9225bf: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_14a094021827d7a0: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
