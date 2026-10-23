@@ -41,6 +41,49 @@ Quelques commandes d'opérateur à taper dans la zone sous la console :
 | `$DA` | Travaux en cours selon JES2 |
 | `$DQ` | Files d'attente de JES2 |
 
+### Le PSW du pupitre
+
+Sous **PSW**, le pupitre montre le **mot d'état du programme** (*Program Status Word*) du
+processeur (du processeur 0 s'il y en a plusieurs) : l'adresse de la prochaine instruction
+et l'état de la machine, en hexadécimal.
+
+**System/370** (MVS 3.8j) : un mot de 8 octets, par exemple `070E000000000000`.
+
+| Octet | Sens |
+|---|---|
+| 0 | `40` PER (traces), `04` **DAT** (adresses virtuelles), `02` interruptions d'**E-S** permises, `01` interruptions **externes** permises (minuteries) |
+| 1 | clé de protection de la mémoire (4 bits de gauche), puis `08` mode EC (celui de MVS), `04` contrôles machine permis, `02` **attente**, `01` état problème (programme d'usager; 0 : superviseur) |
+| 2 | code de condition (bits 18-19, résultat de la dernière comparaison), masque des exceptions de programme (bits 20-23) |
+| 5-7 | adresse de la prochaine instruction (24 bits) |
+
+(En mode BC, l'ancien format du System/360, l'octet 0 porte les masques des canaux et les
+octets 2-3 le code d'interruption; MVS 3.8j travaille en mode EC.)
+
+**z/Architecture** : 16 octets, affichés en deux mots de 64 bits, par exemple
+`0706000180000000 000000000001816E`. Le second mot est l'adresse de la prochaine instruction.
+Le premier :
+
+| Octet (bits) | Sens |
+|---|---|
+| 0 (0-7) | `40` PER (traces), `04` **DAT** (adresses virtuelles), `02` interruptions d'**E-S** permises, `01` interruptions **externes** permises |
+| 1 (8-15) | clé de protection (4 bits de gauche), `04` contrôles machine permis, `02` **attente**, `01` état problème |
+| 2 (16-23) | espace d'adresses (bits 16-17 : primaire, registres d'accès, secondaire, *home*), code de condition (18-19), masque des exceptions de programme (20-23) |
+| bits 31-32 | mode d'adressage : `…00 00…` 24 bits, `…00 80…` 31 bits, `…01 80…` 64 bits |
+
+Ce qu'on voit le plus souvent :
+
+- **attente, interruptions permises** (`070E…` en System/370, `0706…` en z/Architecture) : le
+  système n'a rien à faire et attend une E-S ou une minuterie. C'est normal;
+- **le processeur travaille** : le bit d'attente est à 0 et l'adresse change d'un relevé à
+  l'autre;
+- **attente avec les interruptions masquées** (bit d'attente à 1, bits E-S et externes à
+  0) : le système s'est **arrêté** (*disabled wait*). Son code d'arrêt est dans les 12 bits
+  de droite de l'adresse (par exemple `…A71`); la page s'arrête et le signale dans l'onglet
+  **Moniteur**.
+
+Le détail de chaque bit est au chapitre « Control » des *Principles of Operation* d'IBM
+(System/370 ou z/Architecture).
+
 ## 4. Se connecter à TSO
 
 1. Ouvrez l'onglet **Terminal 0C0** et cliquez dans l'écran.

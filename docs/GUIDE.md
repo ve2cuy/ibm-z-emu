@@ -38,6 +38,47 @@ A few operator commands to type in the field under the console:
 | `$DA` | Jobs running, according to JES2 |
 | `$DQ` | JES2 queues |
 
+### The PSW on the operator panel
+
+Under **PSW**, the panel shows the processor's **Program Status Word** (processor 0 when
+there are several): the address of the next instruction and the state of the machine, in
+hexadecimal.
+
+**System/370** (MVS 3.8j): one 8-byte word, for example `070E000000000000`.
+
+| Byte | Meaning |
+|---|---|
+| 0 | `40` PER (tracing), `04` **DAT** (virtual addresses), `02` **I/O** interruptions enabled, `01` **external** interruptions enabled (timers) |
+| 1 | storage protection key (left 4 bits), then `08` EC mode (the one MVS uses), `04` machine checks enabled, `02` **wait**, `01` problem state (user program; 0: supervisor) |
+| 2 | condition code (bits 18-19, result of the last comparison), program mask (bits 20-23) |
+| 5-7 | address of the next instruction (24 bits) |
+
+(In BC mode, the older System/360 format, byte 0 holds the channel masks and bytes 2-3 the
+interruption code; MVS 3.8j runs in EC mode.)
+
+**z/Architecture**: 16 bytes, shown as two 64-bit words, for example
+`0706000180000000 000000000001816E`. The second word is the address of the next instruction.
+The first one:
+
+| Byte (bits) | Meaning |
+|---|---|
+| 0 (0-7) | `40` PER (tracing), `04` **DAT** (virtual addresses), `02` **I/O** interruptions enabled, `01` **external** interruptions enabled |
+| 1 (8-15) | protection key (left 4 bits), `04` machine checks enabled, `02` **wait**, `01` problem state |
+| 2 (16-23) | address space (bits 16-17: primary, access registers, secondary, home), condition code (18-19), program mask (20-23) |
+| bits 31-32 | addressing mode: `…00 00…` 24-bit, `…00 80…` 31-bit, `…01 80…` 64-bit |
+
+What you see most often:
+
+- **wait, interruptions enabled** (`070E…` on System/370, `0706…` on z/Architecture): the
+  system has nothing to do and waits for an I/O or a timer. This is normal;
+- **the processor is working**: the wait bit is 0 and the address changes between readings;
+- **wait with interruptions disabled** (wait bit 1, I/O and external bits 0): the system has
+  **stopped** (*disabled wait*). Its stop code is in the right 12 bits of the address (for
+  example `…A71`); the page stops and reports it in the **Monitor** tab.
+
+Every bit is described in the "Control" chapter of IBM's *Principles of Operation*
+(System/370 or z/Architecture).
+
 ## 4. Logging on to TSO
 
 1. Open the **Terminal 0C0** tab and click in the screen.
