@@ -1504,6 +1504,8 @@ canvas.screen3270 {
 .vol-list li.mounted .mono { color: var(--accent-ink); }
 .vol-list li.mounted.need .mono { color: var(--text-dim, #888); font-style: italic; }
 .icon-button.small { width: 28px; height: 28px; }
+/* Enregistrer la sortie de l'imprimante : icône et format (TXT, PDF). */
+.icon-button.small.prt-save { width: auto; padding: 0 6px; gap: 3px; font-size: 0.72rem; font-weight: 600; }
 .depot-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .depot-card p { margin: 0; }
 .depot-list { display: flex; flex-direction: column; gap: 10px; }

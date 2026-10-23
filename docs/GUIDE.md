@@ -124,6 +124,15 @@ whole screen. The **Log** tab keeps every screen the system wrote on the termina
 after the other, with the terminal and the time: its text is selected and copied like any
 text on a page (**Copy** takes the selection, or the whole log).
 
+Under the **Printer** tab, three buttons act on the chosen printer: **TXT** saves its output
+as text, without the useless blank lines (page bottoms, page skips, several blank lines in a
+row); **PDF** saves it as a PDF, one sheet per page, landscape; the trash can clears it.
+
+Commands after the IPL (system loaded from a disk): the **Commands after the IPL** field of
+the **Machine** menu takes operator commands, one per line (for example `$S PRT1`). When JES2
+has finished starting (`$HASP492`), the page types them on the system console. They are kept
+by the page, not on the volumes: they remain when the changes to the volumes are forgotten.
+
 Clean shutdown of a system loaded from a disk: **Stop**, then accept the clean shutdown.
 The emulator goes through the system console (`V CN(*),ACTIVATE`) and starts the fitting
 shutdown procedure (`S SHUTDB` when DB2 runs, `S SHUTALL` with CICS or MQ, otherwise

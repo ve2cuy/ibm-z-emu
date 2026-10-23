@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=2ceed21e';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=a1889f7d';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -270,6 +270,7 @@ async function start(cfg) {
   openRelay();
   autoShutdown = false;
   zsd = null;
+  autoCmds = arch === 'z' && cfg.autoCmds?.length ? { cmds: cfg.autoCmds, started: false } : null;
   // Pas d'opérateur automatique de TK5 en z/Architecture (ni d'attentes sautées).
   initDone = arch === 'z';
   shutdownWanted = false;
@@ -641,6 +642,31 @@ function zsdEnd(how) {
   }, 2000);
 }
 
+// Commandes de l'usager après l'IPL (z/Architecture, système chargé d'un disque) : quand
+// JES2 a fini de démarrer ($HASP492 … START HAS COMPLETED, vu sur un terminal 3270, la
+// console maîtresse 3270), la page active la console du système (V CN(*),ACTIVATE) et y
+// tape les commandes, à 2 s d'intervalle : les saisies de l'usager sur la 700 ne sont pas
+// mêlées. Les commandes sont gardées par la page (réglages), pas sur les volumes.
+let autoCmds = null; // {cmds, started}
+
+function autoCmdsWatch(addr) {
+  if (!emu.term_text(addr).includes('$HASP492')) return;
+  autoCmds.started = true;
+  mon('autocmds', { n: autoCmds.cmds.length });
+  const cmds = ['V CN(*),ACTIVATE', ...autoCmds.cmds];
+  cmds.forEach((cmd, i) => setTimeout(() => autoCmdType(cmd, i > 0), 3000 + 2000 * i));
+}
+
+function autoCmdType(cmd, announce, tries = 10) {
+  if (!emu || !running) return;
+  // Console du système occupée (commande précédente en cours) : un peu plus tard.
+  if (!emu.console_type(CONSOLE, cmd)) {
+    if (tries > 0) setTimeout(() => autoCmdType(cmd, announce, tries - 1), 1000);
+    return;
+  }
+  if (announce) mon('autocmd', { cmd });
+}
+
 /** Sorties de la machine : console, écrans changés, imprimantes. */
 function drain() {
   if (remotes.size) sendRemotes();
@@ -656,6 +682,7 @@ function drain() {
       const w = emu.term_host_writes(a);
       const host = w !== hostWrites.get(a);
       hostWrites.set(a, w);
+      if (host && autoCmds && !autoCmds.started) autoCmdsWatch(a);
       const data = emu.term_render(a);
       post({ type: 'screen', addr: a, data, host }, [data.buffer]);
     }

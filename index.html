@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=2ceed21e">
+  <link rel="stylesheet" href="style.css?v=a1889f7d">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -122,6 +122,10 @@
             </label>
             <label id="loadparm-field" class="field" hidden><span data-i18n="loadparm.label">LOADPARM</span>
               <input id="loadparm" type="text" maxlength="8" spellcheck="false" autocomplete="off" class="mono">
+            </label>
+            <label id="zcmds-field" class="field" hidden><span data-i18n="zcmds.label">Commands after the IPL (one per line)</span>
+              <textarea id="zcmds" rows="3" spellcheck="false" autocomplete="off" autocapitalize="characters" class="mono" placeholder="$S PRT1"></textarea>
+              <span class="hint" data-i18n="zcmds.hint">Typed on the system console when JES2 has finished starting ($HASP492). Kept by the page, not on the volumes.</span>
             </label>
             <div id="zboot" class="hc-box" hidden>
               <p class="hint"><strong data-i18n="zboot.title">Linux from the card reader</strong></p>
@@ -399,6 +403,12 @@
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="events" data-i18n="tab.events">Monitor</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="journal" data-i18n="tab.journal">Log</button>
           <button id="journal-clear" type="button" class="icon-button small" title="Clear the log" data-i18n-title="journal.clear" aria-label="Clear the log" data-i18n-aria="journal.clear" hidden>
+            <svg class="icon"><use href="#i-trash"/></svg></button>
+          <button id="printer-txt" type="button" class="icon-button small prt-save" title="Save as text" data-i18n-title="prt.save.txt" aria-label="Save as text" data-i18n-aria="prt.save.txt" hidden>
+            <svg class="icon"><use href="#i-download"/></svg><span>TXT</span></button>
+          <button id="printer-pdf" type="button" class="icon-button small prt-save" title="Save as PDF" data-i18n-title="prt.save.pdf" aria-label="Save as PDF" data-i18n-aria="prt.save.pdf" hidden>
+            <svg class="icon"><use href="#i-download"/></svg><span>PDF</span></button>
+          <button id="printer-clear" type="button" class="icon-button small" title="Clear the printer" data-i18n-title="prt.clear" aria-label="Clear the printer" data-i18n-aria="prt.clear" hidden>
             <svg class="icon"><use href="#i-trash"/></svg></button>
           <button id="printer-fit" type="button" class="icon-button small" aria-pressed="false" title="Whole page width" data-i18n-title="prt.fit" aria-label="Whole page width" data-i18n-aria="prt.fit" hidden>
             <svg class="icon"><use href="#i-width"/></svg></button>
@@ -707,6 +717,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=2ceed21e"></script>
+  <script type="module" src="main.js?v=a1889f7d"></script>
 </body>
 </html>

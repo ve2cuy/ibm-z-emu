@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=2ceed21e';
-import { initMemo } from './memo.js?v=2ceed21e';
-import { deckText } from './decks.js?v=2ceed21e';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=2ceed21e';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=2ceed21e';
-import { Z_DEVICES } from './herc-conf.js?v=2ceed21e';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=2ceed21e';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=a1889f7d';
+import { initMemo } from './memo.js?v=a1889f7d';
+import { deckText } from './decks.js?v=a1889f7d';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=a1889f7d';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=a1889f7d';
+import { Z_DEVICES } from './herc-conf.js?v=a1889f7d';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=a1889f7d';
 
-const VERSION = '0.1.30';
+const VERSION = '0.1.31';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -713,6 +713,15 @@ cpusList.addEventListener('change', () => {
   prefs.zcpus = Number(cpusList.value) || 1;
   savePrefs();
 });
+// Commandes d'opérateur tapées par la page après l'IPL d'un disque (z/Architecture) : gardées
+// dans les réglages de la page, elles survivent à l'effacement des ombres des volumes.
+const zcmdsInput = $('zcmds');
+zcmdsInput.value = prefs.zcmds ?? '';
+zcmdsInput.addEventListener('change', () => {
+  prefs.zcmds = zcmdsInput.value;
+  savePrefs();
+});
+const zcmdsList = () => (prefs.zcmds ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
 const loadparmInput = $('loadparm');
 loadparmInput.value = prefs.loadparm;
 loadparmInput.addEventListener('change', () => {
@@ -844,6 +853,7 @@ function showMachine() {
   $('loadparm-field').hidden = !isZ();
   loadparmInput.value = prefs.loadparm;
   $('cpus-field').hidden = !isZ();
+  $('zcmds-field').hidden = !isZ();
   cpusList.value = String(prefs.zcpus ?? 1);
   $('zboot').hidden = !isZ();
   showDials();
@@ -961,6 +971,8 @@ async function ipl() {
     mem: isZ() ? prefs.zmem : prefs.mem,
     ncpu: isZ() ? prefs.zcpus ?? 1 : 1,
     loadparm: isZ() ? prefs.loadparm : '',
+    // Système chargé d'un disque (pas Linux par le lecteur) : commandes après l'IPL.
+    autoCmds: isZ() && !readerIpl ? zcmdsList() : [],
     boot: readerIpl ? { parm: prefs.zparm || 'ro' } : null,
     ipl: addr,
     volumes: opfs.map((v) => ({ addr: v.addr, file: v.file })),
@@ -1406,6 +1418,7 @@ function selectTab(name) {
   const ps = $('printer-select');
   if (ps) ps.hidden = name !== 'printer';
   $('printer-fit').hidden = name !== 'printer';
+  for (const id of ['printer-txt', 'printer-pdf', 'printer-clear']) $(id).hidden = name !== 'printer';
   $('term-fit').hidden = !name.startsWith('t');
   if (!name.startsWith('t')) $('monitor').classList.remove('term-scroll');
   if (!name.startsWith('t') && isFull()) setFull(false);
@@ -1632,13 +1645,7 @@ function showPrinter() {
   // page passe à la feuille suivante (le reste de la feuille reste blanc), une page plus longue continue
   // sur la suivante. Le saut en tête de sortie ne laisse pas de feuille vide; seules les
   // feuilles changées sont refaites.
-  const pages = [];
-  for (const page of text.split('\f')) {
-    if (page === '') continue;
-    const lines = page.split('\n');
-    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-    for (let i = 0; i < lines.length; i += PAGE_LINES) pages.push(lines.slice(i, i + PAGE_LINES).join('\n'));
-  }
+  const pages = printerPages(text).map((lines) => lines.join('\n'));
   if (!pages.length) pages.push(text ? '' : t('prt.empty'));
   const sheets = printerOut.children;
   pages.forEach((p, i) => {
@@ -1655,6 +1662,127 @@ function showPrinter() {
   if (atEnd) printerOut.scrollTop = printerOut.scrollHeight;
 }
 languageListeners.push(showPrinter);
+
+/** Feuilles de la sortie d'une imprimante (lignes de chacune), comme à l'écran. */
+function printerPages(text) {
+  const pages = [];
+  for (const page of text.split('\f')) {
+    if (page === '') continue;
+    const lines = page.split('\n');
+    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+    for (let i = 0; i < lines.length; i += PAGE_LINES) pages.push(lines.slice(i, i + PAGE_LINES));
+  }
+  return pages;
+}
+
+/**
+ * Sortie de l'imprimante en texte, sans les lignes vides inutiles : sauts de page et
+ * lignes vides en haut et en bas des feuilles retirés, une seule ligne vide entre deux
+ * blocs (plusieurs retours de chariot de suite, saut à la page suivante).
+ */
+function printerText(text) {
+  const out = [];
+  for (const page of printerPages(text)) {
+    for (const raw of page) {
+      const line = raw.trimEnd();
+      if (line === '' && (out.length === 0 || out[out.length - 1] === '')) continue;
+      out.push(line);
+    }
+    if (out.length && out[out.length - 1] !== '') out.push('');
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return out.length ? `${out.join('\n')}\n` : '';
+}
+
+/** Chaîne PDF : parenthèses et barres obliques inverses protégées, Latin-1 seulement. */
+function pdfString(s) {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (ch === '(' || ch === ')' || ch === '\\') out += `\\${ch}`;
+    else if (c < 32 || c > 255) out += c < 32 ? ' ' : '?';
+    else out += ch;
+  }
+  return out;
+}
+
+/**
+ * Sortie de l'imprimante en PDF : une feuille par page (61 lignes, comme à l'écran), à
+ * l'italienne (lettre US), en Courier (police de base du PDF : rien à inclure) de taille
+ * choisie pour que la plus longue ligne tienne (132 colonnes d'un listage).
+ */
+function printerPdf(text) {
+  const pages = printerPages(text);
+  if (!pages.length) pages.push(['']);
+  const W = 792;
+  const H = 612;
+  const M = 36;
+  const cols = Math.max(80, ...pages.flat().map((l) => l.trimEnd().length));
+  const size = Math.min(10, (W - 2 * M) / (cols * 0.6), (H - 2 * M) / (PAGE_LINES * 1.1));
+  const lead = Math.min(size * 1.25, (H - 2 * M) / PAGE_LINES);
+  // Objets : 1 catalogue, 2 pages, 3 police, puis pour chaque page son objet et son contenu.
+  const objs = [];
+  const kids = [];
+  pages.forEach((lines, i) => {
+    const pageId = 4 + 2 * i;
+    kids.push(`${pageId} 0 R`);
+    const body = [`BT /F1 ${size.toFixed(2)} Tf ${lead.toFixed(2)} TL ${M} ${(H - M - size).toFixed(2)} Td`];
+    for (const line of lines) body.push(`(${pdfString(line.trimEnd())}) Tj T*`);
+    body.push('ET');
+    const stream = body.join('\n');
+    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageId + 1} 0 R >>`;
+    objs[pageId + 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+  // Le fichier est fait d'octets Latin-1 : les positions de la table xref sont en octets.
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (let n = 1; n < objs.length; n++) {
+    offsets[n] = pdf.length;
+    pdf += `${n} 0 obj\n${objs[n]}\nendobj\n`;
+  }
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+  for (let n = 1; n < objs.length; n++) pdf += `${String(offsets[n]).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Uint8Array.from(pdf, (ch) => ch.charCodeAt(0) & 0xff);
+}
+
+/** Fichier à enregistrer (lien de téléchargement). */
+function saveFile(name, data, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+function printerFileName(ext) {
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `printer-${hex3(prefs.printer)}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.${ext}`;
+}
+
+$('printer-txt').addEventListener('click', () => {
+  const text = printers[prefs.printer] ?? '';
+  if (!text) return showStatus('prt.nothing');
+  saveFile(printerFileName('txt'), printerText(text), 'text/plain;charset=utf-8');
+});
+$('printer-pdf').addEventListener('click', () => {
+  const text = printers[prefs.printer] ?? '';
+  if (!text) return showStatus('prt.nothing');
+  saveFile(printerFileName('pdf'), printerPdf(text), 'application/pdf');
+});
+$('printer-clear').addEventListener('click', () => {
+  if (!printers[prefs.printer]) return;
+  if (!confirm(t('prt.clear.confirm', { addr: hex3(prefs.printer) }))) return;
+  delete printers[prefs.printer];
+  unreadPrinters.delete(prefs.printer);
+  if (lastJobPrinter === prefs.printer) lastJobPrinter = null;
+  showPrinter();
+});
 
 // Toute la largeur de la feuille à l'écran : la feuille, ses bandes et ses marges suivent la
 // police de l'imprimante, qui est donc réglée pour que la feuille remplisse la largeur.

@@ -133,6 +133,17 @@ l'écran. L'onglet **Journal** garde tous les écrans que le système a écrits 
 terminaux, à la suite, avec le terminal et l'heure : son texte se sélectionne et se copie
 comme celui d'une page (**Copier** prend la sélection, ou tout le journal).
 
+Sous l'onglet **Imprimante**, trois boutons agissent sur l'imprimante choisie : **TXT**
+enregistre sa sortie en texte, sans les lignes vides inutiles (bas de page, sauts de page,
+plusieurs lignes vides de suite); **PDF** l'enregistre en PDF, une feuille par page, à
+l'italienne; la corbeille l'efface.
+
+Commandes après l'IPL (système chargé d'un disque) : le champ **Commandes après l'IPL** du
+menu **Machine** reçoit des commandes d'opérateur, une par ligne (par exemple `$S PRT1`).
+Quand JES2 a fini de démarrer (`$HASP492`), la page les tape sur la console du système. Elles
+sont gardées par la page, pas sur les volumes : elles restent quand on oublie les
+modifications des volumes.
+
 Arrêt propre d'un système chargé d'un disque : **Arrêter**, puis accepter l'arrêt propre.
 L'émulateur passe par la console du système (`V CN(*),ACTIVATE`) et lance la procédure
 d'arrêt qui convient (`S SHUTDB` si DB2 tourne, `S SHUTALL` si CICS ou MQ, sinon
