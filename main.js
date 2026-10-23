@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=7ce3b861';
-import { initMemo } from './memo.js?v=7ce3b861';
-import { deckText } from './decks.js?v=7ce3b861';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=7ce3b861';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=7ce3b861';
-import { Z_DEVICES } from './herc-conf.js?v=7ce3b861';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=7ce3b861';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=965ae3de';
+import { initMemo } from './memo.js?v=965ae3de';
+import { deckText } from './decks.js?v=965ae3de';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=965ae3de';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=965ae3de';
+import { Z_DEVICES } from './herc-conf.js?v=965ae3de';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=965ae3de';
 
-const VERSION = '0.1.26';
+const VERSION = '0.1.27';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -2124,6 +2124,10 @@ function buildKeyBar() {
     b.className = `key ${cls}`;
     b.textContent = label;
     b.addEventListener('mousedown', (e) => e.preventDefault());
+    // Toucher (tablettes) : le focus ne change pas, le clavier virtuel ne sort pas (il reste
+    // ouvert s'il l'était). Souris : le terminal reprend le focus pour la suite des touches.
+    let touch = false;
+    b.addEventListener('pointerdown', (e) => { touch = e.pointerType !== 'mouse'; });
     b.addEventListener('click', () => {
       if (key === 'shift') {
         pfShift = !pfShift;
@@ -2131,7 +2135,7 @@ function buildKeyBar() {
       } else {
         termKey(key);
       }
-      termFocus();
+      if (!touch) termFocus();
     });
     keyBar.append(b);
   };
