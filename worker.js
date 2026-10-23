@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=daec1414';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=7ce3b861';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -269,6 +269,7 @@ async function start(cfg) {
   relayUrl = cfg.relay || null;
   openRelay();
   autoShutdown = false;
+  zsd = null;
   // Pas d'opérateur automatique de TK5 en z/Architecture (ni d'attentes sautées).
   initDone = arch === 'z';
   shutdownWanted = false;
@@ -283,6 +284,7 @@ async function start(cfg) {
 
 async function stop(reason) {
   running = false;
+  zsd = null;
   try { machineEvents(); } catch { /* machine en défaut */ }
   mon('stop', { reason });
   await release();
@@ -476,12 +478,153 @@ function shutnow(users) {
   }, wait);
 }
 
+// Opérateur automatique de l'arrêt du système de la machine z/Architecture (IPL d'un
+// disque), par la console du système (SCLP) : V CN(*),ACTIVATE; D A,L choisit la procédure
+// d'arrêt (SHUTDB si DB2 tourne, SHUTALL si CICS ou MQ, sinon SHUTDOWN); réponse Y à la
+// question de zFS (BPXI078D); toutes les 20 s, D A,L : passé le temps de la procédure, chaque tâche
+// restante reçoit P, puis C, puis FORCE nom,ARM, puis FORCE; quand il ne reste que JES2 :
+// $PI, WRITELOG CLOSE, $PJES2 ($HASP607 : nouvel essai, puis $PJES2,ABEND et PURGE);
+// $HASP085 -> Z EOD; IEE334I : la machine s'arrête. Étapes annoncées à la page (shutdown).
+const ZSD_PROC_MS = 150_000; // temps laissé à la procédure d'arrêt
+const ZSD_LIST_MS = 20_000;  // intervalle des D A,L
+let zsd = null;
+
+function zsdType(cmd, tries = 10) {
+  if (!emu || !running || !zsd) return;
+  // Console du système pas encore prête (commande précédente en cours) : un peu plus tard.
+  if (!emu.console_type(CONSOLE, cmd) && tries > 0) setTimeout(() => zsdType(cmd, tries - 1), 1000);
+}
+
+function zsdLater(fn, ms) {
+  setTimeout(() => {
+    if (zsd && emu && running) fn();
+  }, ms);
+}
+
+function zsdStart() {
+  if (zsd) return;
+  zsd = { seen: '', start: performance.now(), proc: null, procAt: 0, tries: new Map(), jes2: 0, jes2Busy: false,
+    lists: 0, parsed: 0, eod: false, abend: false, replied: new Set() };
+  post({ type: 'shutdown', phase: 'request' });
+  zsdType('V CN(*),ACTIVATE');
+  zsdLater(zsdList, 4000);
+}
+
+function zsdList() {
+  zsdType('D A,L');
+}
+
+/** Tâches de la réponse IEE114I à D A,L : deux par ligne (colonnes 2 et 37). */
+function zsdTasks(block) {
+  const names = [];
+  for (const line of block.split('\n').slice(3)) {
+    if (!/^ {2}\S/.test(line)) break;
+    for (const at of [2, 37]) {
+      const n = line.slice(at, at + 8).trim();
+      if (/^[A-Z$#@][A-Z0-9$#@]{0,7}$/.test(n)) names.push(n);
+    }
+  }
+  return names;
+}
+
+function zsdOnList(names) {
+  const now = performance.now();
+  if (!zsd.proc) {
+    zsd.proc = names.some((n) => /^DB\w*(MSTR|DBM1)$/.test(n)) ? 'SHUTDB'
+      : names.some((n) => /^(CICS|CSQ)/.test(n)) ? 'SHUTALL' : 'SHUTDOWN';
+    zsd.procAt = now;
+    post({ type: 'shutdown', phase: 'tasks', proc: zsd.proc });
+    zsdType(`S ${zsd.proc}`);
+    zsdLater(zsdList, 60_000);
+    return;
+  }
+  const rest = names.filter((n) => n !== 'JES2');
+  if (!rest.length) {
+    zsdJes2();
+    return;
+  }
+  if (now - zsd.procAt >= ZSD_PROC_MS) {
+    post({ type: 'shutdown', phase: 'remain', names: rest });
+    const steps = ['P ', 'C ', 'FORCE ', 'FORCE '];
+    let delay = 0;
+    for (const n of rest) {
+      const k = zsd.tries.get(n) ?? 0;
+      zsd.tries.set(n, k + 1);
+      if (k >= steps.length) continue;
+      const cmd = k === 2 ? `FORCE ${n},ARM` : `${steps[k]}${n}`;
+      zsdLater(() => zsdType(cmd), delay);
+      delay += 1500;
+    }
+    // Plus rien à essayer : JES2 quand même (au besoin $PJES2,ABEND).
+    if (rest.every((n) => zsd.tries.get(n) > steps.length)) {
+      zsdJes2();
+      return;
+    }
+  }
+  zsdLater(zsdList, ZSD_LIST_MS);
+}
+
+function zsdJes2() {
+  if (zsd.jes2Busy) return;
+  zsd.jes2Busy = true;
+  zsd.jes2++;
+  post({ type: 'shutdown', phase: 'jes2' });
+  zsdType('$PI');
+  zsdLater(() => zsdType('WRITELOG CLOSE'), 2000);
+  zsdLater(() => zsdType(zsd.jes2 > 3 ? '$PJES2,ABEND' : '$PJES2'), 6000);
+}
+
+/** Messages de la console du système pendant l'arrêt. */
+function zsdFeed(text) {
+  if (!zsd || !text) return;
+  zsd.seen = (zsd.seen + text).slice(-200_000);
+  // Réponse à D A,L : lue 2 s après son début (elle peut arriver en plusieurs fois).
+  const lists = zsd.seen.split('IEE114I').length - 1;
+  if (lists > zsd.lists) {
+    zsd.lists = lists;
+    zsdLater(() => {
+      const block = zsd.seen.slice(zsd.seen.lastIndexOf('IEE114I'));
+      zsdOnList(zsdTasks(block));
+    }, 2000);
+  }
+  // Questions : zFS (Y), fin anormale de JES2 (PURGE).
+  for (const m of text.matchAll(/\b(\d{1,4})\s+BPXI078D/g)) {
+    if (zsd.replied.has(m[1])) continue;
+    zsd.replied.add(m[1]);
+    post({ type: 'shutdown', phase: 'zfs' });
+    zsdLater(() => zsdType(`R ${m[1]},Y`), 1000);
+  }
+  for (const m of text.matchAll(/\b(\d{1,4})\s+\$HASP098/g)) {
+    if (zsd.replied.has(m[1])) continue;
+    zsd.replied.add(m[1]);
+    zsdLater(() => zsdType(`R ${m[1]},PURGE`), 1000);
+  }
+  if (text.includes('$HASP607')) {
+    // JES2 pas encore libre : la liste des tâches, puis un nouvel essai.
+    zsd.jes2Busy = false;
+    zsdLater(zsdList, ZSD_LIST_MS);
+  }
+  if (!zsd.eod && text.includes('$HASP085')) {
+    zsd.eod = true;
+    post({ type: 'shutdown', phase: 'eod' });
+    zsdLater(() => zsdType('Z EOD'), 1000);
+  }
+  if (text.includes('IEE334I')) {
+    // Journaux fermés : la machine peut s'arrêter (volumes écrits et fermés).
+    zsdLater(() => {
+      zsd = null;
+      stop('stopped');
+    }, 2000);
+  }
+}
+
 /** Sorties de la machine : console, écrans changés, imprimantes. */
 function drain() {
   if (remotes.size) sendRemotes();
   const text = emu.console_take(CONSOLE);
   if (text) post({ type: 'console', text });
   autoOperator(text);
+  zsdFeed(text);
   for (const a of terminals) {
     const v = emu.term_version(a);
     if (v !== versions.get(a)) {
@@ -525,7 +668,7 @@ function step() {
   // Rapide : pendant l'arrêt, et pendant l'IPL en Turbo, les attentes du processeur sont
   // sautées (le temps simulé court jusqu'au prochain événement). Pas en marche ordinaire :
   // l'horloge de MVS filerait et les délais de TSO et des travaux expireraient.
-  const fast = autoShutdown || (turbo && !initDone);
+  const fast = autoShutdown || zsd !== null || (turbo && !initDone);
   if (fast && emu.waiting()) ms = Math.max(ms, FAST_IDLE_MS);
   else if (turbo && !emu.waiting()) ms = Math.max(ms, SLICE_MS * 4);
   const maxInst = Math.round(mips * 1000 * SLICE_MS);
@@ -598,8 +741,10 @@ self.onmessage = async ({ data }) => {
         if (emu && !emu.console_type(CONSOLE, data.text)) post({ type: 'console-refused' });
         break;
       case 'shutdown':
+        // Arrêt propre (z/Architecture) : l'opérateur automatique (console du système).
+        if (emu && arch === 'z') zsdStart();
         // Arrêt propre de TK5 : la procédure SHUTDOWN de MVS.
-        if (emu) {
+        else if (emu) {
           shutdownWanted = true;
           if (initDone) emu.console_type(CONSOLE, 'S SHUTDOWN');
         }

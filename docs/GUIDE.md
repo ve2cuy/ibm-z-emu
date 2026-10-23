@@ -124,6 +124,14 @@ whole screen. The **Log** tab keeps every screen the system wrote on the termina
 after the other, with the terminal and the time: its text is selected and copied like any
 text on a page (**Copy** takes the selection, or the whole log).
 
+Clean shutdown of a system loaded from a disk: **Stop**, then accept the clean shutdown.
+The emulator goes through the system console (`V CN(*),ACTIVATE`) and starts the fitting
+shutdown procedure (`S SHUTDB` when DB2 runs, `S SHUTALL` with CICS or MQ, otherwise
+`S SHUTDOWN`). It answers `Y` to the zFS question (`BPXI078D`), then stops what remains
+(`P`, then `C`, then `FORCE`) and finally `$PI`, `WRITELOG CLOSE`, `$PJES2` and `Z EOD`. A
+window follows the steps. The machine stops after `IEE334I HALT EOD SUCCESSFUL`, and the
+page can then be closed.
+
 The **Machine** menu also offers a second machine, **z/Architecture**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD
 disks (3390), 3270 terminals, card reader, punch and printer; 64 MB to 2 GB of storage.

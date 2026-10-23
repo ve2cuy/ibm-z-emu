@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=daec1414">
+  <link rel="stylesheet" href="style.css?v=7ce3b861">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -531,6 +531,15 @@
       <li data-step="quiesce"><span data-i18n="sd.quiesce">Processor stopped (QUIESCE)</span></li>
       <li data-step="save"><span data-i18n="sd.save">Volumes written and closed</span></li>
     </ol>
+    <ol id="sd-steps-z" class="sd-steps" hidden>
+      <li data-step="request"><span data-i18n="sd.z.request">System console activated (V CN(*),ACTIVATE)</span></li>
+      <li data-step="tasks"><span id="sd-z-tasks" data-i18n="sd.z.tasks">Subsystems stopping (shutdown procedure of the system)</span></li>
+      <li data-step="zfs"><span data-i18n="sd.z.zfs">zFS closed (reply Y to BPXI078D)</span></li>
+      <li data-step="remain"><span id="sd-z-remain" data-i18n="sd.z.remain">Remaining tasks stopped</span></li>
+      <li data-step="jes2"><span data-i18n="sd.z.jes2">JES2 stopping ($PI, WRITELOG CLOSE, $PJES2)</span></li>
+      <li data-step="eod"><span data-i18n="sd.z.eod">End of the system (Z EOD)</span></li>
+      <li data-step="save"><span data-i18n="sd.save">Volumes written and closed</span></li>
+    </ol>
     <p id="sd-result" class="sd-result" role="status"></p>
     <div class="dialog-actions">
       <span id="sd-time" class="hint"></span>
@@ -698,6 +707,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=daec1414"></script>
+  <script type="module" src="main.js?v=7ce3b861"></script>
 </body>
 </html>

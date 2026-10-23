@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=daec1414';
-import { initMemo } from './memo.js?v=daec1414';
-import { deckText } from './decks.js?v=daec1414';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=daec1414';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=daec1414';
-import { Z_DEVICES } from './herc-conf.js?v=daec1414';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=daec1414';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=7ce3b861';
+import { initMemo } from './memo.js?v=7ce3b861';
+import { deckText } from './decks.js?v=7ce3b861';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=7ce3b861';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=7ce3b861';
+import { Z_DEVICES } from './herc-conf.js?v=7ce3b861';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=7ce3b861';
 
-const VERSION = '0.1.25';
+const VERSION = '0.1.26';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -817,14 +817,14 @@ function iplFromReader() {
 }
 
 // Système chargé sur la machine z/Architecture : Linux (IPL du lecteur, ou reconnu sur la
-// console), sinon z/OS.
+// console), sinon un système chargé d'un disque.
 let zLinux = false;
 
 /** Exemple du champ de commande de la console, selon le système chargé (ou à charger). */
 function consoleHint() {
   const ci = $('console-input');
   const linux = running ? zLinux : iplFromReader();
-  const key = !isZ() ? 'console.placeholder' : linux ? 'console.placeholder.z' : 'console.placeholder.zos';
+  const key = !isZ() ? 'console.placeholder' : linux ? 'console.placeholder.z' : 'console.placeholder.disk';
   ci.dataset.i18nPlaceholder = key;
   ci.placeholder = t(key);
   ci.setAttribute('autocapitalize', linux ? 'off' : 'characters');
@@ -970,22 +970,47 @@ let shuttingDown = false;
 // --- fenêtre de l'arrêt propre : étapes cochées, durée, fin claire (« vous pouvez fermer
 // la page » seulement quand les volumes sont écrits et refermés).
 const sd = $('sd');
-const SD_STEPS = ['request', 'tso', 'tasks', 'jes2', 'eod', 'quiesce', 'save'];
+// Étapes de l'arrêt de TK5 (MVS 3.8j) et de la machine z/Architecture (opérateur
+// automatique de worker.js).
+const SD_STEPS = {
+  s370: ['request', 'tso', 'tasks', 'jes2', 'eod', 'quiesce', 'save'],
+  z: ['request', 'tasks', 'zfs', 'remain', 'jes2', 'eod', 'save'],
+};
+let sdArch = 's370';
+let sdAt = 0;
 let sdStart = 0;
 let sdClock = 0;
 
+const sdList = () => $(sdArch === 'z' ? 'sd-steps-z' : 'sd-steps');
+
+/** Étape en cours (les étapes ne reculent pas : zFS peut répondre avant ou après). */
 function sdMark(step) {
-  const at = SD_STEPS.indexOf(step);
-  for (const li of sd.querySelectorAll('#sd-steps li')) {
-    const i = SD_STEPS.indexOf(li.dataset.step);
+  const steps = SD_STEPS[sdArch];
+  const at = steps.indexOf(step);
+  if (at < sdAt) return;
+  sdAt = at;
+  for (const li of sdList().querySelectorAll('li')) {
+    const i = steps.indexOf(li.dataset.step);
     li.classList.toggle('done', i < at);
     li.classList.toggle('active', i === at);
   }
 }
 
-function sdOpen() {
+function sdOpen(arch = 's370') {
+  sdArch = arch;
+  sdAt = 0;
   sdStart = performance.now();
+  $('sd-steps').hidden = arch === 'z';
+  $('sd-steps-z').hidden = arch !== 'z';
+  // Titre et avertissement de la machine (data-i18n : gardés au changement de langue).
+  $('sd-title').dataset.i18n = arch === 'z' ? 'sd.title.z' : 'sd.title';
+  $('sd-warning').dataset.i18n = arch === 'z' ? 'sd.warning.z' : 'sd.warning';
+  $('sd-title').textContent = t($('sd-title').dataset.i18n);
+  $('sd-warning').textContent = t($('sd-warning').dataset.i18n);
   $('sd-tso').textContent = t('sd.tso');
+  $('sd-z-tasks').textContent = t('sd.z.tasks');
+  $('sd-z-remain').textContent = t('sd.z.remain');
+  for (const li of sdList().querySelectorAll('li')) li.classList.remove('done', 'active');
   $('sd-result').textContent = '';
   $('sd-result').className = 'sd-result';
   $('sd-warning').hidden = false;
@@ -999,13 +1024,19 @@ function sdOpen() {
   if (!sd.open) sd.showModal();
 }
 
-function sdPhase({ phase, users, wait }) {
-  if (!sdStart) sdOpen();
+function sdPhase({ phase, users, wait, proc, names }) {
+  if (!sdStart) sdOpen(runArch);
   if (phase === 'started') sdMark('tso');
   else if (phase === 'tso') {
     $('sd-tso').textContent = users === 0 ? t('sd.tso.none')
       : users > 0 ? t('sd.tso.some', { n: users, s: Math.round(wait / 1000) }) : t('sd.tso.unknown');
     sdMark('tso');
+  } else if (phase === 'tasks' && proc) {
+    $('sd-z-tasks').textContent = t('sd.z.tasks.proc', { proc });
+    sdMark('tasks');
+  } else if (phase === 'remain') {
+    $('sd-z-remain').textContent = t('sd.z.remain.list', { list: names.join(', ') });
+    sdMark('remain');
   } else sdMark(phase);
 }
 
@@ -1015,8 +1046,10 @@ function sdStopped(reason) {
   const s = Math.round((performance.now() - sdStart) / 1000);
   sdStart = 0;
   const ok = reason === 'shutdown';
-  if (ok) sdMark('end');
-  for (const li of sd.querySelectorAll('#sd-steps li')) if (ok) li.classList.add('done');
+  for (const li of sdList().querySelectorAll('li')) {
+    li.classList.remove('active');
+    if (ok) li.classList.add('done');
+  }
   $('sd-warning').hidden = true;
   $('sd-result').textContent = t(ok ? 'sd.done' : 'sd.other', { s });
   $('sd-result').classList.toggle('ok', ok);
@@ -1032,7 +1065,8 @@ $('sd-close').addEventListener('click', () => sd.close());
 
 function stopMachine() {
   if (!running) return;
-  // L'arrêt propre (procédure SHUTDOWN de TK5) ne vaut que pour MVS 3.8j.
+  // Arrêt propre : procédure SHUTDOWN de TK5 (MVS 3.8j), ou opérateur automatique
+  // (z/Architecture, système chargé d'un disque).
   if (!shuttingDown && runArch === 's370') {
     // Arrêt propre de MVS (procédure SHUTDOWN de TK5), ou arrêt immédiat.
     if (confirm(t('power.shutdown.confirm'))) {
@@ -1040,6 +1074,16 @@ function stopMachine() {
       worker.postMessage({ type: 'shutdown' });
       showStatus('power.shutting');
       sdOpen();
+      return;
+    }
+  }
+  // z/Architecture (pas Linux) : l'opérateur automatique de worker.js, par la console du système.
+  if (!shuttingDown && runArch === 'z' && !zLinux) {
+    if (confirm(t('power.shutdown.z.confirm'))) {
+      shuttingDown = true;
+      worker.postMessage({ type: 'shutdown' });
+      showStatus('power.shutting.z');
+      sdOpen('z');
       return;
     }
   }
@@ -1114,7 +1158,7 @@ function onWorkerMessage({ data }) {
       break;
     case 'shutdown':
       shuttingDown = true;
-      showStatus('power.shutting');
+      showStatus(runArch === 'z' ? 'power.shutting.z' : 'power.shutting');
       sdPhase(data);
       break;
     case 'relay':
@@ -1165,6 +1209,7 @@ function onWorkerMessage({ data }) {
       for (const [, id] of IO_LIGHTS) setLight(id, false);
       speed.textContent = '';
       if (data.reason === 'error' && lastError) showStatus('error', { msg: lastError });
+      else if (data.reason === 'shutdown' && runArch === 'z') showStatus('stop.shutdown.z');
       else showStatus(data.reason === 'user' ? 'power.stopped' : `stop.${data.reason}`);
       updateButtons();
       consoleHint();

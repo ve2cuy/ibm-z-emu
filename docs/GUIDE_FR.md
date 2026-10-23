@@ -133,6 +133,14 @@ l'écran. L'onglet **Journal** garde tous les écrans que le système a écrits 
 terminaux, à la suite, avec le terminal et l'heure : son texte se sélectionne et se copie
 comme celui d'une page (**Copier** prend la sélection, ou tout le journal).
 
+Arrêt propre d'un système chargé d'un disque : **Arrêter**, puis accepter l'arrêt propre.
+L'émulateur passe par la console du système (`V CN(*),ACTIVATE`) et lance la procédure
+d'arrêt qui convient (`S SHUTDB` si DB2 tourne, `S SHUTALL` si CICS ou MQ, sinon
+`S SHUTDOWN`). Il répond `Y` à la question de zFS (`BPXI078D`), puis arrête ce qui reste
+(`P`, puis `C`, puis `FORCE`) et enfin `$PI`, `WRITELOG CLOSE`, `$PJES2` et `Z EOD`. Une
+fenêtre suit les étapes. La machine s'éteint après `IEE334I HALT EOD SUCCESSFUL`, et la page
+peut alors être fermée.
+
 Le menu **Machine** offre aussi une seconde machine, **z/Architecture** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système
 (SCLP), des disques ECKD (3390), des terminaux 3270, un lecteur, une perforatrice et une
