@@ -2,15 +2,15 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=f5ff9442';
-import { initMemo } from './memo.js?v=f5ff9442';
-import { deckText } from './decks.js?v=f5ff9442';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=f5ff9442';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=f5ff9442';
-import { Z_DEVICES } from './herc-conf.js?v=f5ff9442';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=f5ff9442';
+import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=b260fce5';
+import { initMemo } from './memo.js?v=b260fce5';
+import { deckText } from './decks.js?v=b260fce5';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b260fce5';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=b260fce5';
+import { Z_DEVICES } from './herc-conf.js?v=b260fce5';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=b260fce5';
 
-const VERSION = '0.1.32';
+const VERSION = '0.1.33';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1707,35 +1707,82 @@ function pdfString(s) {
 }
 
 /**
- * Sortie de l'imprimante en PDF : une feuille par page (61 lignes, comme à l'écran), à
- * l'italienne (lettre US), en Courier (police de base du PDF : rien à inclure) de taille
- * choisie pour que la plus longue ligne tienne (132 colonnes d'un listage).
+ * Papier en continu du PDF (comme à l'écran : images/paper-*.png) : bandes bleues et grises de
+ * trois lignes, bandes d'entraînement à gauche et à droite avec deux trous par tuile de six
+ * lignes et une ligne de perforation, cadre fin de la zone imprimée. Mesures d'un listage :
+ * 6 lignes au pouce (12 pt), 66 lignes par feuille de 11 po, 14⅞ po de large.
+ */
+const PDF_PAPER = (() => {
+  const W = 1071;
+  const H = 792;
+  const LH = 12;
+  const TILE = 6 * LH;                 // deux bandes : une tuile de l'image (147 px)
+  const STRIP = (TILE * 104) / 147;    // bande d'entraînement (104 px de l'image)
+  const px = (v) => (v * TILE) / 147;  // pixels de l'image -> points
+  const rgb = (r, g, b) => `${(r / 255).toFixed(3)} ${(g / 255).toFixed(3)} ${(b / 255).toFixed(3)}`;
+  const f = (v) => v.toFixed(2);
+  // Cercle plein (quatre arcs de Bézier).
+  const circle = (cx, cy, r) => {
+    const k = r * 0.5523;
+    return `${f(cx + r)} ${f(cy)} m ${f(cx + r)} ${f(cy + k)} ${f(cx + k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} c `
+      + `${f(cx - k)} ${f(cy + r)} ${f(cx - r)} ${f(cy + k)} ${f(cx - r)} ${f(cy)} c `
+      + `${f(cx - r)} ${f(cy - k)} ${f(cx - k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} c `
+      + `${f(cx + k)} ${f(cy - r)} ${f(cx + r)} ${f(cy - k)} ${f(cx + r)} ${f(cy)} c f`;
+  };
+  const ops = [`${rgb(224, 224, 224)} rg 0 0 ${W} ${H} re f`];
+  // Bandes bleues (la première moitié de chaque tuile), entre les bandes d'entraînement.
+  ops.push(`${rgb(202, 220, 236)} rg`);
+  for (let top = H; top > 0; top -= TILE) ops.push(`${f(STRIP)} ${f(top - TILE / 2)} ${f(W - 2 * STRIP)} ${f(TILE / 2)} re f`);
+  // Trous d'entraînement (centres à 34,5 et 68,5 px du bord de chaque bande; 36 et 109,5 px
+  // du haut de la tuile; rayon 11,75 px).
+  ops.push(`${rgb(8, 8, 8)} rg`);
+  for (let top = H; top > 0; top -= TILE) {
+    for (const dy of [36, 109.5]) {
+      ops.push(circle(px(34.5), top - px(dy), px(11.75)));
+      ops.push(circle(W - STRIP + px(68.5), top - px(dy), px(11.75)));
+    }
+  }
+  // Lignes de perforation des bandes d'entraînement (72 et 32 px), bord de la feuille.
+  ops.push(`${rgb(196, 198, 198)} RG 0.6 w [1.5 1.5] 0 d`);
+  ops.push(`${f(px(72))} 0 m ${f(px(72))} ${H} l S ${f(W - STRIP + px(32))} 0 m ${f(W - STRIP + px(32))} ${H} l S`);
+  ops.push(`[] 0 d ${rgb(200, 202, 202)} RG 0.5 w 0.25 0.25 ${W - 0.5} ${H - 0.5} re S`);
+  // Cadre fin de la zone imprimée (132 colonnes, 61 lignes), un peu en dehors du texte.
+  const cw = 7.2;
+  ops.push(`${rgb(177, 191, 202)} RG 0.6 w ${f(STRIP + 0.4 * cw)} ${f(1.75 * LH)} ${f(W - 2 * (STRIP + 0.4 * cw))} ${f(H - 4.5 * LH)} re S`);
+  return { W, H, LH, STRIP, cw, stream: ops.join('\n') };
+})();
+
+/**
+ * Sortie de l'imprimante en PDF : une feuille de papier en continu par page (61 lignes,
+ * comme à l'écran : 3 lignes de marge en haut, 2 en bas), en Courier (police de base du
+ * PDF : rien à inclure) à 10 caractères au pouce, réduite si une ligne dépasse 132 colonnes.
  */
 function printerPdf(text) {
   const pages = printerPages(text);
   if (!pages.length) pages.push(['']);
-  const W = 792;
-  const H = 612;
-  const M = 36;
-  const cols = Math.max(80, ...pages.flat().map((l) => l.trimEnd().length));
-  const size = Math.min(10, (W - 2 * M) / (cols * 0.6), (H - 2 * M) / (PAGE_LINES * 1.1));
-  const lead = Math.min(size * 1.25, (H - 2 * M) / PAGE_LINES);
-  // Objets : 1 catalogue, 2 pages, 3 police, puis pour chaque page son objet et son contenu.
+  const { W, H, LH, STRIP, cw } = PDF_PAPER;
+  const cols = Math.max(132, ...pages.flat().map((l) => l.trimEnd().length));
+  const size = Math.min(12, (W - 2 * STRIP - 2 * cw) / (cols * 0.6));
+  // Ligne de base de la première ligne imprimée (quatrième ligne de la feuille).
+  const y0 = H - 4 * LH + 0.22 * size;
+  // Objets : 1 catalogue, 2 pages, 3 police, 4 papier (repris sur chaque page), puis pour
+  // chaque page son objet et son contenu.
   const objs = [];
   const kids = [];
   pages.forEach((lines, i) => {
-    const pageId = 4 + 2 * i;
+    const pageId = 5 + 2 * i;
     kids.push(`${pageId} 0 R`);
-    const body = [`BT /F1 ${size.toFixed(2)} Tf ${lead.toFixed(2)} TL ${M} ${(H - M - size).toFixed(2)} Td`];
+    const body = ['q /Paper Do Q', `BT /F1 ${size.toFixed(2)} Tf 0.114 g ${LH} TL ${(STRIP + cw).toFixed(2)} ${y0.toFixed(2)} Td`];
     for (const line of lines) body.push(`(${pdfString(line.trimEnd())}) Tj T*`);
     body.push('ET');
     const stream = body.join('\n');
-    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageId + 1} 0 R >>`;
+    objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R >> /XObject << /Paper 4 0 R >> >> /Contents ${pageId + 1} 0 R >>`;
     objs[pageId + 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
   objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objs[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;
   objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+  objs[4] = `<< /Type /XObject /Subtype /Form /BBox [0 0 ${W} ${H}] /Length ${PDF_PAPER.stream.length} >>\nstream\n${PDF_PAPER.stream}\nendstream`;
   // Le fichier est fait d'octets Latin-1 : les positions de la table xref sont en octets.
   let pdf = '%PDF-1.4\n';
   const offsets = [];

@@ -178,8 +178,9 @@ comme celui d'une page (**Copier** prend la sélection, ou tout le journal).
 
 Sous l'onglet **Imprimante**, trois boutons agissent sur l'imprimante choisie : **TXT**
 enregistre sa sortie en texte, sans les lignes vides inutiles (bas de page, sauts de page,
-plusieurs lignes vides de suite); **PDF** l'enregistre en PDF, une feuille par page, à
-l'italienne; la corbeille l'efface.
+plusieurs lignes vides de suite); **PDF** l'enregistre en PDF, une feuille de papier en continu par page (bandes bleues,
+bandes d'entraînement et leurs trous, comme à l'écran; 132 colonnes, 6 lignes au pouce);
+la corbeille l'efface.
 
 Commandes après l'IPL (système chargé d'un disque) : le champ **Commandes après l'IPL** du
 menu **Machine** reçoit des commandes d'opérateur, une par ligne (par exemple `$S PRT1`).
