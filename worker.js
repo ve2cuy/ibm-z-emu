@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=b260fce5';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=ab2710cc';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -43,6 +43,7 @@ let LOCAL_TERMS = [0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0C4, 0x0C5, 0x0C6];
 
 let ready = null;
 let emu = null;
+let runCfg = null;      // configuration de la machine en marche (message start ou resume)
 let arch = 's370';
 let running = false;
 let terminals = [];
@@ -193,9 +194,34 @@ async function bootFile(name) {
 }
 
 async function start(cfg) {
+  const infos = await build(cfg);
+  const hex = (a) => a.toString(16).toUpperCase().padStart(3, '0');
+  if (cfg.boot) {
+    // Linux : noyau, paramètres, image initiale, chacun suivi d'une fin de fichier.
+    const kernel = await bootFile('kernel');
+    const initrd = await bootFile('initrd');
+    emu.reader_load_binary(READER, kernel);
+    emu.reader_load_binary(READER, new TextEncoder().encode(cfg.boot.parm || ' '));
+    emu.reader_load_binary(READER, initrd);
+    mon('boot', { addr: hex(READER), k: kernel.length, i: initrd.length, parm: cfg.boot.parm || '' });
+  }
+  const iplOk = emu.ipl(cfg.ipl);
+  machineEvents();
+  if (!iplOk) {
+    const err = emu.disk_error();
+    if (err) mon('diskerr', { msg: err });
+    throw new Error(`ipl|${hex(cfg.ipl)}`);
+  }
+  begin(cfg, infos, false);
+}
+
+/** Machine neuve de la configuration `cfg` : volumes et unités branchés (sans IPL). Rend
+ *  les volumes branchés ({addr, info}). */
+async function build(cfg) {
   await ready;
   // Restes d'une marche qui ne s'est pas terminée par stop() (exception) : volumes fermés.
   if (emu || handles.length) await release();
+  runCfg = cfg;
   arch = cfg.arch === 'z' ? 'z' : 's370';
   emu = arch === 'z' ? Emulator.newZ(cfg.mem, Date.now() / 1000) : new Emulator(cfg.mem, Date.now() / 1000);
   if (cfg.loadparm) emu.set_loadparm(cfg.loadparm);
@@ -246,36 +272,28 @@ async function start(cfg) {
   for (const a of LOCAL_TERMS) emu.attach_terminal(a, 24, 80, 24, 80);
   versions = new Map();
   hostWrites = new Map();
-  if (cfg.boot) {
-    // Linux : noyau, paramètres, image initiale, chacun suivi d'une fin de fichier.
-    const kernel = await bootFile('kernel');
-    const initrd = await bootFile('initrd');
-    emu.reader_load_binary(READER, kernel);
-    emu.reader_load_binary(READER, new TextEncoder().encode(cfg.boot.parm || ' '));
-    emu.reader_load_binary(READER, initrd);
-    mon('boot', { addr: hex(READER), k: kernel.length, i: initrd.length, parm: cfg.boot.parm || '' });
-  }
-  const iplOk = emu.ipl(cfg.ipl);
-  machineEvents();
-  if (!iplOk) {
-    const err = emu.disk_error();
-    if (err) mon('diskerr', { msg: err });
-    throw new Error(`ipl|${hex(cfg.ipl)}`);
-  }
+  return infos;
+}
+
+/** La machine part (après l'IPL, ou reprise d'une session suspendue). */
+function begin(cfg, infos, resumed) {
   emu.set_ns_per_inst(1000 / mips);
   if (arch === 'z' && cfg.ncpu > 1) startThreads(cfg.ncpu);
-  post({ type: 'started', volumes: infos });
+  post({ type: 'started', volumes: infos, resumed });
   running = true;
   relayUrl = cfg.relay || null;
   openRelay();
   autoShutdown = false;
   zsd = null;
-  autoCmds = arch === 'z' && cfg.autoCmds?.length ? { cmds: cfg.autoCmds, started: false } : null;
-  // Pas d'opérateur automatique de TK5 en z/Architecture (ni d'attentes sautées).
-  initDone = arch === 'z';
+  // Commandes après l'IPL : déjà tapées dans une session reprise.
+  autoCmds = !resumed && arch === 'z' && cfg.autoCmds?.length ? { cmds: cfg.autoCmds, started: false } : null;
+  // Pas d'opérateur automatique de TK5 en z/Architecture (ni d'attentes sautées); session
+  // reprise : TK5 avait-il fini de démarrer ?
+  initDone = arch === 'z' || (resumed && cfg.initDone !== false);
   shutdownWanted = false;
   autoSeen = '';
-  simBase = 0;
+  // Le temps simulé de la session reprise continue d'où il était.
+  simBase = emu.now_ms();
   realBase = performance.now();
   statTime = performance.now();
   statInst = 0;
@@ -304,6 +322,216 @@ async function release() {
   closeVolumes();
   try { emu?.free(); } catch { /* rien */ }
   emu = null;
+}
+
+// Mise en veille (session.js) : la machine s'arrête à une limite d'instruction (fils des
+// processeurs arrêtés), son état est écrit dans suspend/machine.snap (comprimé), les
+// volumes sont écrits et fermés, puis meta.json : la configuration (pour refaire la même
+// machine) et les empreintes des volumes (taille, date de modification), vérifiées à la
+// reprise. La reprise refait la machine sans IPL, relit l'état, puis efface la session
+// (les volumes vont changer). Le temps simulé et l'horloge du système repartent d'où ils
+// étaient (le système ne voit pas le temps passé en veille).
+
+async function suspendDir(create = false) {
+  const root = await navigator.storage.getDirectory();
+  return root.getDirectoryHandle('suspend', { create });
+}
+
+/** Empreintes des fichiers des volumes de `cfg` (absents : size -1). */
+async function fingerprints(cfg) {
+  const root = await navigator.storage.getDirectory();
+  const out = [];
+  const opfs = async (dirName, name, kind, addr) => {
+    try {
+      const f = await (await (await root.getDirectoryHandle(dirName)).getFileHandle(name)).getFile();
+      out.push({ kind, addr, name, size: f.size, mod: f.lastModified });
+    } catch {
+      out.push({ kind, addr, name, size: -1, mod: 0 });
+    }
+  };
+  for (const v of cfg.volumes) await opfs('dasd', v.file, 'vol', v.addr);
+  for (const m of cfg.mounts ?? []) {
+    for (const f of [m.file, ...m.shadows]) {
+      out.push({ kind: f === m.file ? 'mount' : 'shadow', addr: m.addr, name: f.name, size: f.size, mod: f.lastModified });
+    }
+    await opfs('shadow', m.overlay, 'overlay', m.addr);
+  }
+  return out;
+}
+
+/** Fichiers changés depuis la mise en veille (noms). */
+async function changedFiles(cfg, prints) {
+  const now = await fingerprints(cfg);
+  const same = (a, b) => a.kind === b.kind && a.addr === b.addr && a.name === b.name;
+  const changed = [];
+  for (const p of prints) {
+    const n = now.find((x) => same(x, p));
+    if (!n || n.size !== p.size || n.mod !== p.mod) changed.push(p.name);
+  }
+  for (const n of now) if (!prints.some((p) => same(p, n))) changed.push(n.name);
+  return changed;
+}
+
+/** Configuration à garder dans meta.json (fichiers du disque de l'usager : leurs noms). */
+function cfgForMeta(cfg) {
+  const { mounts = [], ...rest } = cfg;
+  return {
+    ...rest,
+    autoCmds: [],
+    boot: null,
+    mounts: mounts.map((m) => ({ addr: m.addr, stem: m.stem, overlay: m.overlay, file: m.file.name, shadows: m.shadows.map((s) => s.name) })),
+  };
+}
+
+/** État de la machine dans suspend/machine.snap. Rend {bytes, raw}. */
+async function writeSnapshot(progress) {
+  // D'abord l'état (la machine revient à un seul fil) : en cas d'échec de l'OPFS, elle
+  // peut repartir.
+  const head = emu.snap_begin();
+  const d = await suspendDir(true);
+  await d.removeEntry('meta.json').catch(() => {});
+  const fh = await d.getFileHandle('machine.snap', { create: true });
+  const h = await fh.createSyncAccessHandle();
+  try {
+    h.truncate(0);
+    const cs = new CompressionStream('deflate');
+    const w = cs.writable.getWriter();
+    let at = 0;
+    let raw = 0;
+    // Écriture de la sortie comprimée, pendant que la machine fournit son état.
+    const pump = (async () => {
+      const r = cs.readable.getReader();
+      for (;;) {
+        const { done, value } = await r.read();
+        if (done) break;
+        for (let k = 0; k < value.length;) k += h.write(value.subarray(k), { at: at + k });
+        at += value.length;
+      }
+    })();
+    pump.catch((e) => w.abort(e).catch(() => {}));
+    const put = async (chunk) => {
+      raw += chunk.length;
+      await w.write(chunk);
+    };
+    await put(head);
+    const n = emu.snap_mem_count();
+    for (let i = 0; i < n; i++) {
+      const c = emu.snap_mem(i);
+      if (c.length) await put(c);
+      if ((i & 15) === 15) progress(i + 1, n);
+    }
+    await put(emu.snap_end());
+    await w.close();
+    await pump;
+    h.flush();
+    return { bytes: at, raw };
+  } finally {
+    h.close();
+  }
+}
+
+/** Relit l'état de la machine de suspend/machine.snap. */
+async function readSnapshot(raw, progress) {
+  const d = await suspendDir();
+  const f = await (await d.getFileHandle('machine.snap')).getFile();
+  const r = f.stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+  let done = 0;
+  let shown = 0;
+  for (;;) {
+    const { done: end, value } = await r.read();
+    if (end) break;
+    emu.restore_feed(value);
+    done += value.length;
+    if (done - shown > 16 << 20) {
+      shown = done;
+      progress(done, raw);
+    }
+  }
+  emu.restore_finish();
+}
+
+async function suspend(page) {
+  if (!emu || !running) {
+    post({ type: 'suspend-failed', msg: 'notrunning' });
+    return;
+  }
+  running = false;
+  zsd = null;
+  const t0 = performance.now();
+  const threads = cpuWorkers.length;
+  post({ type: 'suspending', phase: 'stop' });
+  try { machineEvents(); } catch { /* machine en défaut */ }
+  // Un fil par processeur : les fils finissent, la machine revient à un seul fil.
+  await stopThreads();
+  drain();
+  let sizes;
+  try {
+    sizes = await writeSnapshot((done, total) => post({ type: 'suspending', phase: 'mem', done, total }));
+  } catch (e) {
+    // Pas de place, OPFS refusé… : la machine continue.
+    const msg = e?.message ?? String(e);
+    try { await (await suspendDir()).removeEntry('machine.snap'); } catch { /* rien */ }
+    mon('suspend.fail', { msg });
+    post({ type: 'suspend-failed', msg });
+    if (threads) startThreads(threads);
+    running = true;
+    simBase = emu.now_ms();
+    realBase = performance.now();
+    setTimeout(tick, 0);
+    return;
+  }
+  const simMs = emu.now_ms();
+  const psw = emu.psw();
+  await release();
+  const meta = {
+    format: 1,
+    date: Date.now(),
+    app: page.app,
+    cfg: { ...cfgForMeta(runCfg), initDone },
+    prints: await fingerprints(runCfg),
+    bytes: sizes.bytes,
+    raw: sizes.raw,
+    simMs,
+    psw,
+    page: page.state,
+  };
+  const d = await suspendDir(true);
+  const h = await (await d.getFileHandle('meta.json', { create: true })).createSyncAccessHandle();
+  try {
+    const data = new TextEncoder().encode(JSON.stringify(meta));
+    h.truncate(0);
+    for (let k = 0; k < data.length;) k += h.write(data.subarray(k), { at: k });
+    h.flush();
+  } finally {
+    h.close();
+  }
+  mon('suspended', { mb: (sizes.bytes / 1048576).toFixed(1), raw: Math.round(sizes.raw / 1048576), s: ((performance.now() - t0) / 1000).toFixed(1) });
+  post({ type: 'stopped', reason: 'suspended', meta });
+}
+
+async function resume(cfg, meta, lang) {
+  await ready;
+  if (emu || handles.length) await release();
+  if (!cfg.force) {
+    const changed = await changedFiles(cfg, meta.prints);
+    if (changed.length) {
+      post({ type: 'resume-changed', list: changed });
+      return;
+    }
+  }
+  const t0 = performance.now();
+  const infos = await build(cfg);
+  post({ type: 'resuming', done: 0, total: meta.raw });
+  await readSnapshot(meta.raw, (done, total) => post({ type: 'resuming', done, total }));
+  machineEvents();
+  mon('resumed', { date: new Date(meta.date).toLocaleString(lang), sim: Math.round(meta.simMs / 1000), s: ((performance.now() - t0) / 1000).toFixed(1) });
+  begin(cfg, infos, true);
+  // La session est reprise : elle ne peut plus resservir (les volumes vont changer).
+  try {
+    const d = await suspendDir();
+    await d.removeEntry('meta.json');
+    await d.removeEntry('machine.snap');
+  } catch { /* rien */ }
 }
 
 // Relais TN3270 (ibmz-relay sur ce PC) : les clients TN3270 du réseau local prennent un
@@ -804,6 +1032,12 @@ self.onmessage = async ({ data }) => {
       case 'start':
         await start(data);
         break;
+      case 'resume':
+        await resume(data.cfg, data.meta, data.lang);
+        break;
+      case 'suspend':
+        await suspend(data);
+        break;
       case 'console':
         if (emu && !emu.console_type(CONSOLE, data.text)) post({ type: 'console-refused' });
         break;
@@ -867,9 +1101,9 @@ self.onmessage = async ({ data }) => {
     report(e);
     // Machine en défaut (erreur fatale du module) : arrêt, volumes fermés.
     if (fatalError && running) stop('error');
-    if (data.type === 'start') {
-      closeVolumes();
-      emu = null;
+    if (data.type === 'start' || data.type === 'resume') {
+      if (data.type === 'resume') mon('resume.fail', { msg: e?.message ?? String(e) });
+      await release().catch(() => {});
       running = false;
       post({ type: 'stopped', reason: 'error' });
     }

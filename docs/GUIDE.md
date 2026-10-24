@@ -117,6 +117,23 @@ scripts did. After about one minute, the machine stops and the disks are up to d
 
 To start over, the **Repository** menu downloads the original volumes again.
 
+### Suspending and resuming
+
+To stop without shutting MVS down, click **Suspend** (next to **Stop**): the machine stops
+where it is, its state (memory, processor, terminals, running jobs) is kept in the
+browser, and the disks are written and closed. You can close the page; even after a reload
+or an update of the emulator, the page offers to **resume** the session: MVS goes on
+exactly where it was, TSO sessions included (on the page's terminals; a TN3270 client of
+the relay must reconnect).
+
+- The MVS clock resumes from the time of the suspension: it is behind by the time spent
+  suspended.
+- A suspended session can be resumed only once. An IPL, erasing the volumes or a direct
+  write of the volume manager discards it (the page asks first): MVS could not go on with
+  changed disks.
+- A clean shutdown remains the best way to end the day: a suspended session depends on
+  this browser and its volumes.
+
 ## 7. Going further
 
 - The **volume manager** (the **folder** icon, top bar): browse the volumes, their data
@@ -182,6 +199,12 @@ shutdown procedure (`S SHUTDB` when DB2 runs, `S SHUTALL` with CICS or MQ, other
 (`P`, then `C`, then `FORCE`) and finally `$PI`, `WRITELOG CLOSE`, `$PJES2` and `Z EOD`. A
 window follows the steps. The machine stops after `IEE334I HALT EOD SUCCESSFUL`, and the
 page can then be closed.
+
+**Suspend** works on z/Architecture too (see "Suspending and resuming", section 6): the
+memory is kept compressed in the browser (a few hundred MB for 1 GB, from a few seconds to
+a minute depending on the size). Volumes read in place: on resumption, the page asks again
+for access to the Hercules folder, then checks that the files and the page's shadow have
+not changed.
 
 The **Machine** menu also offers a second machine, **z/Architecture**: a
 64-bit processor (ESA/390 too), the channel subsystem, the system console (SCLP), ECKD

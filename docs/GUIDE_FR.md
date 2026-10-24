@@ -125,6 +125,23 @@ la machine s'éteint et les disques sont à jour.
 Pour repartir de zéro, le menu **Dépôt** propose de télécharger de nouveau les volumes
 d'origine.
 
+### Suspendre et reprendre
+
+Pour arrêter sans fermer MVS, cliquez sur **Suspendre** (à côté d'**Arrêter**) : la
+machine s'arrête là où elle est, son état (mémoire, processeur, terminaux, travaux en
+cours) est gardé dans le fureteur et les disques sont écrits et refermés. Vous pouvez
+fermer la page; même après un rechargement ou une mise à jour de l'émulateur, la page
+propose de **reprendre** la session : MVS continue exactement où il était, sessions TSO
+comprises (sur les terminaux de la page; un client TN3270 du relais doit se reconnecter).
+
+- L'horloge de MVS repart de l'heure de la mise en veille : elle retarde du temps passé en
+  veille.
+- La session reprise ne peut servir qu'une fois. Un IPL, l'effacement des volumes ou une
+  écriture directe du gestionnaire de volumes l'abandonnent (la page le demande d'abord) :
+  MVS ne pourrait pas continuer sur des disques changés.
+- Un arrêt propre reste la meilleure façon de finir une journée : une session suspendue
+  dépend de ce fureteur et de ses volumes.
+
 ## 7. Pour aller plus loin
 
 - Le **gestionnaire de volumes** (icône du **dossier**, barre du haut) : parcourir les
@@ -195,6 +212,12 @@ d'arrêt qui convient (`S SHUTDB` si DB2 tourne, `S SHUTALL` si CICS ou MQ, sino
 (`P`, puis `C`, puis `FORCE`) et enfin `$PI`, `WRITELOG CLOSE`, `$PJES2` et `Z EOD`. Une
 fenêtre suit les étapes. La machine s'éteint après `IEE334I HALT EOD SUCCESSFUL`, et la page
 peut alors être fermée.
+
+**Suspendre** marche aussi en z/Architecture (voir « Suspendre et reprendre », section 6) :
+la mémoire est gardée comprimée dans le fureteur (quelques centaines de Mo pour 1 Go, de
+quelques secondes à une minute selon la taille). Volumes lus sur place : à la reprise, la
+page redemande l'accès au dossier de Hercules, puis vérifie que les fichiers et l'ombre de
+la page n'ont pas changé.
 
 Le menu **Machine** offre aussi une seconde machine, **z/Architecture** : un
 processeur de 64 bits (ESA/390 aussi), le sous-système de canaux, la console du système

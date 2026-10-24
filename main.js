@@ -2,15 +2,16 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, setLanguage, t } from './i18n.js?v=b260fce5';
-import { initMemo } from './memo.js?v=b260fce5';
-import { deckText } from './decks.js?v=b260fce5';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b260fce5';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=b260fce5';
-import { Z_DEVICES } from './herc-conf.js?v=b260fce5';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=b260fce5';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=ab2710cc';
+import { initMemo } from './memo.js?v=ab2710cc';
+import { deckText } from './decks.js?v=ab2710cc';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ab2710cc';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=ab2710cc';
+import { Z_DEVICES } from './herc-conf.js?v=ab2710cc';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=ab2710cc';
+import { dropSession, readSession } from './session.js?v=ab2710cc';
 
-const VERSION = '0.1.33';
+const VERSION = '0.1.34';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -21,6 +22,12 @@ const errorBox = $('error');
 const powerButton = $('power');
 const powerLabel = $('power-label');
 const speed = $('speed');
+// Mise en veille (voir plus bas).
+const ssDialog = $('ss');
+const suspendButton = $('suspend');
+let suspended = null;   // description de la session suspendue (meta.json), ou null
+let ssBusy = '';        // mise en veille ('suspend') ou reprise ('resume') en cours
+let ssForce = false;    // reprendre malgré des volumes changés (après avertissement)
 
 // ------------------------------------------------------------------ préférences
 
@@ -442,6 +449,7 @@ $('vol-file').addEventListener('change', async (e) => {
 
 $('vol-erase').addEventListener('click', async () => {
   if (running || !confirm(t('vol.erase.confirm'))) return;
+  if (!(await sessionGuard())) return;
   const dir = await volDir();
   for (const v of volumes) await dir.removeEntry(v.file).catch(() => {});
   renderVolumes();
@@ -665,6 +673,7 @@ languageListeners.push(initHerc({
   writeVolume,
   renderVolumes,
   status: showStatus,
+  sessionGuard,
   // Nouvelle configuration : terminaux, imprimantes et mémoire montrés de nouveau.
   applied: () => {
     showMachine();
@@ -873,9 +882,15 @@ let terminals = [];
 const canIpl = () => volumes.length > 0 || (prefs.mounts?.length ?? 0) > 0 || (isZ() && zbootReady());
 
 function updateButtons() {
-  powerButton.disabled = !worker || (!running && !canIpl());
+  powerButton.disabled = !worker || !!ssBusy || (!running && !canIpl());
   powerLabel.textContent = t(running ? 'power.stop' : 'power.ipl');
-  $('btn-load').disabled = running || !canIpl();
+  $('btn-load').disabled = running || !!ssBusy || !canIpl();
+  // Suspendre (machine en marche), ou Reprendre (session suspendue).
+  suspendButton.hidden = !running && !suspended;
+  suspendButton.disabled = !worker || !!ssBusy || shuttingDown;
+  $('suspend-label').textContent = t(running ? 'ss.suspend' : 'ss.resume');
+  $('suspend-icon').setAttribute('href', running ? '#i-pause' : '#i-play');
+  suspendButton.title = t(running ? 'ss.tip' : 'ss.resume.tip');
   archList.disabled = running;
   $('btn-interrupt').disabled = !running;
   $('btn-restart').disabled = !running;
@@ -913,6 +928,8 @@ async function ipl() {
   // Volumes lus sur place d'une visite précédente : retrouvés dans le dossier de Hercules
   // gardé (l'accès se redemande pendant ce clic, avant toute autre attente).
   if (mountsMissing().length) await remountFromDir();
+  // Une session suspendue serait faussée par l'IPL (les volumes changent) : abandonnée.
+  if (!(await sessionGuard())) return;
   const vols = await listVolumes();
   const addr = parseInt(iplPref(), 16);
   // z/Architecture : IPL du lecteur avec les fichiers de Linux.
@@ -1135,7 +1152,186 @@ turboButton.addEventListener('click', () => {
 });
 showTurbo();
 
+// ------------------------------------------------------------------ mise en veille
+
+// Session suspendue (session.js, worker.js) : la machine arrêtée à une limite
+// d'instruction, son état écrit dans l'OPFS avec la configuration et les empreintes des
+// volumes; reprise plus tard, même après un rechargement de la page ou une mise à jour de
+// l'application. Un IPL, l'effacement des volumes ou de l'ombre de la page, une écriture
+// directe du gestionnaire de volumes l'abandonnent (après confirmation).
+const ssDate = (meta) => new Date(meta.date).toLocaleString(getLanguage());
+
+/** Temps simulé (ms) en h:mm:ss. */
+function ssDuration(ms) {
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function ssDescribe(meta) {
+  const c = meta.cfg;
+  return t('ss.desc', {
+    date: ssDate(meta),
+    machine: c.arch === 'z' ? 'IBM z/Architecture' : 'IBM System/370',
+    mem: c.mem,
+    ncpu: c.ncpu || 1,
+    sim: ssDuration(meta.simMs),
+    mb: Math.max(1, Math.round(meta.bytes / 1048576)),
+    app: meta.app,
+  });
+}
+
+/** Erreur de la reprise (« code|détail » de machine::snap) en texte. */
+function ssError(msg) {
+  const [code, detail = ''] = String(msg).split('|');
+  const key = `ss.err.${code}`;
+  const text = t(key, { detail });
+  return text === key ? String(msg) : text;
+}
+
+function ssShow({ title, text = '', progress = false, result = '', ok = true, buttons = [] }) {
+  $('ss-title').dataset.i18n = title;
+  $('ss-title').textContent = t(title);
+  $('ss-text').textContent = text;
+  const p = $('ss-progress');
+  p.hidden = !progress;
+  if (progress) p.removeAttribute('value');
+  $('ss-result').textContent = result;
+  $('ss-result').className = `sd-result${result ? (ok ? ' ok' : ' error') : ''}`;
+  for (const b of ['drop', 'later', 'resume', 'close']) $(`ss-${b}`).hidden = !buttons.includes(b);
+  if (!ssDialog.open) ssDialog.showModal();
+}
+
+function ssProgress(key, done, total) {
+  const p = $('ss-progress');
+  p.max = total || 1;
+  p.value = Math.min(done, p.max);
+  $('ss-text').textContent = t(key, { pct: Math.min(100, Math.round((100 * done) / (total || 1))) });
+}
+
+/** La session suspendue est abandonnée avant une action qui la rendrait fausse (IPL,
+ *  volumes changés) : après confirmation. Faux si l'usager refuse. */
+async function sessionGuard() {
+  if (!suspended) return true;
+  if (!confirm(t('ss.guard', { date: ssDate(suspended) }))) return false;
+  await dropSession();
+  suspended = null;
+  updateButtons();
+  return true;
+}
+
+function suspendMachine() {
+  if (!running || shuttingDown || ssBusy || !worker) return;
+  ssBusy = 'suspend';
+  ssShow({ title: 'ss.title.suspend', text: t('ss.stopping'), progress: true });
+  // Ce que la page montrait : console, imprimantes, terminaux affichés.
+  const prints = Object.fromEntries(Object.entries(printers).map(([a, s]) => [a, s.slice(-500_000)]));
+  const state = { console: consoleText.slice(-300_000), printers: prints, zLinux, terminals };
+  worker.postMessage({ type: 'suspend', app: VERSION, state });
+  updateButtons();
+}
+
+async function resumeSession() {
+  const meta = suspended;
+  if (!meta || running || !worker || ssBusy) return;
+  const force = ssForce;
+  ssForce = false;
+  if (workerBroken) {
+    worker.terminate();
+    startWorker();
+    workerBroken = false;
+  }
+  // Volumes lus sur place : retrouvés dans le dossier de Hercules gardé (pendant ce clic).
+  const want = meta.cfg.mounts ?? [];
+  if (want.length && mountsMissing().length) await remountFromDir();
+  const cfgMounts = [];
+  for (const m of want) {
+    const have = mounts.get(m.addr);
+    if (!have || have.stem !== m.stem) {
+      ssShow({ title: 'ss.title', text: ssDescribe(meta), result: t('ss.err.mount', { addr: hex3(m.addr), file: m.file }), ok: false, buttons: ['drop', 'later'] });
+      return;
+    }
+    cfgMounts.push({ ...m, file: have.file, shadows: have.shadows });
+  }
+  ssBusy = 'resume';
+  ssShow({ title: 'ss.title.resume', text: t('ss.checking'), progress: true });
+  // La page comme à la mise en veille : machine, terminaux, console, imprimantes.
+  runArch = meta.cfg.arch;
+  if (prefs.arch !== runArch) {
+    prefs.arch = runArch;
+    savePrefs();
+    showMachine();
+  }
+  terminals = meta.page?.terminals ?? meta.cfg.terminals ?? [];
+  buildTabs();
+  consoleText = meta.page?.console ?? '';
+  consoleOut.textContent = consoleText;
+  for (const k of Object.keys(printers)) delete printers[k];
+  Object.assign(printers, meta.page?.printers ?? {});
+  showPrinter();
+  running = true;
+  zLinux = !!meta.page?.zLinux;
+  consoleHint();
+  volMachineChanged();
+  punchMachineChanged();
+  setLight('lt-load', true);
+  updateButtons();
+  renderVolumes();
+  showStatus('ss.resuming');
+  renderZboot();
+  worker.postMessage({ type: 'resume', cfg: { ...meta.cfg, mounts: cfgMounts, force }, meta, lang: getLanguage() });
+  worker.postMessage({ type: 'turbo', on: prefs.turbo });
+}
+
+/** Messages du fil de la machine pour la mise en veille et la reprise (vrai : traité). */
+function ssMessage(data) {
+  switch (data.type) {
+    case 'suspending':
+      if (data.phase === 'mem') ssProgress('ss.saving', data.done, data.total);
+      return true;
+    case 'suspend-failed':
+      ssBusy = '';
+      ssShow({ title: 'ss.title.suspend', result: t('ss.suspend.failed', { msg: ssError(data.msg) }), ok: false, buttons: ['close'] });
+      updateButtons();
+      return true;
+    case 'resuming':
+      ssProgress('ss.loading', data.done, data.total);
+      return true;
+    case 'resume-changed':
+      // Volumes changés depuis la mise en veille : la reprise est déconseillée.
+      ssBusy = '';
+      running = false;
+      setLight('lt-load', false);
+      updateButtons();
+      ssForce = true;
+      ssShow({ title: 'ss.title', text: ssDescribe(suspended), result: t('ss.changed', { list: data.list.join(', ') }), ok: false, buttons: ['drop', 'later', 'resume'] });
+      return true;
+  }
+  return false;
+}
+
+suspendButton.addEventListener('click', () => (running ? suspendMachine() : suspended && ssShow({ title: 'ss.title', text: ssDescribe(suspended), buttons: ['drop', 'later', 'resume'] })));
+$('ss-resume').addEventListener('click', () => resumeSession());
+$('ss-later').addEventListener('click', () => {
+  ssForce = false;
+  ssDialog.close();
+});
+$('ss-close').addEventListener('click', () => ssDialog.close());
+$('ss-drop').addEventListener('click', async () => {
+  if (!confirm(t('ss.drop.confirm'))) return;
+  await dropSession();
+  suspended = null;
+  ssForce = false;
+  ssDialog.close();
+  updateButtons();
+  showStatus('ss.dropped');
+});
+// Pas de fermeture par Échap pendant la mise en veille ou la reprise.
+ssDialog.addEventListener('cancel', (e) => {
+  if (ssBusy) e.preventDefault();
+});
+
 function onWorkerMessage({ data }) {
+  if (ssMessage(data)) return;
   switch (data.type) {
     case 'ready':
       updateButtons();
@@ -1143,6 +1339,14 @@ function onWorkerMessage({ data }) {
     case 'started':
       setLight('lt-load', false);
       setLight('lt-sys', true);
+      if (data.resumed) {
+        ssBusy = '';
+        suspended = null;
+        ssDialog.close();
+        showStatus('ss.resumed');
+        updateButtons();
+        break;
+      }
       showStatus(runArch === 'z' ? 'ipl.started.z' : 'ipl.started', { n: data.volumes.length });
       break;
     case 'console':
@@ -1228,7 +1432,17 @@ function onWorkerMessage({ data }) {
     case 'fatal':
       workerBroken = true;
       break;
-    case 'stopped':
+    case 'stopped': {
+      const wasResume = ssBusy === 'resume';
+      if (data.reason === 'suspended') {
+        suspended = data.meta;
+        ssBusy = '';
+        ssShow({ title: 'ss.title.suspend', text: ssDescribe(suspended), result: t('ss.suspended'), buttons: ['close'] });
+      } else if (wasResume) {
+        // Reprise refusée ou en échec : la session reste (nouvel essai, ou abandon).
+        ssBusy = '';
+        ssShow({ title: 'ss.title', text: ssDescribe(suspended), result: t('ss.resume.failed', { msg: ssError(lastError) }), ok: false, buttons: ['drop', 'later', 'resume'] });
+      }
       running = false;
       if (shuttingDown && data.reason === 'stopped') data.reason = 'shutdown';
       shuttingDown = false;
@@ -1248,6 +1462,7 @@ function onWorkerMessage({ data }) {
       sdStopped(data.reason);
       renderZboot();
       break;
+    }
     case 'closed':
       break;
   }
@@ -2444,6 +2659,8 @@ $('memo-button').addEventListener('click', () => memo.showModal());
 languageListeners.push(initVolumes({
   volumes: () => volumes,
   running: () => running,
+  // Écriture directe (machine arrêtée) : la session suspendue serait faussée.
+  sessionGuard,
   worker: () => worker,
   version: V,
   prefs,
@@ -2501,6 +2718,10 @@ async function main() {
   selectTab('console');
   updateButtons();
   document.documentElement.classList.replace('js-loading', 'js-ready');
+  // Session suspendue d'une visite précédente : la reprendre ?
+  suspended = await readSession();
+  updateButtons();
+  if (suspended) ssShow({ title: 'ss.title', text: ssDescribe(suspended), buttons: ['drop', 'later', 'resume'] });
 }
 
 main();

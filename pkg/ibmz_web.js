@@ -378,6 +378,29 @@ export class Emulator {
         wasm.emulator_restart(this.__wbg_ptr);
     }
     /**
+     * Reprise d'une session suspendue, machine neuve aux mêmes unités, avant tout IPL : un
+     * morceau du flux (décomprimé). Erreur « code|détail » (traduite par la page).
+     * @param {Uint8Array} data
+     */
+    restore_feed(data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_restore_feed(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * Fin de la reprise : tout ce qui est indispensable a été lu. Le moniteur reçoit
+     * « resume|PSW ».
+     */
+    restore_finish() {
+        const ret = wasm.emulator_restore_finish(this.__wbg_ptr);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Avance de `ms` millisecondes simulées (au plus `max_inst` instructions). Rend
      * « run », « stopped » (attente définitive) ou « loop ».
      * @param {number} ms
@@ -420,6 +443,50 @@ export class Emulator {
      */
     set_ns_per_inst(ns) {
         wasm.emulator_set_ns_per_inst(this.__wbg_ptr, ns);
+    }
+    /**
+     * Début de la mise en veille : blocs de l'état (sans la mémoire), à écrire d'abord.
+     * Un fil par processeur : les fils doivent avoir fini (`stop_threads`, puis
+     * `threads_done`); la machine revient alors à un seul fil (`start_threads` la relance).
+     * @returns {Uint8Array}
+     */
+    snap_begin() {
+        const ret = wasm.emulator_snap_begin(this.__wbg_ptr);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Fin du flux de la mise en veille.
+     * @returns {Uint8Array}
+     */
+    snap_end() {
+        const ret = wasm.emulator_snap_end(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
+     * @returns {number}
+     */
+    snap_mem_count() {
+        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Bloc de mémoire `i` à écrire (vide s'il est nul).
+     * @param {number} i
+     * @returns {Uint8Array}
+     */
+    snap_mem(i) {
+        const ret = wasm.emulator_snap_mem(this.__wbg_ptr, i);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
     }
     /**
      * Un fil par processeur (z/Architecture, plusieurs processeurs, après l'IPL) : rend
@@ -583,19 +650,19 @@ export class Emulator {
         return ret;
     }
     /**
-     * @returns {boolean}
-     */
-    threads_done() {
-        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
      * Nombre de fils de processeurs (0 : un seul fil).
      * @returns {number}
      */
     threads() {
         const ret = wasm.emulator_threads(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    threads_done() {
+        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * Gestionnaire de volumes, machine en marche : opération de lecture `op` (voir
@@ -928,22 +995,22 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_5c2a4ee1ab86ca44: function(arg0) {
+        __wbg_flush_6b26fd182d60416e: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_311d84b697fee3dc: function() {
+        __wbg_now_406a79d45f5bdd69: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_9e5387f4d5c77d07: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_3503bcf305a38cc4: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_7bb18f9eeafc1240: function(arg0) {
+        __wbg_size_786c67a1101c588e: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_3669632440b6f870: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_a5ff08c09e04ebec: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

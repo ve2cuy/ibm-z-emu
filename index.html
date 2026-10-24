@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=b260fce5">
+  <link rel="stylesheet" href="style.css?v=ab2710cc">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -61,6 +61,8 @@
       <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
       <symbol id="i-card" viewBox="0 0 24 24"><path d="M6 4h12l2 2v14H4V6z"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14"/><path d="M15 5v14"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></symbol>
       <symbol id="i-punch" viewBox="0 0 24 24"><path d="M6 5h15v14H3V8z"/><path d="M7 9v2M10 9v4M13 9v2M16 9v3M7 15v1M11 14v2M15 15v1"/></symbol>
       <symbol id="i-first" viewBox="0 0 24 24"><path d="M6 5v14M18 6l-7 6 7 6"/></symbol>
       <symbol id="i-last" viewBox="0 0 24 24"><path d="M18 5v14M6 6l7 6-7 6"/></symbol>
@@ -334,6 +336,8 @@
           <span id="speed" class="speed" title="Emulated processor speed" data-i18n-title="speed.tip"></span>
           <button id="power" type="button" class="secondary with-icon" title="IPL (load) the system, or stop the machine" data-i18n-title="power.tip" disabled>
             <svg class="icon"><use href="#i-power"/></svg><span id="power-label" data-i18n="power.ipl">IPL</span></button>
+          <button id="suspend" type="button" class="secondary with-icon" title="Suspend the session: it can be resumed later, even after reloading the page" data-i18n-title="ss.tip" hidden>
+            <svg class="icon"><use id="suspend-icon" href="#i-pause"/></svg><span id="suspend-label" data-i18n="ss.suspend">Suspend</span></button>
           <button id="turbo" type="button" class="secondary with-icon" aria-pressed="false" title="Turbo" data-i18n-title="turbo.tip">
             <svg class="icon"><use href="#i-zap"/></svg><span data-i18n="turbo">Turbo</span></button>
           <button id="paste-button" type="button" class="icon-button" title="Paste text" data-i18n-title="clip.paste" aria-label="Paste text" data-i18n-aria="clip.paste">
@@ -559,6 +563,21 @@
     </div>
   </dialog>
 
+  <!-- Session suspendue (mise en veille : main.js, session.js) -->
+  <dialog id="ss" class="dialog sd ss" aria-labelledby="ss-title">
+    <h2 id="ss-title" data-i18n="ss.title">Suspended session</h2>
+    <p id="ss-text"></p>
+    <progress id="ss-progress" class="ss-progress" max="1" value="0" hidden></progress>
+    <p id="ss-result" class="sd-result" role="status"></p>
+    <div class="dialog-actions">
+      <button id="ss-drop" type="button" class="secondary" data-i18n="ss.drop">Discard the session</button>
+      <span class="grow"></span>
+      <button id="ss-later" type="button" class="secondary" data-i18n="ss.later">Later</button>
+      <button id="ss-resume" type="button" data-i18n="ss.resume">Resume</button>
+      <button id="ss-close" type="button" data-i18n="memo.close" hidden>Close</button>
+    </div>
+  </dialog>
+
   <!-- Gestionnaire de volumes (volumes.js) -->
   <dialog id="vm" class="dialog vm" aria-labelledby="vm-title">
     <div class="memo-head">
@@ -717,6 +736,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=b260fce5"></script>
+  <script type="module" src="main.js?v=ab2710cc"></script>
 </body>
 </html>

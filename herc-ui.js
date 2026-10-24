@@ -15,10 +15,10 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=b260fce5';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=b260fce5';
+import { t } from './i18n.js?v=ab2710cc';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=ab2710cc';
 
-let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status() }
+let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status(), sessionGuard() }
 let plan = null;
 
 /** Volumes lus sur place, pour cette visite : adresse -> {stem, file, shadows: [File]}. */
@@ -610,6 +610,7 @@ async function remount(files) {
 /** Efface l'ombre de la page des volumes lus sur place (retour à l'état des fichiers). */
 async function clearOverlays() {
   if (ctx.running() || !confirm(t('hc.overlay.confirm'))) return;
+  if (!(await ctx.sessionGuard())) return;
   const root = await navigator.storage.getDirectory();
   const dir = await root.getDirectoryHandle('shadow', { create: true });
   for (const m of ctx.prefs.mounts ?? []) await dir.removeEntry(overlayName(m)).catch(() => {});

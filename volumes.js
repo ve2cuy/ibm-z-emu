@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=b260fce5';
+import { t } from './i18n.js?v=ab2710cc';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=b260fce5';
+} from './vol-jobs.js?v=ab2710cc';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
@@ -56,7 +56,9 @@ export function volSettle(msg) {
   else p.reject(new Error(msg.error));
 }
 
-function call(op, args = {}) {
+async function call(op, args = {}) {
+  // Écriture directe, machine arrêtée : une session suspendue serait faussée.
+  if (op === 'write' && !ctx.running() && !(await ctx.sessionGuard())) throw new Error('suspended|');
   const vol = state.vols.find((v) => v.file === (args.file ?? state.file));
   const blob = args.blob ?? vol?.blob;
   const id = ++callId;

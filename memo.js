@@ -3,8 +3,8 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=b260fce5';
-import { deckText } from './decks.js?v=b260fce5';
+import { t } from './i18n.js?v=ab2710cc';
+import { deckText } from './decks.js?v=ab2710cc';
 
 const COBOL_JOB = deckText('cobdemo');
 
