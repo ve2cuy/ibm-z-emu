@@ -2,16 +2,16 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=ab2710cc';
-import { initMemo } from './memo.js?v=ab2710cc';
-import { deckText } from './decks.js?v=ab2710cc';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ab2710cc';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=ab2710cc';
-import { Z_DEVICES } from './herc-conf.js?v=ab2710cc';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=ab2710cc';
-import { dropSession, readSession } from './session.js?v=ab2710cc';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=5313566f';
+import { initMemo } from './memo.js?v=5313566f';
+import { deckText } from './decks.js?v=5313566f';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=5313566f';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=5313566f';
+import { Z_DEVICES } from './herc-conf.js?v=5313566f';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=5313566f';
+import { dropSession, readSession } from './session.js?v=5313566f';
 
-const VERSION = '0.1.34';
+const VERSION = '0.1.35';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -891,6 +891,10 @@ function updateButtons() {
   $('suspend-label').textContent = t(running ? 'ss.suspend' : 'ss.resume');
   $('suspend-icon').setAttribute('href', running ? '#i-pause' : '#i-play');
   suspendButton.title = t(running ? 'ss.tip' : 'ss.resume.tip');
+  // Session suspendue : les écrans sont assombris (le système ne tourne plus).
+  $('monitor').classList.toggle('suspended', !running && !!suspended);
+  $('tabs').classList.toggle('suspended', !running && !!suspended);
+  $('monitor').dataset.ssLabel = t('ss.badge');
   archList.disabled = running;
   $('btn-interrupt').disabled = !running;
   $('btn-restart').disabled = !running;

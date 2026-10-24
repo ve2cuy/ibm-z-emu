@@ -1662,6 +1662,15 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
 .ss-progress { display: block; width: 100%; height: 10px; margin: 6px 0 0; accent-color: var(--accent); }
 .ss-progress[hidden] { display: none; }
 .dialog.ss #ss-text { margin: 0 0 6px; white-space: pre-line; }
+/* Session suspendue : écrans assombris (le système ne tourne plus), étiquette au centre. */
+.monitor.suspended > :not(.overlay) { filter: brightness(0.35) grayscale(0.7); transition: filter 0.3s; }
+.term-tabs.suspended { opacity: 0.5; transition: opacity 0.3s; }
+.monitor.suspended::after {
+  content: attr(data-ss-label);
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 3;
+  padding: 10px 18px; border-radius: 10px; pointer-events: none;
+  background: rgba(0, 0, 0, 0.75); color: #e8eaee; font-weight: 600; text-align: center;
+}
 /* Configuration Hercules (menu Machine, fenêtre d'import). */
 .hc-box { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
 .hc-box .hint { margin: 0 0 6px; }
