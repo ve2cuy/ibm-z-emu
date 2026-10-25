@@ -3,8 +3,8 @@
 // imprimé de la carte courante), se garde dans une bibliothèque et se soumet au lecteur de
 // cartes 00C. Les exemples (decks.js) ont tous été essayés sous MVS.
 
-import { t } from './i18n.js?v=ae3071ae';
-import { DECKS } from './decks.js?v=ae3071ae';
+import { t } from './i18n.js?v=b674b885';
+import { DECKS } from './decks.js?v=b674b885';
 
 const COLS = 80;
 const STORE_KEY = 'ibmz-decks';

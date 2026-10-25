@@ -1782,7 +1782,7 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
 .hc-mode .radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .hc-mode .radio input { position: static; opacity: 1; width: auto; height: auto; margin: 0; }
 /* Toucher hors du terminal (PF7, PF8, PF3) : la touche envoyée, brièvement. */
-.stage { touch-action: manipulation; }
+main.content, .stage { touch-action: manipulation; }
 .tap-key {
   position: fixed; z-index: 1000; transform: translate(-50%, -120%); pointer-events: none;
   padding: 4px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.8); color: #e8eaee;

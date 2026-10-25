@@ -11,7 +11,7 @@
 // {id, ok: false, error} (« code|détail »). {id, op: 'blank', devtype, cyls, volser} : image
 // d'un volume vierge (Uint8Array).
 
-import init, { VolumeImage, blank_volume } from './pkg/ibmz_web.js?v=ae3071ae';
+import init, { VolumeImage, blank_volume } from './pkg/ibmz_web.js?v=b674b885';
 
 const version = new URL(import.meta.url).search; // ?v=… transmis par la page
 let ready = null;

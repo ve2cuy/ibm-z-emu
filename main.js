@@ -2,16 +2,16 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=ae3071ae';
-import { initMemo } from './memo.js?v=ae3071ae';
-import { deckText } from './decks.js?v=ae3071ae';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ae3071ae';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=ae3071ae';
-import { Z_DEVICES } from './herc-conf.js?v=ae3071ae';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=ae3071ae';
-import { dropSession, readSession } from './session.js?v=ae3071ae';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=b674b885';
+import { initMemo } from './memo.js?v=b674b885';
+import { deckText } from './decks.js?v=b674b885';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b674b885';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=b674b885';
+import { Z_DEVICES } from './herc-conf.js?v=b674b885';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=b674b885';
+import { dropSession, readSession } from './session.js?v=b674b885';
 
-const VERSION = '0.1.36';
+const VERSION = '0.1.37';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -2315,6 +2315,13 @@ function tapKey(key, x, y) {
 }
 
 const contentArea = document.querySelector('main.content');
+// Toucher qui sert à une touche : le geste du fureteur est annulé (pas de zoom au double
+// toucher sous iPadOS, où touch-action ne suffit pas).
+contentArea.addEventListener('touchend', (e) => {
+  if (currentTerm() === null || canvas.hidden || !running || e.touches.length) return;
+  if (e.target === canvas || e.target.closest(TAP_SKIP)) return;
+  e.preventDefault();
+}, { passive: false });
 contentArea.addEventListener('pointerdown', (e) => {
   tapStart = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
 });
