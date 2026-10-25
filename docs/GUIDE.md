@@ -98,6 +98,10 @@ they are shown); the button at the top right of the screen leaves it.
 On the 3270 keyboard: **Esc** is the Clear key, **F3** (PF3) goes back in ISPF, **Ctrl+R**
 (Reset) unlocks the keyboard if it stays locked ("X SYSTEM" in the bar above the screen).
 
+On tablets and phones, tap beside the terminal (outside its screen): on the right, **PF8**
+(next page); on the left, **PF7** (previous page); two quick taps on the left, **PF3**
+(back).
+
 ## 5. Submitting a batch job
 
 1. Open the **Card reader** menu. The example (button **Example**) assembles, links and
@@ -133,6 +137,10 @@ the relay must reconnect).
   changed disks.
 - A clean shutdown remains the best way to end the day: a suspended session depends on
   this browser and its volumes.
+- **iPad and iPhone**: the system often closes the page when the browser goes to the
+  background, which lost the machine. The **Suspend in the background** box (**Machine**
+  menu, checked by default on these devices) suspends the machine as soon as the page is
+  hidden; on return, or on reload if the page was closed, the session resumes by itself.
 
 ## 7. Going further
 

@@ -2,16 +2,16 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=5313566f';
-import { initMemo } from './memo.js?v=5313566f';
-import { deckText } from './decks.js?v=5313566f';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=5313566f';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=5313566f';
-import { Z_DEVICES } from './herc-conf.js?v=5313566f';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=5313566f';
-import { dropSession, readSession } from './session.js?v=5313566f';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=ae3071ae';
+import { initMemo } from './memo.js?v=ae3071ae';
+import { deckText } from './decks.js?v=ae3071ae';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=ae3071ae';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=ae3071ae';
+import { Z_DEVICES } from './herc-conf.js?v=ae3071ae';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=ae3071ae';
+import { dropSession, readSession } from './session.js?v=ae3071ae';
 
-const VERSION = '0.1.35';
+const VERSION = '0.1.36';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +28,10 @@ const suspendButton = $('suspend');
 let suspended = null;   // description de la session suspendue (meta.json), ou null
 let ssBusy = '';        // mise en veille ('suspend') ou reprise ('resume') en cours
 let ssForce = false;    // reprendre malgré des volumes changés (après avertissement)
+let ssAuto = false;     // mise en veille automatique (arrière-plan) : reprise automatique
+// iPadOS et iOS (iPadOS se présente comme un Mac à écran tactile).
+const appleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const autoSuspend = () => prefs.autoSuspend ?? appleTouch;
 
 // ------------------------------------------------------------------ préférences
 
@@ -50,6 +54,7 @@ const prefs = {
   fontSize: 16,
   showPanel: true,
   showKeys: null,
+  autoSuspend: null,      // mise en veille en arrière-plan (null : oui sur iPad et iPhone)
   depot: 'https://ve2cuy.com/vax/ibmz',
   turbo: false,
   printer: 0x00E,
@@ -1223,13 +1228,15 @@ async function sessionGuard() {
   return true;
 }
 
-function suspendMachine() {
+/** Mise en veille; `auto` : la page passe en arrière-plan (reprise automatique). */
+function suspendMachine(auto = false) {
   if (!running || shuttingDown || ssBusy || !worker) return;
   ssBusy = 'suspend';
+  ssAuto = auto;
   ssShow({ title: 'ss.title.suspend', text: t('ss.stopping'), progress: true });
   // Ce que la page montrait : console, imprimantes, terminaux affichés.
   const prints = Object.fromEntries(Object.entries(printers).map(([a, s]) => [a, s.slice(-500_000)]));
-  const state = { console: consoleText.slice(-300_000), printers: prints, zLinux, terminals };
+  const state = { console: consoleText.slice(-300_000), printers: prints, zLinux, terminals, auto };
   worker.postMessage({ type: 'suspend', app: VERSION, state });
   updateButtons();
 }
@@ -1294,6 +1301,7 @@ function ssMessage(data) {
       return true;
     case 'suspend-failed':
       ssBusy = '';
+      ssAuto = false;
       ssShow({ title: 'ss.title.suspend', result: t('ss.suspend.failed', { msg: ssError(data.msg) }), ok: false, buttons: ['close'] });
       updateButtons();
       return true;
@@ -1345,6 +1353,7 @@ function onWorkerMessage({ data }) {
       setLight('lt-sys', true);
       if (data.resumed) {
         ssBusy = '';
+        ssAuto = false;
         suspended = null;
         ssDialog.close();
         showStatus('ss.resumed');
@@ -1442,6 +1451,8 @@ function onWorkerMessage({ data }) {
         suspended = data.meta;
         ssBusy = '';
         ssShow({ title: 'ss.title.suspend', text: ssDescribe(suspended), result: t('ss.suspended'), buttons: ['close'] });
+        // Mise en veille automatique : la page est déjà revenue au premier plan.
+        if (ssAuto && document.visibilityState === 'visible') setTimeout(() => resumeSession(), 0);
       } else if (wasResume) {
         // Reprise refusée ou en échec : la session reste (nouvel essai, ou abandon).
         ssBusy = '';
@@ -2279,6 +2290,57 @@ canvas.addEventListener('click', () => {
   if (touchInput) termInput.focus({ preventScroll: true });
 });
 
+// Tablettes et téléphones : toucher hors du terminal, à droite de son centre : PF8 (page
+// suivante); à gauche : PF7 (page précédente); double toucher à gauche : PF3 (retour). Pas
+// sur les boutons, les champs, le pupitre, les onglets ni la barre des touches; un
+// glissement (défilement) n'est pas un toucher.
+const TAP_SKIP = 'button, input, select, textarea, a, label, dialog, .op-panel, .term-tabs, .key-bar, .toolbar';
+const TAP_DOUBLE_MS = 300;
+let tapStart = null;
+let tapLeft = 0; // attente d'un second toucher à gauche (minuterie)
+
+function tapFlash(key, x, y) {
+  const el = document.createElement('div');
+  el.className = 'tap-key';
+  el.textContent = key;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 600);
+}
+
+function tapKey(key, x, y) {
+  termKey(key);
+  tapFlash(key, x, y);
+}
+
+const contentArea = document.querySelector('main.content');
+contentArea.addEventListener('pointerdown', (e) => {
+  tapStart = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
+});
+contentArea.addEventListener('pointerup', (e) => {
+  const s = tapStart;
+  tapStart = null;
+  if (!s || e.pointerType !== 'touch' || currentTerm() === null || canvas.hidden || !running) return;
+  if (e.target === canvas || e.target.closest(TAP_SKIP)) return;
+  if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12 || performance.now() - s.t > 600) return;
+  const r = canvas.getBoundingClientRect();
+  const { clientX: x, clientY: y } = e;
+  if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return;
+  if (x >= r.left + r.width / 2) {
+    tapKey('PF8', x, y);
+  } else if (tapLeft) {
+    clearTimeout(tapLeft);
+    tapLeft = 0;
+    tapKey('PF3', x, y);
+  } else {
+    tapLeft = setTimeout(() => {
+      tapLeft = 0;
+      tapKey('PF7', x, y);
+    }, TAP_DOUBLE_MS);
+  }
+});
+
 function termKeydown(e) {
   if (e.isComposing) return;
   const k = e.key;
@@ -2519,6 +2581,14 @@ const showKeysBox = $('show-keys');
 function showKeys() {
   return prefs.showKeys ?? matchMedia('(pointer: coarse)').matches;
 }
+// Mise en veille automatique (menu Machine).
+const autoSuspendBox = $('auto-suspend');
+autoSuspendBox.checked = autoSuspend();
+autoSuspendBox.addEventListener('change', () => {
+  prefs.autoSuspend = autoSuspendBox.checked;
+  savePrefs();
+});
+
 showKeysBox.checked = showKeys();
 showKeysBox.addEventListener('change', () => {
   prefs.showKeys = showKeysBox.checked;
@@ -2698,9 +2768,18 @@ $('jcl-submit').addEventListener('click', () => {
 
 // ------------------------------------------------------------------ départ
 
-window.addEventListener('pagehide', () => worker?.postMessage({ type: 'flush' }));
+// Arrière-plan : iPadOS gèle la page, puis la supprime souvent (la page est rechargée au
+// retour, la machine perdue). Mise en veille automatique (réglage du menu Machine; par
+// défaut sur iPad et iPhone) : la machine est suspendue dès que la page est cachée, et
+// reprise au retour, ou au rechargement si la page a été supprimée.
+function backgrounded() {
+  worker?.postMessage({ type: 'flush' });
+  if (autoSuspend() && running && !shuttingDown && !ssBusy) suspendMachine(true);
+}
+window.addEventListener('pagehide', backgrounded);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') worker?.postMessage({ type: 'flush' });
+  if (document.visibilityState === 'hidden') backgrounded();
+  else if (ssAuto && !ssBusy && suspended && !running) resumeSession();
 });
 window.addEventListener('beforeunload', (e) => {
   if (running) {
@@ -2725,7 +2804,13 @@ async function main() {
   // Session suspendue d'une visite précédente : la reprendre ?
   suspended = await readSession();
   updateButtons();
-  if (suspended) ssShow({ title: 'ss.title', text: ssDescribe(suspended), buttons: ['drop', 'later', 'resume'] });
+  // Mise en veille automatique d'une page supprimée en arrière-plan : reprise sans
+  // question, sauf si des volumes lus sur place sont à choisir de nouveau.
+  const needMounts = (suspended?.cfg.mounts ?? []).some((m) => !mounts.has(m.addr));
+  if (suspended?.page?.auto && autoSuspend() && !needMounts) {
+    ssAuto = true;
+    resumeSession();
+  } else if (suspended) ssShow({ title: 'ss.title', text: ssDescribe(suspended), buttons: ['drop', 'later', 'resume'] });
 }
 
 main();

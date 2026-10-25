@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=5313566f">
+  <link rel="stylesheet" href="style.css?v=ae3071ae">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -129,6 +129,7 @@
               <textarea id="zcmds" rows="3" spellcheck="false" autocomplete="off" autocapitalize="characters" class="mono" placeholder="$S PRT1"></textarea>
               <span class="hint" data-i18n="zcmds.hint">Typed on the system console when JES2 has finished starting ($HASP492). Kept by the page, not on the volumes.</span>
             </label>
+            <label class="check" title="Suspend the machine when the page goes to the background, and resume it on return (iPad and iPhone: the system may close the page in the background)" data-i18n-title="ss.auto.tip"><input id="auto-suspend" type="checkbox"><span data-i18n="ss.auto">Suspend in the background</span></label>
             <div id="zboot" class="hc-box" hidden>
               <p class="hint"><strong data-i18n="zboot.title">Linux from the card reader</strong></p>
               <p class="hint" data-i18n-html="zboot.desc"></p>
@@ -736,6 +737,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=5313566f"></script>
+  <script type="module" src="main.js?v=ae3071ae"></script>
 </body>
 </html>

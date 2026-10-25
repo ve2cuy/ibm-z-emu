@@ -104,6 +104,10 @@ Sur le clavier 3270 : **Échap** est la touche Clear, **F3** (PF3) revient en ar
 ISPF, **Ctrl+R** (Reset) libère le clavier s'il reste verrouillé (« X SYSTÈME » dans la
 barre au-dessus de l'écran).
 
+Sur tablette et téléphone, touchez à côté du terminal (hors de son écran) : à droite,
+**PF8** (page suivante); à gauche, **PF7** (page précédente); deux touchers rapides à gauche,
+**PF3** (retour).
+
 ## 5. Soumettre un travail en lots
 
 1. Ouvrez le menu **Lecteur de cartes**. L'exemple (bouton **Exemple**) assemble, lie et
@@ -141,6 +145,10 @@ comprises (sur les terminaux de la page; un client TN3270 du relais doit se reco
   MVS ne pourrait pas continuer sur des disques changés.
 - Un arrêt propre reste la meilleure façon de finir une journée : une session suspendue
   dépend de ce fureteur et de ses volumes.
+- **iPad et iPhone** : le système ferme souvent la page quand le fureteur passe en
+  arrière-plan, ce qui perdait la machine. La case **Suspendre en arrière-plan** (menu
+  **Machine**, cochée d'office sur ces appareils) suspend la machine dès que la page est
+  cachée; au retour, ou au rechargement si la page a été fermée, la session reprend seule.
 
 ## 7. Pour aller plus loin
 
