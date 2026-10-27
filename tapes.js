@@ -4,7 +4,7 @@
 // (avec ou sans anneau d'écriture). Les demandes de montage du système (IEF233A, IEC501A
 // « M 480,TAPE01 ») sont affichées près de l'unité, et la bande du même nom proposée.
 
-import { t } from './i18n.js?v=c86474da';
+import { t } from './i18n.js?v=806babd3';
 
 const $ = (id) => document.getElementById(id);
 const hex3 = (n) => n.toString(16).toUpperCase().padStart(3, '0');

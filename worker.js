@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=c86474da';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=806babd3';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -334,9 +334,20 @@ async function build(cfg) {
   for (const p of PUNCHES) emu.attach_punch(p);
   TAPES = of('tape').map((d) => d.addr);
   for (const d of of('tape')) emu.attach_tape(d.addr, parseInt(d.type, 16) || 0x3420);
-  // Carte Ethernet LCS (z/Architecture) : lecture à l'adresse paire, écriture à la suivante.
-  LCS = arch === 'z' ? (of('lcs').find((d) => d.addr % 2 === 0)?.addr ?? null) : null;
-  if (LCS !== null) emu.attach_lcs(LCS, new Uint8Array());
+  // Carte Ethernet (z/Architecture) : LCS (lecture à l'adresse paire, écriture à la
+  // suivante) ou OSA en QDIO (lecture, écriture, données à la suite).
+  LCS = null;
+  if (arch === 'z') {
+    const osa = of('osa').map((d) => d.addr).sort((a, b) => a - b)[0];
+    const lcs = of('lcs').find((d) => d.addr % 2 === 0)?.addr;
+    if (osa !== undefined) {
+      LCS = osa;
+      emu.attach_osa(osa, new Uint8Array());
+    } else if (lcs !== undefined) {
+      LCS = lcs;
+      emu.attach_lcs(lcs, new Uint8Array());
+    }
+  }
   ethSeen = '';
   tapeHandles = new Map();
   tapeSeen = '';

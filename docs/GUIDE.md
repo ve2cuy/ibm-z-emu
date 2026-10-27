@@ -310,26 +310,33 @@ changes** in the page, and choose the folder again.
 
 ### Network: Ethernet card
 
-The z/Architecture machine can have an **LCS Ethernet card** (3088, devices `E20` for
-reading and `E21` for writing). A browser cannot send packets on the network: the
-`ibmz-relay` program, the same as for the TN3270 terminals (see the releases), does it
-instead, with a small **NAT network**. Seen from the system:
+The z/Architecture machine can have an Ethernet card:
 
-- the gateway `192.168.248.12` is the PC itself, and any other address goes through it
-  (outgoing TCP and UDP connections, to the local network and the Internet; ping answers
-  for the gateway only);
-- the system has the fixed address `192.168.248.78`;
+- **OSA-Express in QDIO mode** (devices `0400` read, `0401` write, `0402` data), the card
+  of the recent machines and the one most systems expect;
+- **LCS** (3088, devices `E20` read and `E21` write), older and simpler.
+
+A browser cannot send packets on the network: the `ibmz-relay` program, the same as for
+the TN3270 terminals (see the releases), does it instead, with a small **NAT network**.
+Seen from the system:
+
+- the PC answers for every address other than the system's (gateway, local network,
+  Internet: outgoing TCP and UDP connections; ping answers for the gateway
+  `192.168.248.12` only, relay option `--gateway`);
+- the relay learns the address of the system when the system starts the card;
 - ports **21** (FTP) and **2323** (TN3270 of the system) of the PC lead to the system.
 
 To use it:
 
-1. Start `ibmz-relay` on the PC (options: `--gateway`, `--guest`, `--forward
-   pc_port:system_port[:ftp]` for other addresses and ports).
-2. **Local network** menu: check **Ethernet card (LCS E20-E21) through the relay**. A
-   Hercules configuration with `0E20.2 LCS` gives the same card.
-3. The system must use the card with these addresses. For z/OS: the `TCPIP` procedure (in
-   a PROCLIB library of the system) names its profile on its `//PROFILE DD` line. The
-   profile must contain:
+1. Start `ibmz-relay` on the PC (options: `--gateway`, `--forward
+   pc_port:system_port[:ftp]` for other ports).
+2. **Local network** menu, **Ethernet card through the relay**: choose **OSA-Express in
+   QDIO mode (0400-0402)** or **LCS (E20-E21)**. A Hercules configuration with `0400.3
+   QETH` or `0E20.2 LCS` gives the same card.
+3. The system must use the card. **OSA**: with z/OS, the usual TCP/IP profile of a
+   distribution (an OSA at 0400-0402, its fixed address and its gateway) works as is.
+   **LCS**: for z/OS, the `TCPIP` procedure (in a PROCLIB library of the system) names its
+   profile on its `//PROFILE DD` line. The profile must contain:
 
    ```
     DEVICE LCS1   LCS           E20

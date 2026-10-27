@@ -13,6 +13,8 @@ const KINDS = {
   tape: ['3410', '3420', '3422', '3430', '3480', '3490'],
   // Carte Ethernet (LAN Channel Station) : deux unités, lecture (paire) et écriture.
   lcs: ['LCS'],
+  // OSA-Express en QDIO : trois unités, lecture, écriture, données.
+  osa: ['QETH', 'OSA', 'OSD'],
 };
 
 export function kindOf(type) {
@@ -185,10 +187,12 @@ export function buildConfig({ mem, volumes, devices, version, arch = 's370' }) {
     out.push(`${hex4(v.addr)} ${t} dasd/${v.file}${CU[t] ? ` ${CU[t]}` : ''}`);
   }
   const groups = [['console', 'consoles'], ['reader', 'card readers'], ['punch', 'card punches'],
-    ['printer', 'printers'], ['tape', 'tapes'], ['terminal', 'local 3270 terminals (VTAM)'], ['lcs', 'Ethernet (LCS)']];
+    ['printer', 'printers'], ['tape', 'tapes'], ['terminal', 'local 3270 terminals (VTAM)'], ['lcs', 'Ethernet (LCS)'], ['osa', 'Ethernet (OSA-Express, QDIO)']];
   for (const [kind, title] of groups) {
-    // LCS : une instruction pour la paire (adresse paire).
-    const list = devices.filter((d) => d.kind === kind && (kind !== 'lcs' || d.addr % 2 === 0)).sort((a, b) => a.addr - b.addr);
+    // LCS, OSA : une instruction pour le groupe (première adresse).
+    let list = devices.filter((d) => d.kind === kind).sort((a, b) => a.addr - b.addr);
+    if (kind === 'lcs') list = list.filter((d) => d.addr % 2 === 0);
+    if (kind === 'osa') list = list.slice(0, 1);
     if (!list.length) continue;
     out.push('#', `# ${title}`, '#');
     for (const d of list) {
@@ -202,6 +206,7 @@ export function buildConfig({ mem, volumes, devices, version, arch = 's370' }) {
         tape: `${a} ${d.type} *`,
         terminal: `${a} ${d.type}`,
         lcs: `${a}.2 LCS`,
+        osa: `${a}.3 QETH`,
       }[kind]);
     }
   }

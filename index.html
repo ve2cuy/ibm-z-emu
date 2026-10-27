@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=c86474da">
+  <link rel="stylesheet" href="style.css?v=806babd3">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -312,7 +312,13 @@
             <label class="check"><input id="relay-on" type="checkbox"><span data-i18n="net.relay">TN3270 relay (ibmz-relay)</span></label>
             <p id="relay-status" class="hint" role="status"></p>
             <ul id="relay-clients" class="vol-list"></ul>
-            <label class="check"><input id="eth-on" type="checkbox"><span data-i18n="net.eth">Ethernet card (LCS E20-E21) through the relay</span></label>
+            <label class="field"><span data-i18n="net.eth">Ethernet card through the relay</span>
+              <select id="eth-card">
+                <option value="" data-i18n="net.eth.none">None</option>
+                <option value="osa" data-i18n="net.eth.osa">OSA-Express in QDIO mode (0400-0402)</option>
+                <option value="lcs" data-i18n="net.eth.lcs">LCS (E20-E21)</option>
+              </select>
+            </label>
             <p id="eth-status" class="hint" role="status"></p>
             <details class="more">
               <summary data-i18n="more">More information</summary>
@@ -805,6 +811,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=c86474da"></script>
+  <script type="module" src="main.js?v=806babd3"></script>
 </body>
 </html>

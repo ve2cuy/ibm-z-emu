@@ -332,26 +332,33 @@ choisissez de nouveau le dossier.
 
 ### Réseau : carte Ethernet
 
-La machine z/Architecture peut avoir une **carte Ethernet LCS** (3088, unités `E20`
-pour la lecture et `E21` pour l'écriture). Un fureteur ne peut pas envoyer de paquets
-sur le réseau : le relais `ibmz-relay`, le même que pour les terminaux TN3270 (voir les
-versions publiées), le fait à sa place avec un petit **réseau NAT**. Vu du système :
+La machine z/Architecture peut avoir une carte Ethernet :
 
-- la passerelle `192.168.248.12` est le PC lui-même, et toute autre adresse passe par lui
-  (connexions TCP et UDP sortantes, vers le réseau local et Internet; le ping ne répond
-  que pour la passerelle);
-- le système a l'adresse fixe `192.168.248.78`;
+- **OSA-Express en mode QDIO** (unités `0400` lecture, `0401` écriture, `0402` données),
+  celle des machines récentes et celle que la plupart des systèmes attendent;
+- **LCS** (3088, unités `E20` lecture et `E21` écriture), plus ancienne et plus simple.
+
+Un fureteur ne peut pas envoyer de paquets sur le réseau : le relais `ibmz-relay`, le
+même que pour les terminaux TN3270 (voir les versions publiées), le fait à sa place avec
+un petit **réseau NAT**. Vu du système :
+
+- le PC répond pour toute autre adresse que celle du système (passerelle, réseau local,
+  Internet : connexions TCP et UDP sortantes; le ping ne répond que pour la passerelle
+  `192.168.248.12`, option `--gateway` du relais);
+- le relais apprend l'adresse du système quand celui-ci démarre la carte;
 - les ports **21** (FTP) et **2323** (TN3270 du système) du PC mènent au système.
 
 Pour s'en servir :
 
-1. Lancer `ibmz-relay` sur le PC (options : `--gateway`, `--guest`, `--forward
-   port_du_PC:port_du_système[:ftp]` pour d'autres adresses et d'autres ports).
-2. Menu **Réseau local** : cocher **Carte Ethernet (LCS E20-E21) par le relais**. Une
-   configuration Hercules qui contient `0E20.2 LCS` donne la même carte.
-3. Le système doit se servir de la carte avec ces adresses. Pour z/OS : la procédure
-   `TCPIP` (dans une bibliothèque PROCLIB du système) nomme son profil dans sa ligne
-   `//PROFILE DD`. Le profil doit contenir :
+1. Lancer `ibmz-relay` sur le PC (options : `--gateway`, `--forward
+   port_du_PC:port_du_système[:ftp]` pour d'autres ports).
+2. Menu **Réseau local**, **Carte Ethernet par le relais** : choisir **OSA-Express en mode
+   QDIO (0400-0402)** ou **LCS (E20-E21)**. Une configuration Hercules qui contient
+   `0400.3 QETH` ou `0E20.2 LCS` donne la même carte.
+3. Le système doit se servir de la carte. **OSA** : avec z/OS, le profil TCP/IP habituel
+   d'une distribution (une OSA en 0400-0402, son adresse fixe et sa passerelle) convient
+   tel quel. **LCS** : pour z/OS, la procédure `TCPIP` (dans une bibliothèque PROCLIB du
+   système) nomme son profil dans sa ligne `//PROFILE DD`. Le profil doit contenir :
 
    ```
     DEVICE LCS1   LCS           E20

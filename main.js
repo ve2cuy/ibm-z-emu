@@ -2,20 +2,20 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=c86474da';
-import { initMemo } from './memo.js?v=c86474da';
-import { deckText } from './decks.js?v=c86474da';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c86474da';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=c86474da';
-import { Z_DEVICES } from './herc-conf.js?v=c86474da';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c86474da';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=c86474da';
-import { Questions } from './questions.js?v=c86474da';
-import { initFind } from './find.js?v=c86474da';
-import { pageCount, splitJobs } from './jobs.js?v=c86474da';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=c86474da';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=806babd3';
+import { initMemo } from './memo.js?v=806babd3';
+import { deckText } from './decks.js?v=806babd3';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=806babd3';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=806babd3';
+import { Z_DEVICES } from './herc-conf.js?v=806babd3';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=806babd3';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=806babd3';
+import { Questions } from './questions.js?v=806babd3';
+import { initFind } from './find.js?v=806babd3';
+import { pageCount, splitJobs } from './jobs.js?v=806babd3';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=806babd3';
 
-const VERSION = '0.1.39';
+const VERSION = '0.1.40';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -68,7 +68,7 @@ const prefs = {
   printerFit: false,      // imprimante : toute la largeur de la feuille à l'écran
   termFit: null,          // terminal ajusté à la fenêtre (null : oui, sauf sur écran tactile)
   relay: false,
-  eth: false,             // carte Ethernet LCS (E20-E21) par le relais, en z/Architecture
+  eth: false,             // carte Ethernet par le relais (z/Architecture) : 'lcs' (E20-E21), 'osa' (0400-0402)
   relayUrl: 'ws://127.0.0.1:8370',
   devices: null,          // unités d'une configuration Hercules importée (null : celles de TK5)
   devicesName: null,
@@ -247,6 +247,7 @@ function fmtSize(n) {
 }
 
 const hex3 = (n) => n.toString(16).toUpperCase().padStart(3, '0');
+const hex4 = (n) => n.toString(16).toUpperCase().padStart(4, '0');
 
 // ------------------------------------------------------------------ volumes (OPFS)
 
@@ -678,13 +679,21 @@ memList.addEventListener('change', () => {
   savePrefs();
 });
 
+/** Carte Ethernet choisie au menu Réseau local : 'lcs', 'osa' ou '' (true : LCS, ancien
+ *  réglage). */
+function ethCard() {
+  return prefs.eth === true ? 'lcs' : prefs.eth === 'lcs' || prefs.eth === 'osa' ? prefs.eth : '';
+}
+
 /** Unités de la machine choisie : la configuration importée, sinon celles de TK5 (S/370) ou
  *  du lecteur, de la perforatrice et de l'imprimante (z/Architecture). */
 function machineDevices() {
   const list = isZ() && !prefs.devices?.length ? Z_DEVICES : devices();
   // Carte Ethernet du menu Réseau local (z/Architecture), si la configuration n'en a pas.
-  if (isZ() && prefs.eth && !list.some((d) => d.kind === 'lcs')) {
-    return [...list, { addr: 0xE20, kind: 'lcs', type: 'LCS' }, { addr: 0xE21, kind: 'lcs', type: 'LCS' }];
+  const card = ethCard();
+  if (isZ() && card && !list.some((d) => d.kind === 'lcs' || d.kind === 'osa')) {
+    const addrs = card === 'osa' ? [0x400, 0x401, 0x402] : [0xE20, 0xE21];
+    return [...list, ...addrs.map((addr) => ({ addr, kind: card, type: card === 'osa' ? 'QETH' : 'LCS' }))];
   }
   return list;
 }
@@ -1695,8 +1704,8 @@ const relayUrlInput = $('relay-url');
 relayOn.checked = prefs.relay;
 relayUrlInput.value = prefs.relayUrl;
 
-/** La machine a une carte Ethernet LCS (configuration, ou case du menu Réseau local). */
-const ethDevice = () => machineDevices().some((d) => d.kind === 'lcs');
+/** La machine a une carte Ethernet (configuration, ou choix du menu Réseau local). */
+const ethDevice = () => machineDevices().some((d) => d.kind === 'lcs' || d.kind === 'osa');
 
 /** Relais voulu : terminaux TN3270, ou réseau de la carte Ethernet. */
 function relayWanted() {
@@ -1714,10 +1723,10 @@ relayOn.addEventListener('change', () => {
   showRelay();
 });
 
-const ethOn = $('eth-on');
-ethOn.checked = prefs.eth;
-ethOn.addEventListener('change', () => {
-  prefs.eth = ethOn.checked;
+const ethSel = $('eth-card');
+ethSel.value = ethCard() || '';
+ethSel.addEventListener('change', () => {
+  prefs.eth = ethSel.value || false;
   savePrefs();
   showRelay();
 });
@@ -1766,8 +1775,10 @@ function showEth() {
     if (relayState.state !== 'open') key = 'net.eth.norelay';
     else key = up === '1' ? 'net.eth.up' : 'net.eth.wait';
     vals = { mac: mac ?? '', tx: tx ?? 0, rx: rx ?? 0 };
-  } else if (prefs.eth || ethDevice()) {
+  } else if (ethCard() || ethDevice()) {
     key = isZ() ? (running ? 'net.eth.next' : 'net.eth.later') : 'net.eth.s370';
+    const d = machineDevices().filter((x) => x.kind === 'lcs' || x.kind === 'osa');
+    vals = { card: d[0]?.kind === 'osa' ? 'OSA' : 'LCS', addrs: d.length ? `${hex4(d[0].addr)}-${hex4(d.at(-1).addr)}` : '' };
   }
   box.textContent = t(key, vals);
 }
