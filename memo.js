@@ -1,10 +1,11 @@
 // Aide-mémoire de MVS 3.8j TK5 (bouton de la barre du haut) : commandes, volumes, connexion,
-// compilation COBOL, C, assembleur, PL/I et FORTRAN. Les textes sont dans i18n.js (clés
+// compilation COBOL, C, assembleur, PL/I et FORTRAN; réseau de la machine z/Architecture
+// (relais, profil TCP/IP, vérifications : essayés avec la carte OSA, en pont). Les textes sont dans i18n.js (clés
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=806babd3';
-import { deckText } from './decks.js?v=806babd3';
+import { t } from './i18n.js?v=ba603d4e';
+import { deckText } from './decks.js?v=ba603d4e';
 
 const COBOL_JOB = deckText('cobdemo');
 
@@ -33,6 +34,38 @@ NO BROADCAST MESSAGES
 HELLO HERC01 - IT IS 13:59:06 ON 10/16/26
 DATA SET PREFIX IS HERC01
 ***`;
+
+// Réseau : profil TCP/IP de la carte OSA en pont (réseau 192.168.2.0/24), ligne du serveur
+// de noms, profil de la carte LCS (adresses du NAT du relais), travail PING.
+const NET_PROFILE = `HOME
+   192.168.2.250     OSDL
+GATEWAY
+  192.168.2      =         OSDL      1500      0
+   defaultnet 192.168.2.1       OSDL   576  0`;
+
+const NET_DNS = 'NSINTERADDR  192.168.2.1';
+
+const NET_LCS = ` DEVICE LCS1   LCS           E20
+ LINK ETH1  ETHERNET  0  LCS1
+ HOME
+    192.168.248.78    ETH1
+ GATEWAY
+   192.168.248  =        ETH1      576  0
+   defaultnet 192.168.248.12     ETH1   576  0
+ START LCS1`;
+
+const NET_PING = `//PINGJOB  JOB (1),'PING',CLASS=A,MSGCLASS=H
+//S0       EXEC PGM=IEFBR14
+//DEL      DD DSN=IBMUSER.PINGOUT,DISP=(MOD,DELETE),UNIT=SYSDA,
+//            SPACE=(TRK,(1,1))
+//S1       EXEC PGM=IKJEFT01
+//SYSTSPRT DD DSN=IBMUSER.PINGOUT,DISP=(NEW,CATLG),UNIT=SYSDA,
+//            SPACE=(TRK,(5,5)),DCB=(RECFM=FB,LRECL=80,BLKSIZE=8000)
+//SYSTSIN  DD *
+PING 192.168.2.1 (COUNT 2
+PING 8.8.8.8 (COUNT 2
+PING www.ibm.com (COUNT 2
+/*`;
 
 // Sections : h (titre), p (paragraphe, HTML de i18n.js), ul/ol (clés), table (colonnes et
 // lignes : texte tel quel, ou clé i18n si l'élément est {k}), code (avec job : bouton
@@ -189,6 +222,44 @@ const SECTIONS = [
       { p: 'memo.fortran.p' },
       { code: FORTRAN_JOB, job: true },
       { ul: ['memo.fortran.n1', 'memo.fortran.n2', 'memo.fortran.n3'] },
+    ],
+  },
+  {
+    id: 'net',
+    blocks: [
+      { p: 'memo.net.p' },
+      { h: 'memo.net.relay.h' },
+      {
+        table: ['memo.col.cmd', 'memo.col.effect'],
+        rows: [
+          ['ibmz-relay', { k: 'memo.net.r.nat' }],
+          ['ibmz-relay --forward 8080:80', { k: 'memo.net.r.fwd' }],
+          ['ibmz-relay --interfaces', { k: 'memo.net.r.list' }],
+          ['ibmz-relay --bridge 192.168.2.111', { k: 'memo.net.r.bridge' }],
+        ],
+      },
+      { h: 'memo.net.prof.h' },
+      { p: 'memo.net.prof.p' },
+      { code: NET_PROFILE },
+      { h: 'memo.net.dns.h' },
+      { p: 'memo.net.dns.p' },
+      { code: NET_DNS },
+      { h: 'memo.net.lcs.h' },
+      { p: 'memo.net.lcs.p' },
+      { code: NET_LCS },
+      { h: 'memo.net.check.h' },
+      {
+        table: ['memo.col.cmd', 'memo.col.effect'],
+        rows: [
+          ['D TCPIP,,NETSTAT,HOME', { k: 'memo.net.c.home' }],
+          ['D TCPIP,,NETSTAT,DEVLINKS', { k: 'memo.net.c.dev' }],
+          ['D TCPIP,,NETSTAT,ROUTE', { k: 'memo.net.c.route' }],
+          ['D TCPIP,,NETSTAT,CONN', { k: 'memo.net.c.conn' }],
+          ['D U,,,0400,3', { k: 'memo.net.c.units' }],
+        ],
+      },
+      { p: 'memo.net.ping.p' },
+      { code: NET_PING },
     ],
   },
 ];

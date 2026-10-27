@@ -361,3 +361,31 @@ To use it:
    terminal to `localhost`, port `2323`, reaches the TN3270 server of the system. From
    another machine of the network: the address of the PC (the relay listens on all its
    interfaces; the firewall decides who reaches it).
+
+#### Bridge to the local network (an address of the system's own)
+
+With NAT, the system is reached through the address of the PC and a few ports. With a
+**bridge**, the system becomes a machine of your local network, with its own address,
+reachable on all its ports by the other machines of the network:
+
+1. A packet capture library is needed: [Npcap](https://npcap.com) on Windows (default
+   installation), `libpcap` on Linux and macOS (often already there; capture rights:
+   `sudo` or `setcap cap_net_raw,cap_net_admin+eip ibmz-relay` on Linux). And a **wired
+   card**: a Wi-Fi access point usually refuses foreign station addresses.
+2. `ibmz-relay --interfaces` lists the cards of the PC. Start `ibmz-relay --bridge
+   192.168.2.111` (the address of the PC's wired card, its name or part of its
+   description).
+3. Give the system a free address of your network, outside the DHCP range of the router.
+   For z/OS with the OSA, in the TCP/IP profile (the member named on the `//PROFILE DD`
+   line of the `TCPIP` procedure):
+   the address under `HOME`, the subnet and the gateway (your router) under `GATEWAY`. For
+   names (DNS): `NSINTERADDR` followed by the address of the name server (often the
+   router) in the TCP/IP data: the member named on the `//SYSTCPD DD` line of the
+   procedure and `TCPIP.TCPIP.DATA` (read by TSO and batch jobs). The volume manager makes these changes in the page shadow, as
+   above.
+4. **IPL**. The system answers at its address from the other machines of the network
+   (FTP, TN3270 of the system on port 23…) and reaches the Internet through the router.
+
+Limit: the PC running the relay does not reach the system at this address (a card does
+not receive the frames it sends itself). From this PC, the relay ports still lead to the
+system: `ftp localhost`, TN3270 to `localhost:2323`.

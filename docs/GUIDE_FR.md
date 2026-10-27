@@ -384,3 +384,32 @@ Pour s'en servir :
    `227`/`229`). Un terminal TN3270 à `localhost`, port `2323`, joint le serveur TN3270 du
    système. Depuis une autre machine du réseau : l'adresse du PC (le relais écoute sur
    toutes ses cartes; le pare-feu décide qui le joint).
+
+#### Pont vers le réseau local (adresse propre au système)
+
+Avec le NAT, on joint le système par l'adresse du PC et quelques ports. Avec un **pont**,
+le système devient une machine de votre réseau local, avec sa propre adresse, joignable
+sur tous ses ports par les autres machines du réseau :
+
+1. Il faut une bibliothèque de capture de paquets : [Npcap](https://npcap.com) sous
+   Windows (installation par défaut), `libpcap` sous Linux et macOS (souvent déjà là;
+   droits de capture : `sudo` ou `setcap cap_net_raw,cap_net_admin+eip ibmz-relay` sous
+   Linux). Et une **carte filaire** : un point d'accès Wi-Fi refuse en général les
+   adresses de station étrangères.
+2. `ibmz-relay --interfaces` liste les cartes du PC. Lancer `ibmz-relay --bridge
+   192.168.2.111` (l'adresse de la carte filaire du PC, son nom ou un morceau de sa
+   description).
+3. Donner au système une adresse libre de votre réseau, hors de la plage DHCP du routeur.
+   Pour z/OS avec l'OSA, dans le profil TCP/IP (le membre nommé par la ligne
+   `//PROFILE DD` de la procédure `TCPIP`) :
+   l'adresse sous `HOME`, le sous-réseau et la passerelle (votre routeur) sous `GATEWAY`.
+   Pour les noms (DNS) : `NSINTERADDR` suivi de l'adresse du serveur de noms (souvent le
+   routeur) dans les données TCP/IP : le membre nommé par la ligne `//SYSTCPD DD` de la
+   procédure et `TCPIP.TCPIP.DATA` (lu par TSO et les travaux). Le gestionnaire de volumes fait ces modifications dans
+   l'ombre de la page, comme plus haut.
+4. **IPL**. Le système répond à son adresse depuis les autres machines du réseau (FTP,
+   TN3270 du système sur le port 23…) et joint Internet par le routeur.
+
+Limite : le PC qui fait tourner le relais ne joint pas le système par cette adresse (une
+carte ne reçoit pas les trames qu'elle envoie elle-même). Depuis ce PC, les ports du
+relais mènent toujours au système : `ftp localhost`, TN3270 à `localhost:2323`.

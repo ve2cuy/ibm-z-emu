@@ -804,19 +804,19 @@ export class Emulator {
         return ret;
     }
     /**
+     * @returns {boolean}
+     */
+    threads_done() {
+        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * Nombre de fils de processeurs (0 : un seul fil).
      * @returns {number}
      */
     threads() {
         const ret = wasm.emulator_threads(this.__wbg_ptr);
         return ret >>> 0;
-    }
-    /**
-     * @returns {boolean}
-     */
-    threads_done() {
-        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
-        return ret !== 0;
     }
     /**
      * Gestionnaire de volumes, machine en marche : opération de lecture `op` (voir
@@ -1205,26 +1205,26 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_6988e9f90f17dca2: function(arg0) {
+        __wbg_flush_19031f1dec54b77d: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_6d4e933f5fc78e66: function() {
+        __wbg_now_9c3e2aedc4400673: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_ea367fed193856c4: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_394fc0a4af42d313: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_e11a6aa3cb8a910e: function(arg0) {
+        __wbg_size_03376d5b14f1274b: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_truncate_1cf32bf7b47c612c: function(arg0, arg1) {
+        __wbg_truncate_ed33cb2c6850a433: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_48114e34b98c99c9: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_7a21e525a898607d: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
