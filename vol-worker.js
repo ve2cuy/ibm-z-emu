@@ -9,9 +9,11 @@
 // le disque) : lecture seule, par FileReaderSync, sans copie; {shadows} : ses fichiers
 // d'ombre de Hercules, dans l'ordre de création, posés dessus. Réponse : {id, ok, result} ou
 // {id, ok: false, error} (« code|détail »). {id, op: 'blank', devtype, cyls, volser} : image
-// d'un volume vierge (Uint8Array).
+// d'un volume vierge (Uint8Array). {id, op: 'shadow', name} : l'ombre de la page
+// shadow/<name> convertie en ombre de Hercules (Uint8Array). {id, op: 'newtape', volser,
+// owner} : bande vierge avec étiquettes standard (AWS).
 
-import init, { VolumeImage, blank_volume } from './pkg/ibmz_web.js?v=b674b885';
+import init, { VolumeImage, blank_volume, labeled_tape, overlay_shadow } from './pkg/ibmz_web.js?v=9a5a75f1';
 
 const version = new URL(import.meta.url).search; // ?v=… transmis par la page
 let ready = null;
@@ -72,6 +74,20 @@ self.onmessage = async ({ data }) => {
   try {
     ready ??= init(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url));
     await ready;
+    // Ombre de la page (dossier shadow de l'OPFS) en ombre de Hercules : {name}.
+    if (data.op === 'shadow') {
+      const root = await navigator.storage.getDirectory();
+      const f = await (await (await root.getDirectoryHandle('shadow')).getFileHandle(data.name)).getFile();
+      const result = overlay_shadow(new Uint8Array(await f.arrayBuffer()));
+      postMessage({ id: data.id, ok: true, result }, [result.buffer]);
+      return;
+    }
+    // Bande vierge étiquetée : {volser, owner}.
+    if (data.op === 'newtape') {
+      const result = labeled_tape(data.volser, data.owner ?? '');
+      postMessage({ id: data.id, ok: true, result }, [result.buffer]);
+      return;
+    }
     // Volume vierge : fabriqué en mémoire, rangé par la page (writeVolume).
     if (data.op === 'blank') {
       const result = blank_volume(data.devtype, data.cyls, data.volser);

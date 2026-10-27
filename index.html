@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=b674b885">
+  <link rel="stylesheet" href="style.css?v=9a5a75f1">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -63,6 +63,8 @@
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
       <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14"/><path d="M15 5v14"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+      <symbol id="i-tape" viewBox="0 0 24 24"><circle cx="7" cy="11" r="4"/><circle cx="17" cy="11" r="4"/><path d="M7 15h10"/><circle cx="7" cy="11" r="1"/><circle cx="17" cy="11" r="1"/></symbol>
       <symbol id="i-punch" viewBox="0 0 24 24"><path d="M6 5h15v14H3V8z"/><path d="M7 9v2M10 9v4M13 9v2M16 9v3M7 15v1M11 14v2M15 15v1"/></symbol>
       <symbol id="i-first" viewBox="0 0 24 24"><path d="M6 5v14M18 6l-7 6 7 6"/></symbol>
       <symbol id="i-last" viewBox="0 0 24 24"><path d="M18 5v14M6 6l7 6-7 6"/></symbol>
@@ -130,6 +132,12 @@
               <span class="hint" data-i18n="zcmds.hint">Typed on the system console when JES2 has finished starting ($HASP492). Kept by the page, not on the volumes.</span>
             </label>
             <label class="check" title="Suspend the machine when the page goes to the background, and resume it on return (iPad and iPhone: the system may close the page in the background)" data-i18n-title="ss.auto.tip"><input id="auto-suspend" type="checkbox"><span data-i18n="ss.auto">Suspend in the background</span></label>
+            <label class="check" title="On resumption, the system clock jumps to the real time (TSO sessions idle for longer than allowed may then be cancelled)" data-i18n-title="ss.clock.tip"><input id="resume-clock" type="checkbox"><span data-i18n="ss.clock">Set the clock on resumption</span></label>
+            <div class="row">
+              <button id="ss-import" type="button" class="secondary with-icon" title="Resume a session saved in a file (.ibmz): its volumes replace those of the same name" data-i18n-title="ss.import.tip">
+                <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="ss.import">Import a session…</span></button>
+              <input id="ss-import-file" type="file" accept=".ibmz" hidden>
+            </div>
             <div id="zboot" class="hc-box" hidden>
               <p class="hint"><strong data-i18n="zboot.title">Linux from the card reader</strong></p>
               <p class="hint" data-i18n-html="zboot.desc"></p>
@@ -182,6 +190,8 @@
                     <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="hc.remount">Choose the files…</span>
                     <input id="hc-remount-file" type="file" multiple hidden>
                   </label>
+                  <button id="hc-overlay-export" type="button" class="secondary with-icon" title="Save the changes made in the page as Hercules shadow files (the next ones of each volume, as with sf+)" data-i18n-title="hc.overlay.export.tip">
+                    <svg class="icon"><use href="#i-download"/></svg><span data-i18n="hc.overlay.export">Hercules shadows</span></button>
                   <button id="hc-overlay-clear" type="button" class="secondary" data-i18n="hc.overlay.clear">Forget the changes</button>
                 </div>
               </div>
@@ -210,6 +220,31 @@
             <details class="more">
               <summary data-i18n="more">More information</summary>
               <p class="hint" data-i18n="vol.hint"></p>
+            </details>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <button type="button" class="nav-item" aria-expanded="false" aria-controls="panel-tapes" data-tip="Tapes" data-i18n-tip="nav.tapes">
+            <svg class="chev"><use href="#i-chevron"/></svg>
+            <svg class="icon"><use href="#i-tape"/></svg>
+            <span class="label" data-i18n="nav.tapes">Tapes</span>
+          </button>
+          <div id="panel-tapes" class="nav-panel" hidden>
+            <div id="tape-units" class="tape-units"></div>
+            <p id="tape-summary" class="hint"></p>
+            <ul id="tape-list" class="vol-list"></ul>
+            <div class="row wrap">
+              <label class="button secondary with-icon" title="Copy AWS or HET tapes (Hercules format) into this browser" data-i18n-title="tape.import.tip">
+                <svg class="icon"><use href="#i-upload"/></svg><span data-i18n="tape.import">Import tapes…</span>
+                <input id="tape-file" type="file" accept=".aws,.het" multiple hidden>
+              </label>
+              <button id="tape-new" type="button" class="secondary with-icon" title="A blank tape with standard labels (VOL1), as IEHINITT makes them" data-i18n-title="tape.new.tip">
+                <svg class="icon"><use href="#i-pencil"/></svg><span data-i18n="tape.new">New tape…</span></button>
+            </div>
+            <details class="more">
+              <summary data-i18n="more">More information</summary>
+              <p class="hint" data-i18n="tape.hint"></p>
             </details>
           </div>
         </div>
@@ -307,6 +342,12 @@
             </label>
             <label class="check"><input id="show-panel" type="checkbox"><span data-i18n="panel.show">Show the operator panel</span></label>
             <label class="check"><input id="show-keys" type="checkbox"><span data-i18n="keys.show">Show the 3270 keys</span></label>
+            <label class="field"><span data-i18n="look.label">3270 screen</span>
+              <select id="look-list" autocomplete="off">
+                <option value="modern" data-i18n="look.modern">Modern</option>
+                <option value="vintage" data-i18n="look.vintage">Vintage (phosphor, 3270 font)</option>
+              </select>
+            </label>
           </div>
         </div>
 
@@ -335,6 +376,8 @@
         <h1 class="machine-name">IBM System/370</h1>
         <div class="toolbar-actions">
           <span id="speed" class="speed" title="Emulated processor speed" data-i18n-title="speed.tip"></span>
+          <button id="qa-button" type="button" class="secondary with-icon qa-button" title="The system is waiting for an answer from the operator" data-i18n-title="qa.tip" hidden>
+            <svg class="icon"><use href="#i-bell"/></svg><span id="qa-count">1</span></button>
           <button id="power" type="button" class="secondary with-icon" title="IPL (load) the system, or stop the machine" data-i18n-title="power.tip" disabled>
             <svg class="icon"><use href="#i-power"/></svg><span id="power-label" data-i18n="power.ipl">IPL</span></button>
           <button id="suspend" type="button" class="secondary with-icon" title="Suspend the session: it can be resumed later, even after reloading the page" data-i18n-title="ss.tip" hidden>
@@ -419,6 +462,15 @@
             <svg class="icon"><use href="#i-width"/></svg></button>
           <button id="term-fit" type="button" class="icon-button small" aria-pressed="true" title="Fit the screen to the window" data-i18n-title="term.fit" aria-label="Fit the screen to the window" data-i18n-aria="term.fit" hidden>
             <svg class="icon"><use href="#i-width"/></svg></button>
+          <span id="find-box" class="find-box" role="search" hidden>
+            <input id="find-input" type="search" spellcheck="false" autocomplete="off" placeholder="Find" data-i18n-placeholder="find.placeholder" aria-label="Find" data-i18n-aria="find.placeholder">
+            <span id="find-count" class="find-count"></span>
+            <button id="find-prev" type="button" class="icon-button small" title="Previous" data-i18n-title="find.prev" aria-label="Previous" data-i18n-aria="find.prev">↑</button>
+            <button id="find-next" type="button" class="icon-button small" title="Next" data-i18n-title="find.next" aria-label="Next" data-i18n-aria="find.next">↓</button>
+            <button id="find-filter" type="button" class="icon-button small find-filter" aria-pressed="false" title="Show only the lines that contain the text" data-i18n-title="find.filter.tip"><span data-i18n="find.filter">Filter</span></button>
+            <button id="find-copy" type="button" class="icon-button small" title="Copy what is shown" data-i18n-title="find.copy" aria-label="Copy what is shown" data-i18n-aria="find.copy">
+              <svg class="icon"><use href="#i-copy"/></svg></button>
+          </span>
           <span id="term-status" class="telnet-status" role="status"></span>
           <button id="full-button" type="button" class="icon-button small" title="Full screen" data-i18n-title="term.full" aria-label="Full screen" data-i18n-aria="term.full" hidden>
             <svg class="icon"><use href="#i-expand"/></svg></button>
@@ -564,6 +616,17 @@
     </div>
   </dialog>
 
+  <!-- Questions de l'opérateur en attente (questions.js) -->
+  <dialog id="qa" class="dialog sd qa" aria-labelledby="qa-title">
+    <h2 id="qa-title" data-i18n="qa.title">Questions waiting for an answer</h2>
+    <p class="hint" data-i18n="qa.hint">The system is waiting for these answers. A usual answer is proposed when one is known: check it, change it if needed, then Send. Nothing is answered without you.</p>
+    <div id="qa-list" class="qa-list"></div>
+    <div class="dialog-actions">
+      <span class="grow"></span>
+      <button id="qa-close" type="button" data-i18n="memo.close">Close</button>
+    </div>
+  </dialog>
+
   <!-- Session suspendue (mise en veille : main.js, session.js) -->
   <dialog id="ss" class="dialog sd ss" aria-labelledby="ss-title">
     <h2 id="ss-title" data-i18n="ss.title">Suspended session</h2>
@@ -572,6 +635,8 @@
     <p id="ss-result" class="sd-result" role="status"></p>
     <div class="dialog-actions">
       <button id="ss-drop" type="button" class="secondary" data-i18n="ss.drop">Discard the session</button>
+      <button id="ss-export" type="button" class="secondary with-icon" title="Save the suspended session in a file (with the volumes), to resume it elsewhere or later" data-i18n-title="ss.export.tip">
+        <svg class="icon"><use href="#i-download"/></svg><span data-i18n="ss.export">Export…</span></button>
       <span class="grow"></span>
       <button id="ss-later" type="button" class="secondary" data-i18n="ss.later">Later</button>
       <button id="ss-resume" type="button" data-i18n="ss.resume">Resume</button>
@@ -737,6 +802,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=b674b885"></script>
+  <script type="module" src="main.js?v=9a5a75f1"></script>
 </body>
 </html>

@@ -15,8 +15,8 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=b674b885';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=b674b885';
+import { t } from './i18n.js?v=9a5a75f1';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=9a5a75f1';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status(), sessionGuard() }
 let plan = null;
@@ -617,6 +617,49 @@ async function clearOverlays() {
   ctx.status('hc.overlay.done');
 }
 
+/** Nom du prochain fichier d'ombre de Hercules d'un volume (zares1_1 -> zares1_2; sans
+ *  ombre : stem_1, à renommer selon le modèle sf= de la configuration). */
+export function nextShadowName(m) {
+  const last = (m.shadowPaths ?? []).at(-1);
+  if (!last) return `${m.stem}_1`;
+  const name = last.split(/[\\/]/).pop();
+  const k = /^(.*?)(\d+)((?:\.[^.]*)?)$/.exec(name);
+  return k ? `${k[1]}${Number(k[2]) + 1}${k[3]}` : `${name}_2`;
+}
+
+/** Ombres de la page des volumes lus sur place, enregistrées en ombres de Hercules (une par
+ *  volume modifié, à mettre dans le dossier des ombres de Hercules : comme sf+). */
+async function exportOverlays() {
+  if (ctx.running()) return ctx.status('hc.overlay.export.running');
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('shadow', { create: true });
+  const worker = new Worker(new URL(`./vol-worker.js${ctx.search}`, import.meta.url), { type: 'module' });
+  const call = (msg) => new Promise((resolve, reject) => {
+    worker.onmessage = ({ data }) => (data.ok ? resolve(data.result) : reject(new Error(data.error)));
+    worker.onerror = (e) => reject(new Error(e.message || 'vol-worker.js'));
+    worker.postMessage({ id: 1, ...msg });
+  });
+  const done = [];
+  try {
+    for (const m of ctx.prefs.mounts ?? []) {
+      const name = overlayName(m);
+      const f = await (await dir.getFileHandle(name).catch(() => null))?.getFile();
+      if (!f || f.size <= 24) continue;
+      const bytes = await call({ op: 'shadow', name });
+      const out = nextShadowName(m);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      a.download = out;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      done.push(out);
+    }
+  } finally {
+    worker.terminate();
+  }
+  ctx.status(done.length ? 'hc.overlay.exported' : 'hc.overlay.none', { n: done.length, list: done.join(', ') });
+}
+
 /** Nom de l'ombre de la page d'un volume lu sur place (zares1.a81.ovl). */
 export function overlayName(m) {
   return `${m.stem}.${hex3(m.addr).toLowerCase()}.ovl`;
@@ -650,6 +693,7 @@ export function initHerc(context) {
     if (files.length) remount(files);
   });
   $('hc-overlay-clear').addEventListener('click', () => clearOverlays());
+  $('hc-overlay-export').addEventListener('click', () => exportOverlays().catch((err) => ctx.status('error', { msg: err.message })));
   // Dossier : showDirectoryPicker (accès gardé), sinon un champ « dossier ».
   $('hc-dir').addEventListener('click', () => {
     if (dirOk) openFolder().catch((err) => ctx.status('error', { msg: err.message }));

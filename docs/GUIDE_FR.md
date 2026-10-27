@@ -97,6 +97,9 @@ Le détail de chaque bit est au chapitre « Control » des *Principles of Operat
    - **X** : quitter ISPF (vous arrivez à `READY`).
 6. Pour vous déconnecter : quittez ISPF, puis tapez `LOGOFF` à `READY`.
 
+Le menu **Affichage** offre un **écran 3270 d'époque** : la police 3270, le phosphore vert
+du 3278 (ou les couleurs du 3279), sa lueur et les lignes du balayage.
+
 Le bouton **plein écran**, à droite des onglets, agrandit le terminal (avec les touches
 3270 si elles sont affichées); le bouton en haut à droite de l'écran en sort.
 
@@ -108,6 +111,21 @@ Sur tablette et téléphone, touchez à côté du terminal (hors de son écran) 
 **PF8** (page suivante); à gauche, **PF7** (page précédente); deux touchers rapides à gauche,
 **PF3** (retour).
 
+### Rechercher dans la console et le journal
+
+Sous les onglets **Console** et **Journal**, une barre de recherche (aussi par **Ctrl+F**)
+surligne le texte cherché, sans tenir compte de la casse; **↑** et **↓** (ou **Entrée** et
+**Maj+Entrée**) passent d'une occurrence à l'autre. **Filtrer** ne montre que les lignes
+qui contiennent le texte (par exemple `IEF` ou `$HASP`), et le bouton de copie copie ce qui
+est montré.
+
+### Questions du système
+
+Quand MVS attend une réponse de l'opérateur (une question numérotée sur la console), un
+bouton avec une cloche paraît dans la barre du haut. Il ouvre la liste des questions en
+attente; pour chacune, la page prépare `R nn,` et, si elle connaît la réponse habituelle,
+la propose. Vérifiez-la ou changez-la, puis **Envoyer** : rien n'est répondu sans vous.
+
 ## 5. Soumettre un travail en lots
 
 1. Ouvrez le menu **Lecteur de cartes**. L'exemple (bouton **Exemple**) assemble, lie et
@@ -117,6 +135,33 @@ Sur tablette et téléphone, touchez à côté du terminal (hors de son écran) 
    programme `HELLO FROM THE S/370 EMULATOR IN YOUR BROWSER`, puis `$HASP395 HELLO ENDED`).
 4. L'onglet **Imprimante** montre la sortie du travail (imprimante 00E) : le JCL, les
    messages, la liste de l'assembleur.
+
+### Bandes
+
+Le menu **Bandes** garde des bandes aux formats AWS et HET de Hercules dans le fureteur :
+**Importer des bandes…**, ou **Nouvelle bande…** (bande vierge avec étiquettes standard,
+comme celles d'IEHINITT). Quand un travail demande une bande (`IEF233A M 480,TAPE01`), le
+menu montre la demande sous le dérouleur 480 et propose la bande de ce nom : **Monter**
+(cocher **Sans anneau** pour la protéger en écriture). MVS la décharge à la fin du travail;
+le bouton de téléchargement la rapporte sur votre disque. Exemple de travail qui écrit un
+fichier sur la bande `TAPE01` :
+
+```
+//TAPEW    JOB (ACCT),'TAPE WRITE',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1),
+//         USER=HERC01,PASSWORD=CUL8TR
+//S1       EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD *
+HELLO TAPE
+/*
+//SYSUT2   DD DSN=HERC01.TAPE.TEST,UNIT=480,VOL=SER=TAPE01,
+//            LABEL=(1,SL),DISP=(NEW,KEEP),
+//            DCB=(RECFM=FB,LRECL=80,BLKSIZE=800)
+```
+
+(`USER=` et `PASSWORD=` : la sécurité de TK5 refuse l'accès aux bandes aux travaux sans
+utilisateur.)
 
 ## 6. Arrêter proprement
 
@@ -139,7 +184,15 @@ propose de **reprendre** la session : MVS continue exactement où il était, ses
 comprises (sur les terminaux de la page; un client TN3270 du relais doit se reconnecter).
 
 - L'horloge de MVS repart de l'heure de la mise en veille : elle retarde du temps passé en
-  veille.
+  veille. La case **Remettre l'horloge à l'heure à la reprise** (menu **Machine**) la fait
+  sauter à l'heure réelle; une session TSO restée inactive trop longtemps peut alors être
+  annulée par le système.
+- **Exporter…** (fenêtre de la session suspendue) la garde dans un fichier `.ibmz`, avec les
+  volumes de la machine : un point de sauvegarde (« avant l'installation de X »), ou une
+  session à reprendre sur un autre appareil. **Importer une session…** (menu **Machine**)
+  la remet dans la page : ses volumes remplacent ceux du même nom, puis **Reprendre**. Les
+  fichiers de Hercules lus sur place ne sont pas dans le fichier : ils doivent être sur
+  l'appareil où la session est reprise.
 - La session reprise ne peut servir qu'une fois. Un IPL, l'effacement des volumes ou une
   écriture directe du gestionnaire de volumes l'abandonnent (la page le demande d'abord) :
   MVS ne pourrait pas continuer sur des disques changés.
@@ -205,7 +258,9 @@ Sous l'onglet **Imprimante**, trois boutons agissent sur l'imprimante choisie : 
 enregistre sa sortie en texte, sans les lignes vides inutiles (bas de page, sauts de page,
 plusieurs lignes vides de suite); **PDF** l'enregistre en PDF, une feuille de papier en continu par page (bandes bleues,
 bandes d'entraînement et leurs trous, comme à l'écran; 132 colonnes, 6 lignes au pouce);
-la corbeille l'efface.
+la corbeille l'efface. Quand la sortie contient des travaux (pages de séparation de JES2),
+une liste permet de n'en montrer qu'un : **TXT** et **PDF** gardent alors ce seul travail,
+dans un fichier à son nom.
 
 Commandes après l'IPL (système chargé d'un disque) : le champ **Commandes après l'IPL** du
 menu **Machine** reçoit des commandes d'opérateur, une par ligne (par exemple `$S PRT1`).
@@ -266,3 +321,10 @@ une fois la permission et retrouve les volumes. Ailleurs (Firefox, Safari), choi
 nouveau le dossier après un rechargement. Avec **Importer…** (un fichier `.cnf` seul),
 choisir soi-même les images (`.cckd`…) et leurs ombres. Arrêter Hercules d'abord : il
 garde ses ombres verrouillées.
+
+Pour rapporter dans Hercules le travail fait dans la page : machine arrêtée, **Ombres de
+Hercules** enregistre l'ombre de la page de chaque volume modifié en fichier d'ombre de
+Hercules, sous le nom du suivant de sa chaîne (`zares1_2` après `zares1_1`). Placez ces
+fichiers dans le dossier des ombres de Hercules : Hercules les prend comme les ombres les
+plus récentes, comme après `sf+`. Puis **Oublier les modifications** dans la page, et
+choisissez de nouveau le dossier.

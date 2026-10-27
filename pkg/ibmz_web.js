@@ -82,10 +82,12 @@ export class Emulator {
         wasm.emulator_attach_reader(this.__wbg_ptr, addr);
     }
     /**
+     * Dérouleur de bande (3420, 3480, 3490…), sans bande.
      * @param {number} addr
+     * @param {number} devtype
      */
-    attach_tape(addr) {
-        wasm.emulator_attach_tape(this.__wbg_ptr, addr);
+    attach_tape(addr, devtype) {
+        wasm.emulator_attach_tape(this.__wbg_ptr, addr, devtype);
     }
     /**
      * @param {number} addr
@@ -96,6 +98,17 @@ export class Emulator {
      */
     attach_terminal(addr, rows, cols, alt_rows, alt_cols) {
         wasm.emulator_attach_terminal(this.__wbg_ptr, addr, rows, cols, alt_rows, alt_cols);
+    }
+    /**
+     * Reprise : l'horloge du système remise à l'heure `unix_ms` (temps passé en veille
+     * compté, minuteries des processeurs non). Rend l'avance en secondes (0 : l'horloge
+     * était déjà à l'heure ou en avance).
+     * @param {number} unix_ms
+     * @returns {number}
+     */
+    clock_to_now(unix_ms) {
+        const ret = wasm.emulator_clock_to_now(this.__wbg_ptr, unix_ms);
+        return ret;
     }
     /**
      * @param {number} addr
@@ -284,7 +297,10 @@ export class Emulator {
      */
     static newZ(mem_mb, unix_secs) {
         const ret = wasm.emulator_newZ(mem_mb, unix_secs);
-        return Emulator.__wrap(ret);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return Emulator.__wrap(ret[0]);
     }
     /**
      * Machine S/370 : `mem_mb` : mémoire centrale (Mo, 1 à 16); `unix_secs` : heure de
@@ -470,14 +486,6 @@ export class Emulator {
         return v1;
     }
     /**
-     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
-     * @returns {number}
-     */
-    snap_mem_count() {
-        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
      * Bloc de mémoire `i` à écrire (vide s'il est nul).
      * @param {number} i
      * @returns {Uint8Array}
@@ -487,6 +495,14 @@ export class Emulator {
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
+    }
+    /**
+     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
+     * @returns {number}
+     */
+    snap_mem_count() {
+        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * Un fil par processeur (z/Architecture, plusieurs processeurs, après l'IPL) : rend
@@ -519,6 +535,77 @@ export class Emulator {
     take_instructions() {
         const ret = wasm.emulator_take_instructions(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * Monte une bande (image AWS ou HET) sur l'unité `addr`; `read_only` : sans anneau
+     * d'écriture. Rend le nombre de blocs.
+     * @param {number} addr
+     * @param {any} disk
+     * @param {string} name
+     * @param {boolean} read_only
+     * @returns {number}
+     */
+    tape_mount(addr, disk, name, read_only) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_tape_mount(this.__wbg_ptr, addr, disk, ptr0, len0, read_only);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
+    }
+    /**
+     * Reprise d'une session : nom de la bande qui était montée (à remonter), ou vide.
+     * @param {number} addr
+     * @returns {string}
+     */
+    tape_pending(addr) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.emulator_tape_pending(this.__wbg_ptr, addr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Reprise d'une session : la bande remontée à sa position, sans signal au système.
+     * @param {number} addr
+     * @param {any} disk
+     */
+    tape_remount(addr, disk) {
+        const ret = wasm.emulator_tape_remount(this.__wbg_ptr, addr, disk);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * État de l'unité : « nom|position|blocs|lecture seule (0/1)|déchargée (0/1) », ou
+     * vide (pas d'unité de bande).
+     * @param {number} addr
+     * @returns {string}
+     */
+    tape_status(addr) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.emulator_tape_status(this.__wbg_ptr, addr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Démonte la bande de l'unité `addr`.
+     * @param {number} addr
+     */
+    tape_unmount(addr) {
+        wasm.emulator_tape_unmount(this.__wbg_ptr, addr);
     }
     /**
      * Caractère tapé. Faux s'il est refusé (champ protégé, clavier verrouillé).
@@ -650,19 +737,19 @@ export class Emulator {
         return ret;
     }
     /**
-     * @returns {boolean}
-     */
-    threads_done() {
-        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
      * Nombre de fils de processeurs (0 : un seul fil).
      * @returns {number}
      */
     threads() {
         const ret = wasm.emulator_threads(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    threads_done() {
+        const ret = wasm.emulator_threads_done(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * Gestionnaire de volumes, machine en marche : opération de lecture `op` (voir
@@ -948,6 +1035,41 @@ export function cpu_thread(ptr, idx) {
 }
 
 /**
+ * Bande vierge avec étiquettes standard (VOL1, HDR1, marque), comme IEHINITT.
+ * @param {string} volser
+ * @param {string} owner
+ * @returns {Uint8Array}
+ */
+export function labeled_tape(volser, owner) {
+    const ptr0 = passStringToWasm0(volser, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(owner, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.labeled_tape(ptr0, len0, ptr1, len1);
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+
+/**
+ * Ombre de la page d'un volume lu sur place (fichier `IBMZOVL1`) convertie en fichier
+ * d'ombre de Hercules (`CKD_S370`, le suivant de la chaîne `sf=`).
+ * @param {Uint8Array} overlay
+ * @returns {Uint8Array}
+ */
+export function overlay_shadow(overlay) {
+    const ptr0 = passArray8ToWasm0(overlay, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.overlay_shadow(ptr0, len0);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
  * Le module a été construit avec les atomics (mémoire partagée : un fil par processeur
  * possible).
  * @returns {boolean}
@@ -995,22 +1117,26 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_289a18bd3a87bb67: function(arg0) {
+        __wbg_flush_8a514504c2fcbdf9: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_99f334b269003799: function() {
+        __wbg_now_f607bc36bd46a9b6: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_487845dc24d896a1: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_0362c0156c30516c: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_41bff215fe3640e0: function(arg0) {
+        __wbg_size_c1443b58269f9252: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_write_2120f84172867e4f: function(arg0, arg1, arg2, arg3) {
+        __wbg_truncate_8eff21cd272b1d43: function(arg0, arg1) {
+            const ret = arg0.truncate(arg1);
+            return ret;
+        },
+        __wbg_write_6a63a9613765ed88: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

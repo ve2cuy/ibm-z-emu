@@ -92,6 +92,9 @@ Every bit is described in the "Control" chapter of IBM's *Principles of Operatio
    - **X**: leave ISPF (you get to `READY`).
 6. To log off: leave ISPF, then type `LOGOFF` at `READY`.
 
+The **Display** menu offers a **vintage 3270 screen**: the 3270 font, the green phosphor
+of the 3278 (or the colors of the 3279), its glow and the scan lines.
+
 The **full screen** button, right of the tabs, enlarges the terminal (with the 3270 keys if
 they are shown); the button at the top right of the screen leaves it.
 
@@ -102,6 +105,20 @@ On tablets and phones, tap beside the terminal (outside its screen): on the righ
 (next page); on the left, **PF7** (previous page); two quick taps on the left, **PF3**
 (back).
 
+### Finding text in the console and the log
+
+Under the **Console** and **Log** tabs, a search bar (also with **Ctrl+F**) highlights the
+text, ignoring case; **↑** and **↓** (or **Enter** and **Shift+Enter**) go from one match
+to the next. **Filter** shows only the lines that contain the text (for example `IEF` or
+`$HASP`), and the copy button copies what is shown.
+
+### System questions
+
+When MVS waits for an answer from the operator (a numbered question on the console), a
+button with a bell appears in the top bar. It opens the list of waiting questions; for
+each, the page prepares `R nn,` and proposes the usual answer when it knows one. Check it
+or change it, then **Send**: nothing is answered without you.
+
 ## 5. Submitting a batch job
 
 1. Open the **Card reader** menu. The example (button **Example**) assembles, links and
@@ -111,6 +128,31 @@ On tablets and phones, tap beside the terminal (outside its screen): on the righ
    `HELLO FROM THE S/370 EMULATOR IN YOUR BROWSER`, then `$HASP395 HELLO ENDED`).
 4. The **Printer** tab shows the job output (printer 00E): the JCL, the messages, the
    assembler listing.
+
+### Tapes
+
+The **Tapes** menu keeps tapes in the AWS and HET formats of Hercules in the browser:
+**Import tapes…**, or **New tape…** (a blank tape with standard labels, as IEHINITT makes
+them). When a job asks for a tape (`IEF233A M 480,TAPE01`), the menu shows the request under
+drive 480 and proposes the tape of that name: **Mount** (check **No write ring** to protect
+it). MVS unloads it at the end of the job; the download button brings it back to your disk.
+A job that writes a file on the tape `TAPE01`:
+
+```
+//TAPEW    JOB (ACCT),'TAPE WRITE',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1),
+//         USER=HERC01,PASSWORD=CUL8TR
+//S1       EXEC PGM=IEBGENER
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD DUMMY
+//SYSUT1   DD *
+HELLO TAPE
+/*
+//SYSUT2   DD DSN=HERC01.TAPE.TEST,UNIT=480,VOL=SER=TAPE01,
+//            LABEL=(1,SL),DISP=(NEW,KEEP),
+//            DCB=(RECFM=FB,LRECL=80,BLKSIZE=800)
+```
+
+(`USER=` and `PASSWORD=`: TK5's security refuses tapes to jobs without a user.)
 
 ## 6. Shutting down cleanly
 
@@ -131,7 +173,13 @@ exactly where it was, TSO sessions included (on the page's terminals; a TN3270 c
 the relay must reconnect).
 
 - The MVS clock resumes from the time of the suspension: it is behind by the time spent
-  suspended.
+  suspended. The **Set the clock on resumption** box (**Machine** menu) makes it jump to
+  the real time; a TSO session idle for too long may then be cancelled by the system.
+- **Export…** (suspended session window) keeps it in a `.ibmz` file, with the machine's
+  volumes: a save point ("before installing X"), or a session to resume on another device.
+  **Import a session…** (**Machine** menu) puts it back in the page: its volumes replace
+  those of the same name, then **Resume**. Hercules files read in place are not in the
+  file: they must be on the device where the session is resumed.
 - A suspended session can be resumed only once. An IPL, erasing the volumes or a direct
   write of the volume manager discards it (the page asks first): MVS could not go on with
   changed disks.
@@ -194,6 +242,8 @@ Under the **Printer** tab, three buttons act on the chosen printer: **TXT** save
 as text, without the useless blank lines (page bottoms, page skips, several blank lines in a
 row); **PDF** saves it as a PDF, one sheet of continuous form paper per page (blue bars, tractor
 strips and their holes, as on screen; 132 columns, 6 lines per inch); the trash can clears it.
+When the output holds jobs (JES2 separator pages), a list shows only one of them: **TXT**
+and **PDF** then save that job alone, in a file named after it.
 
 Commands after the IPL (system loaded from a disk): the **Commands after the IPL** field of
 the **Machine** menu takes operator commands, one per line (for example `$S PRT1`). When JES2
@@ -250,3 +300,9 @@ access to the folder: at the next visit, **IPL** asks once for permission and fi
 volumes again. Elsewhere (Firefox, Safari), choose the folder again after reloading.
 With **Import…** (a single `.cnf` file), choose the images (`.cckd`…) and their shadow
 files yourself. Stop Hercules first: it keeps its shadow files locked.
+
+To bring the work done in the page back to Hercules: with the machine stopped, **Hercules
+shadows** saves the page's shadow of each changed volume as a Hercules shadow file, named
+as the next one of its chain (`zares1_2` after `zares1_1`). Put these files in the Hercules
+shadow folder: Hercules takes them as the newest shadows, as after `sf+`. Then **Forget the
+changes** in the page, and choose the folder again.

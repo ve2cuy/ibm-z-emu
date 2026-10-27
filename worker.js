@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=b674b885';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=9a5a75f1';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -31,6 +31,7 @@ const version = new URL(import.meta.url).search;
 let Emulator = null;
 let mtModule = null;   // WebAssembly.Module de pkg-mt (donné aux fils des processeurs)
 let mtMemory = null;   // sa mémoire partagée
+let wasmMemory = null; // mémoire du module chargé (diagnostic des erreurs fatales)
 let cpuWorkers = [];
 let lastRate = 0;      // vitesse mesurée à la dernière seconde (MIPS)
 // Unités branchées (configuration de la page : celle de TK5, ou une configuration Hercules
@@ -40,6 +41,10 @@ let READER = 0x00C;
 let PRINTERS = [0x00E, 0x00F, 0x002, 0x30E];
 let PUNCHES = [0x00D, 0x10D];
 let LOCAL_TERMS = [0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0C4, 0x0C5, 0x0C6];
+let TAPES = [0x480];
+// Bandes montées : unité -> accès synchrone au fichier (dossier tapes de l'OPFS).
+let tapeHandles = new Map();
+let tapeSeen = '';      // dernier état des bandes envoyé à la page
 
 let ready = null;
 let emu = null;
@@ -144,6 +149,14 @@ function syncDisk(h) {
     },
     size() { return h.getSize(); },
     flush() { try { h.flush(); } catch { /* rien */ } },
+    truncate(n) {
+      try {
+        h.truncate(n);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 
@@ -164,6 +177,7 @@ function blobDisk(blob) {
     write: () => false,
     size: () => blob.size,
     flush() { /* rien */ },
+    truncate: () => false,
   };
 }
 
@@ -173,6 +187,59 @@ async function openOverlay(name) {
   const dir = await root.getDirectoryHandle('shadow', { create: true });
   const fh = await dir.getFileHandle(name, { create: true });
   return syncDisk(await syncHandle(fh));
+}
+
+/** Fichier d'une bande (dossier tapes de l'OPFS), ouvert en accès synchrone. */
+async function openTape(name) {
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('tapes', { create: true });
+  const h = await syncHandle(await dir.getFileHandle(name));
+  return { h, disk: syncDisk(h) };
+}
+
+function closeTape(addr) {
+  const h = tapeHandles.get(addr);
+  if (!h) return;
+  tapeHandles.delete(addr);
+  try {
+    h.flush();
+    h.close();
+  } catch { /* déjà fermé */ }
+  const i = handles.indexOf(h);
+  if (i >= 0) handles.splice(i, 1);
+}
+
+/** Monte ou démonte une bande (message tape {addr, op, name, ro}). */
+async function tapeOp({ addr, op, name, ro }) {
+  if (!emu) throw new Error('stopped|');
+  emu.tape_unmount(addr);
+  closeTape(addr);
+  if (op === 'mount') {
+    const { h, disk } = await openTape(name);
+    tapeHandles.set(addr, h);
+    const n = emu.tape_mount(addr, disk, name, !!ro);
+    mon('tape.mount', { addr: addr.toString(16).toUpperCase().padStart(3, '0'), name, n, ro: ro ? 1 : 0 });
+  }
+  tapeReport(true);
+}
+
+/** État des bandes pour la page (quand il change); bande déchargée par le système :
+ *  fichier refermé. */
+function tapeReport(force = false) {
+  if (!emu || !TAPES.length) return;
+  const list = [];
+  for (const addr of TAPES) {
+    const s = emu.tape_status(addr);
+    if (!s) continue;
+    const [name, pos, blocks, ro, unloaded] = s.split('|');
+    if (unloaded === '1' && tapeHandles.has(addr)) closeTape(addr);
+    list.push({ addr, name, pos: Number(pos), blocks: Number(blocks), ro: ro === '1' });
+  }
+  const key = JSON.stringify(list);
+  if (force || key !== tapeSeen) {
+    tapeSeen = key;
+    post({ type: 'tapes', list });
+  }
 }
 
 function closeVolumes() {
@@ -265,7 +332,10 @@ async function build(cfg) {
   for (const d of of('reader')) emu.attach_reader(d.addr);
   for (const d of of('printer')) emu.attach_printer(d.addr, parseInt(d.type, 16) || 0x1403);
   for (const p of PUNCHES) emu.attach_punch(p);
-  for (const d of of('tape')) emu.attach_tape(d.addr);
+  TAPES = of('tape').map((d) => d.addr);
+  for (const d of of('tape')) emu.attach_tape(d.addr, parseInt(d.type, 16) || 0x3420);
+  tapeHandles = new Map();
+  tapeSeen = '';
   // Tous les terminaux locaux de la configuration sont branchés (VTAM les attend : 0C0-0C6
   // pour TK5); la page n'en montre que le nombre choisi.
   terminals = cfg.terminals;
@@ -281,6 +351,7 @@ function begin(cfg, infos, resumed) {
   if (arch === 'z' && cfg.ncpu > 1) startThreads(cfg.ncpu);
   post({ type: 'started', volumes: infos, resumed });
   running = true;
+  tapeReport(true);
   relayUrl = cfg.relay || null;
   openRelay();
   autoShutdown = false;
@@ -337,8 +408,9 @@ async function suspendDir(create = false) {
   return root.getDirectoryHandle('suspend', { create });
 }
 
-/** Empreintes des fichiers des volumes de `cfg` (absents : size -1). */
-async function fingerprints(cfg) {
+/** Empreintes des fichiers des volumes de `cfg` et des bandes montées `tapes` (absents :
+ *  size -1). */
+async function fingerprints(cfg, tapes = []) {
   const root = await navigator.storage.getDirectory();
   const out = [];
   const opfs = async (dirName, name, kind, addr) => {
@@ -356,12 +428,13 @@ async function fingerprints(cfg) {
     }
     await opfs('shadow', m.overlay, 'overlay', m.addr);
   }
+  for (const t of tapes) await opfs('tapes', t.name, 'tape', t.addr);
   return out;
 }
 
 /** Fichiers changés depuis la mise en veille (noms). */
-async function changedFiles(cfg, prints) {
-  const now = await fingerprints(cfg);
+async function changedFiles(cfg, prints, tapes = []) {
+  const now = await fingerprints(cfg, tapes);
   const same = (a, b) => a.kind === b.kind && a.addr === b.addr && a.name === b.name;
   const changed = [];
   for (const p of prints) {
@@ -482,13 +555,20 @@ async function suspend(page) {
   }
   const simMs = emu.now_ms();
   const psw = emu.psw();
+  // Bandes montées : leurs fichiers font partie de la session.
+  const tapes = [];
+  for (const addr of TAPES) {
+    const name = (emu.tape_status(addr) || '').split('|')[0];
+    if (name) tapes.push({ addr, name });
+  }
   await release();
   const meta = {
     format: 1,
     date: Date.now(),
     app: page.app,
     cfg: { ...cfgForMeta(runCfg), initDone },
-    prints: await fingerprints(runCfg),
+    tapes,
+    prints: await fingerprints(runCfg, tapes),
     bytes: sizes.bytes,
     raw: sizes.raw,
     simMs,
@@ -509,11 +589,11 @@ async function suspend(page) {
   post({ type: 'stopped', reason: 'suspended', meta });
 }
 
-async function resume(cfg, meta, lang) {
+async function resume(cfg, meta, lang, clock = false) {
   await ready;
   if (emu || handles.length) await release();
   if (!cfg.force) {
-    const changed = await changedFiles(cfg, meta.prints);
+    const changed = await changedFiles(cfg, meta.prints, meta.tapes ?? []);
     if (changed.length) {
       post({ type: 'resume-changed', list: changed });
       return;
@@ -523,6 +603,23 @@ async function resume(cfg, meta, lang) {
   const infos = await build(cfg);
   post({ type: 'resuming', done: 0, total: meta.raw });
   await readSnapshot(meta.raw, (done, total) => post({ type: 'resuming', done, total }));
+  // Bandes qui étaient montées : remontées à leur position (fichiers de l'OPFS).
+  for (const addr of TAPES) {
+    const name = emu.tape_pending(addr);
+    if (!name) continue;
+    try {
+      const { h, disk } = await openTape(name);
+      tapeHandles.set(addr, h);
+      emu.tape_remount(addr, disk);
+    } catch {
+      mon('tape.lost', { addr: addr.toString(16).toUpperCase().padStart(3, '0'), name });
+    }
+  }
+  // Horloge du système remise à l'heure (option) : le temps passé en veille est compté.
+  if (clock) {
+    const s = emu.clock_to_now(Date.now());
+    mon(s > 0 ? 'clock' : 'clock.ahead', { s: Math.round(s) });
+  }
   machineEvents();
   mon('resumed', { date: new Date(meta.date).toLocaleString(lang), sim: Math.round(meta.simMs / 1000), s: ((performance.now() - t0) / 1000).toFixed(1) });
   begin(cfg, infos, true);
@@ -943,7 +1040,10 @@ function report(e) {
   if (fatalError) return;
   if (e instanceof WebAssembly.RuntimeError || /recursive use of an object|unreachable|out of memory/i.test(msg)) {
     fatalError = msg;
-    mon('fatal', { msg });
+    // Pour le diagnostic : mémoire du module (Mo), machine demandée, pile de l'erreur.
+    const mb = wasmMemory ? Math.round(wasmMemory.buffer.byteLength / 1048576) : 0;
+    const stack = String(e?.stack ?? '').split('\n').slice(0, 4).join(' / ');
+    mon('fatal', { msg, mb, mem: runCfg?.mem ?? 0, ncpu: runCfg?.ncpu ?? 1, stack });
     // La page recrée ce fil (module neuf) avant le prochain IPL.
     post({ type: 'fatal' });
   }
@@ -1012,6 +1112,7 @@ function step() {
       post({ type: 'error', msg: err });
       mon('diskerr', { msg: err });
     }
+    tapeReport();
     statTime = t1;
   }
   if (t1 - flushTime > 5000) {
@@ -1033,7 +1134,7 @@ self.onmessage = async ({ data }) => {
         await start(data);
         break;
       case 'resume':
-        await resume(data.cfg, data.meta, data.lang);
+        await resume(data.cfg, data.meta, data.lang, data.clock);
         break;
       case 'suspend':
         await suspend(data);
@@ -1089,6 +1190,9 @@ self.onmessage = async ({ data }) => {
       case 'vol':
         volCall(data);
         break;
+      case 'tape':
+        await tapeOp(data);
+        break;
       case 'stop':
         if (emu) {
           drain();
@@ -1127,6 +1231,7 @@ async function loadWasm() {
       const pkg = await import(`./pkg-mt/ibmz_web.js${version}`);
       mtModule = await WebAssembly.compileStreaming(fetch(new URL(`./pkg-mt/ibmz_web_bg.wasm${version}`, import.meta.url)));
       const wasm = await pkg.default({ module_or_path: mtModule });
+      wasmMemory = wasm.memory;
       mtMemory = wasm.memory;
       Emulator = pkg.Emulator;
       return;
@@ -1136,7 +1241,7 @@ async function loadWasm() {
     }
   }
   const pkg = await import(`./pkg/ibmz_web.js${version}`);
-  await pkg.default(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url));
+  wasmMemory = (await pkg.default(new URL(`./pkg/ibmz_web_bg.wasm${version}`, import.meta.url))).memory;
   Emulator = pkg.Emulator;
 }
 

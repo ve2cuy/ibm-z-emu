@@ -2,16 +2,20 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=b674b885';
-import { initMemo } from './memo.js?v=b674b885';
-import { deckText } from './decks.js?v=b674b885';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=b674b885';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=b674b885';
-import { Z_DEVICES } from './herc-conf.js?v=b674b885';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=b674b885';
-import { dropSession, readSession } from './session.js?v=b674b885';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=9a5a75f1';
+import { initMemo } from './memo.js?v=9a5a75f1';
+import { deckText } from './decks.js?v=9a5a75f1';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=9a5a75f1';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=9a5a75f1';
+import { Z_DEVICES } from './herc-conf.js?v=9a5a75f1';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=9a5a75f1';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=9a5a75f1';
+import { Questions } from './questions.js?v=9a5a75f1';
+import { initFind } from './find.js?v=9a5a75f1';
+import { pageCount, splitJobs } from './jobs.js?v=9a5a75f1';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=9a5a75f1';
 
-const VERSION = '0.1.37';
+const VERSION = '0.1.38';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +33,7 @@ let suspended = null;   // description de la session suspendue (meta.json), ou n
 let ssBusy = '';        // mise en veille ('suspend') ou reprise ('resume') en cours
 let ssForce = false;    // reprendre malgré des volumes changés (après avertissement)
 let ssAuto = false;     // mise en veille automatique (arrière-plan) : reprise automatique
+let finder = null;      // recherche dans la console et le journal (find.js)
 // iPadOS et iOS (iPadOS se présente comme un Mac à écran tactile).
 const appleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const autoSuspend = () => prefs.autoSuspend ?? appleTouch;
@@ -55,6 +60,8 @@ const prefs = {
   showPanel: true,
   showKeys: null,
   autoSuspend: null,      // mise en veille en arrière-plan (null : oui sur iPad et iPhone)
+  look: 'modern',         // écran 3270 : moderne, ou d'époque (phosphore, police 3270)
+  resumeClock: false,     // reprise : horloge du système remise à l'heure réelle
   depot: 'https://ve2cuy.com/vax/ibmz',
   turbo: false,
   printer: 0x00E,
@@ -382,18 +389,21 @@ async function openWriter(dir, file, dirName = 'dasd') {
   };
 }
 
-/** Copie un flux dans l'OPFS (fichier .part, renommé à la fin si le fureteur sait renommer). */
-async function writeVolume(name, stream, onBytes) {
-  const dir = await volDir();
+/** Copie un flux dans l'OPFS (fichier .part, renommé à la fin si le fureteur sait renommer);
+ *  dossier `dirName` (défaut : celui des volumes). */
+async function writeVolume(name, stream, onBytes, dirName = 'dasd') {
+  const dir = dirName === 'dasd' ? await volDir() : await (await navigator.storage.getDirectory()).getDirectoryHandle(dirName, { create: true });
   const canMove = typeof FileSystemHandle !== 'undefined' && typeof FileSystemHandle.prototype.move === 'function';
   const part = canMove ? `${name}.part` : name;
-  const out = await openWriter(dir, part);
+  const out = await openWriter(dir, part, dirName);
   const reader = stream.getReader();
+  let total = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       await out.write(value);
+      total += value.length;
       onBytes?.(value.length);
     }
     await out.close();
@@ -410,7 +420,7 @@ async function writeVolume(name, stream, onBytes) {
       await out.fh.move(dir, name);
     } catch {
       // Renommage refusé : copie sous le nom final, puis le fichier .part est effacé.
-      const copy = await openWriter(dir, name);
+      const copy = await openWriter(dir, name, dirName);
       const reader = (await out.fh.getFile()).stream().getReader();
       for (;;) {
         const { done, value } = await reader.read();
@@ -420,6 +430,13 @@ async function writeVolume(name, stream, onBytes) {
       await copy.close();
       await dir.removeEntry(part).catch(() => {});
     }
+  }
+  // Fureteur qui n'écrit pas vraiment (stockage refusé, plein…) : le fichier n'a pas la
+  // taille reçue, il est effacé.
+  const size = (await (await dir.getFileHandle(name)).getFile()).size;
+  if (size !== total) {
+    await dir.removeEntry(name).catch(() => {});
+    throw new Error(t('vol.shortwrite', { name, size, total }));
   }
 }
 
@@ -672,6 +689,7 @@ languageListeners.push(initHerc({
   prefs,
   savePrefs,
   version: VERSION,
+  search: V,
   volumes: () => volumes,
   running: () => running,
   volDir,
@@ -979,6 +997,7 @@ async function ipl() {
   buildTabs();
   consoleText = '';
   consoleOut.textContent = '';
+  questions.clear();
   for (const k of Object.keys(printers)) delete printers[k];
   showPrinter();
   running = true;
@@ -1161,6 +1180,87 @@ turboButton.addEventListener('click', () => {
 });
 showTurbo();
 
+// ------------------------------------------------------------------ questions en attente
+
+// Questions de l'opérateur (WTOR) relevées par questions.js : un bouton de la barre du
+// haut les signale; la fenêtre propose une réponse que l'usager vérifie avant de l'envoyer
+// (sur la console où la question a paru).
+const qaDialog = $('qa');
+const questions = new Questions((list, added = []) => {
+  $('qa-button').hidden = !list.length;
+  $('qa-count').textContent = String(list.length);
+  for (const k of added) {
+    const q = list.find((x) => x.key === k);
+    if (q) logEvent('qa.new', { id: q.id ?? '—', text: q.text });
+  }
+  if (qaDialog.open) qaRender();
+});
+
+function qaSource(q) {
+  return q.src === 'term' ? t('qa.src.term', { addr: hex3(q.addr) }) : t('qa.src.console');
+}
+
+function qaRender() {
+  const list = questions.list();
+  const box = $('qa-list');
+  box.replaceChildren();
+  if (!list.length) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = t('qa.none');
+    box.append(p);
+    return;
+  }
+  for (const q of list) {
+    const item = document.createElement('div');
+    item.className = 'qa-item';
+    const text = document.createElement('div');
+    text.className = 'qa-text';
+    text.textContent = `${q.id !== null ? `${q.id}  ` : ''}${q.text}`;
+    const row = document.createElement('form');
+    row.className = 'row qa-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'mono';
+    input.spellcheck = false;
+    input.autocapitalize = 'characters';
+    input.value = `R ${q.id ?? '00'},${q.proposal}`;
+    const send = document.createElement('button');
+    send.type = 'submit';
+    send.textContent = t('qa.send');
+    row.append(input, send);
+    row.addEventListener('submit', (e) => {
+      e.preventDefault();
+      qaSend(q, input.value.trim());
+    });
+    const hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.textContent = (q.proposal ? `${t('qa.proposed', { r: q.proposal })} · ` : '') + qaSource(q);
+    item.append(text, row, hint);
+    box.append(item);
+  }
+}
+
+/** Réponse de l'usager : tapée sur la console où la question a paru. */
+function qaSend(q, text) {
+  if (!text || !running) return;
+  if (q.src === 'term') {
+    worker.postMessage({ type: 'char', addr: q.addr, text });
+    worker.postMessage({ type: 'key', addr: q.addr, key: 'Enter' });
+  } else {
+    worker.postMessage({ type: 'console', text });
+  }
+  logEvent('qa.sent', { text, src: qaSource(q) });
+  questions.answered(q.key);
+  qaRender();
+}
+
+$('qa-button').addEventListener('click', () => {
+  qaRender();
+  qaDialog.showModal();
+});
+$('qa-close').addEventListener('click', () => qaDialog.close());
+
 // ------------------------------------------------------------------ mise en veille
 
 // Session suspendue (session.js, worker.js) : la machine arrêtée à une limite
@@ -1207,6 +1307,8 @@ function ssShow({ title, text = '', progress = false, result = '', ok = true, bu
   $('ss-result').textContent = result;
   $('ss-result').className = `sd-result${result ? (ok ? ' ok' : ' error') : ''}`;
   for (const b of ['drop', 'later', 'resume', 'close']) $(`ss-${b}`).hidden = !buttons.includes(b);
+  // Exporter : une session suspendue existe et rien n'est en cours.
+  $('ss-export').hidden = !suspended || !!ssBusy || progress;
   if (!ssDialog.open) ssDialog.showModal();
 }
 
@@ -1276,6 +1378,9 @@ async function resumeSession() {
   buildTabs();
   consoleText = meta.page?.console ?? '';
   consoleOut.textContent = consoleText;
+  // Questions de la console gardée (les écrans reviennent avec la machine).
+  questions.clear();
+  questions.console(consoleText);
   for (const k of Object.keys(printers)) delete printers[k];
   Object.assign(printers, meta.page?.printers ?? {});
   showPrinter();
@@ -1289,7 +1394,7 @@ async function resumeSession() {
   renderVolumes();
   showStatus('ss.resuming');
   renderZboot();
-  worker.postMessage({ type: 'resume', cfg: { ...meta.cfg, mounts: cfgMounts, force }, meta, lang: getLanguage() });
+  worker.postMessage({ type: 'resume', cfg: { ...meta.cfg, mounts: cfgMounts, force }, meta, lang: getLanguage(), clock: !!prefs.resumeClock });
   worker.postMessage({ type: 'turbo', on: prefs.turbo });
 }
 
@@ -1328,6 +1433,67 @@ $('ss-later').addEventListener('click', () => {
   ssDialog.close();
 });
 $('ss-close').addEventListener('click', () => ssDialog.close());
+
+// Fichier de session (.ibmz) : exporter la session suspendue, importer celle d'un fichier.
+$('ss-export').addEventListener('click', async () => {
+  if (!suspended) return;
+  try {
+    const blob = await sessionFile(suspended);
+    const d = new Date(suspended.date);
+    const p2 = (n) => String(n).padStart(2, '0');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `session-${suspended.cfg.arch === 'z' ? 'z' : 's370'}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.ibmz`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 120_000);
+    logEvent('ss.exported', { name: a.download, mb: Math.round(blob.size / 1048576) });
+    showStatus('ss.exported', { name: a.download, mb: Math.round(blob.size / 1048576) });
+  } catch (e) {
+    showStatus('error', { msg: e.message });
+  }
+});
+$('ss-import').addEventListener('click', () => {
+  if (running || ssBusy) return showStatus('ss.import.running');
+  $('ss-import-file').click();
+});
+$('ss-import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || running || ssBusy) return;
+  let info;
+  try {
+    info = await sessionFileHead(file);
+  } catch {
+    return showStatus('ss.import.bad', { name: file.name });
+  }
+  const vols = info.head.files.filter((f) => f.dir === 'dasd').map((f) => f.name);
+  const have = (await listVolumes()).map((v) => v.file).filter((n) => vols.includes(n));
+  const when = new Date(info.head.date).toLocaleString(getLanguage());
+  if (!confirm(t('ss.import.confirm', { date: when, list: have.length ? have.join(', ') : '—', current: suspended ? ssDate(suspended) : '—' }))) return;
+  ssBusy = 'import';
+  updateButtons();
+  ssShow({ title: 'ss.title.import', text: t('ss.importing', { pct: 0 }), progress: true });
+  const total = info.head.files.reduce((s, f) => s + f.size, 0);
+  let done = 0;
+  try {
+    const meta = await importSessionFile(file, info, (dir, name, stream, onBytes) => writeVolume(name, stream, onBytes, dir), (n) => {
+      done += n;
+      ssProgress('ss.importing', done, total);
+    });
+    await keepStorage();
+    suspended = meta;
+    ssBusy = '';
+    logEvent('ss.imported', { name: file.name, date: when });
+    ssShow({ title: 'ss.title', text: ssDescribe(meta), result: t('ss.imported'), buttons: ['drop', 'later', 'resume'] });
+  } catch (err) {
+    ssBusy = '';
+    suspended = await readSession();
+    ssShow({ title: 'ss.title.import', result: t('ss.import.failed', { msg: err.message }), ok: false, buttons: ['close'] });
+  } finally {
+    updateButtons();
+    renderVolumes();
+  }
+});
 $('ss-drop').addEventListener('click', async () => {
   if (!confirm(t('ss.drop.confirm'))) return;
   await dropSession();
@@ -1369,6 +1535,8 @@ function onWorkerMessage({ data }) {
       }
       appendConsole(data.text);
       volConsole(data.text);
+      questions.console(data.text);
+      tapesConsole(data.text);
       break;
     case 'screen':
       // Alarme (WCC) : un bip à l'arrivée de l'écran, pour le terminal affiché seulement;
@@ -1378,7 +1546,10 @@ function onWorkerMessage({ data }) {
         if (currentTab === `t${data.addr}`) beep();
       }
       screens.set(data.addr, data.data);
-      if (data.host) journalLater(data.addr);
+      if (data.host) {
+        journalLater(data.addr);
+        questions.screen(data.addr, screenText(data.data));
+      }
       if (currentTab === `t${data.addr}`) drawScreen();
       else markTab(`t${data.addr}`);
       break;
@@ -1430,6 +1601,11 @@ function onWorkerMessage({ data }) {
         lastError = t('vol.locked', { file: data.msg.slice(7) });
         showStatus('error', { msg: lastError });
         logEvent('error', { msg: lastError });
+      } else if (/^nomem\|/.test(data.msg)) {
+        // Le fureteur refuse la mémoire centrale demandée (z/Architecture).
+        lastError = t('err.nomem', { mb: data.msg.slice(6) });
+        showStatus('error', { msg: lastError });
+        logEvent('error', { msg: lastError });
       } else if (/^ipl\|/.test(data.msg)) {
         lastError = t('ipl.failed', { addr: data.msg.slice(4) });
         showStatus('error', { msg: lastError });
@@ -1445,8 +1621,14 @@ function onWorkerMessage({ data }) {
     case 'fatal':
       workerBroken = true;
       break;
+    case 'tapes':
+      tapesState(data.list);
+      break;
     case 'stopped': {
       const wasResume = ssBusy === 'resume';
+      tapesStopped();
+      // Machine arrêtée : plus de question en attente (reprise : relevées de nouveau).
+      questions.clear();
       if (data.reason === 'suspended') {
         suspended = data.meta;
         ssBusy = '';
@@ -1647,9 +1829,12 @@ function selectTab(name) {
   // Liste des imprimantes : seulement sous l'onglet Imprimante.
   const ps = $('printer-select');
   if (ps) ps.hidden = name !== 'printer';
+  const pj = $('printer-job');
+  if (pj && name !== 'printer') pj.hidden = true;
   $('printer-fit').hidden = name !== 'printer';
   for (const id of ['printer-txt', 'printer-pdf', 'printer-clear']) $(id).hidden = name !== 'printer';
   $('term-fit').hidden = !name.startsWith('t');
+  finder?.tab();
   if (!name.startsWith('t')) $('monitor').classList.remove('term-scroll');
   if (!name.startsWith('t') && isFull()) setFull(false);
   if (name.startsWith('t')) {
@@ -1723,6 +1908,7 @@ function journalAppend(s) {
   }
   if (atEnd && !journalOut.hidden) journalOut.scrollTop = journalOut.scrollHeight;
   if (currentTab !== 'journal') markTab('journal');
+  else finder?.changed();
 }
 
 $('journal-clear').addEventListener('click', () => {
@@ -1811,7 +1997,18 @@ function appendConsole(text) {
   consoleOut.textContent = consoleText;
   if (atEnd) consoleOut.scrollTop = consoleOut.scrollHeight;
   if (currentTab !== 'console') markTab('console');
+  else finder?.changed();
 }
+
+// Recherche dans la console et le journal (find.js); Ctrl+F sous ces onglets.
+finder = initFind(
+  { box: $('find-box'), input: $('find-input'), count: $('find-count'), prev: $('find-prev'), next: $('find-next'), filter: $('find-filter'), copy: $('find-copy') },
+  () => (currentTab === 'console' ? consoleOut : currentTab === 'journal' ? journalOut : null),
+  (text) => copyText(text),
+);
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f' && finder.focus()) e.preventDefault();
+});
 
 const history = [];
 let histPos = 0;
@@ -1836,6 +2033,38 @@ consoleInput.addEventListener('keydown', (e) => {
 });
 
 // --- imprimantes
+
+// Travail choisi dans la sortie de chaque imprimante (clé de jobs.js; absent : toute la
+// sortie).
+const printerJobs = new Map();
+
+/** Liste des travaux de l'imprimante courante (sous l'onglet Imprimante). */
+function printerJobSelect() {
+  let sel = $('printer-job');
+  if (!sel) {
+    sel = document.createElement('select');
+    sel.id = 'printer-job';
+    sel.className = 'small-select';
+    sel.title = t('prt.job.tip');
+    sel.addEventListener('change', () => {
+      if (sel.value) printerJobs.set(prefs.printer, sel.value);
+      else printerJobs.delete(prefs.printer);
+      printerOut.scrollTop = 0;
+      showPrinter();
+    });
+    $('printer-fit').before(sel);
+  }
+  return sel;
+}
+
+/** Ce que montre l'onglet Imprimante : toute la sortie, ou le travail choisi. Rend
+ *  {text, job}. */
+function printerShown() {
+  const text = printers[prefs.printer] ?? '';
+  const key = printerJobs.get(prefs.printer);
+  const job = key ? splitJobs(text).find((j) => j.key === key) : null;
+  return job ? { text: text.slice(job.start, job.end), job } : { text, job: null };
+}
 
 function printerSelect() {
   let sel = $('printer-select');
@@ -1869,7 +2098,20 @@ function showPrinter() {
   sel.hidden = currentTab !== 'printer';
   // Imprimante 2 (00F, travaux du gestionnaire de volumes) : police de l'IBM 1403.
   printerOut.classList.toggle('font-1403', prefs.printer === 0x00F);
-  const text = printers[prefs.printer] ?? '';
+  // Travaux de cette sortie (pages de séparation de JES2).
+  const all = printers[prefs.printer] ?? '';
+  const jobs = splitJobs(all);
+  const jsel = printerJobSelect();
+  const want = printerJobs.get(prefs.printer) ?? '';
+  const opts = [new Option(t('prt.job.all', { n: jobs.length }), '')];
+  for (const j of jobs) {
+    const label = `${j.kind} ${j.num} ${j.name} · ${t('prt.job.pages', { n: pageCount(all.slice(j.start, j.end)) })}${j.open ? ' …' : ''}`;
+    opts.push(new Option(label, j.key));
+  }
+  if (jsel.options.length !== opts.length || [...jsel.options].some((o, i) => o.text !== opts[i].text)) jsel.replaceChildren(...opts);
+  jsel.value = jobs.some((j) => j.key === want) ? want : '';
+  jsel.hidden = currentTab !== 'printer' || !jobs.length;
+  const text = printerShown().text;
   const atEnd = printerOut.scrollTop + printerOut.clientHeight >= printerOut.scrollHeight - 30;
   // Feuilles de 66 lignes (11 pouces à 6 lignes au pouce), dont 61 imprimées : un saut de
   // page passe à la feuille suivante (le reste de la feuille reste blanc), une page plus longue continue
@@ -2039,16 +2281,19 @@ function saveFile(name, data, type) {
 function printerFileName(ext) {
   const d = new Date();
   const p2 = (n) => String(n).padStart(2, '0');
-  return `printer-${hex3(prefs.printer)}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.${ext}`;
+  const { job } = printerShown();
+  const what = job ? `${job.name.toLowerCase()}-${job.kind.toLowerCase()}${job.num}` : `printer-${hex3(prefs.printer)}`;
+  return `${what}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.${ext}`;
 }
 
+// TXT et PDF : ce qui est montré (toute la sortie, ou le travail choisi).
 $('printer-txt').addEventListener('click', () => {
-  const text = printers[prefs.printer] ?? '';
+  const { text } = printerShown();
   if (!text) return showStatus('prt.nothing');
   saveFile(printerFileName('txt'), printerText(text), 'text/plain;charset=utf-8');
 });
 $('printer-pdf').addEventListener('click', () => {
-  const text = printers[prefs.printer] ?? '';
+  const { text } = printerShown();
   if (!text) return showStatus('prt.nothing');
   saveFile(printerFileName('pdf'), printerPdf(text), 'application/pdf');
 });
@@ -2094,6 +2339,10 @@ document.fonts?.addEventListener('loadingdone', () => fitPrinter());
 // --- terminal 3270
 
 const COLORS_DARK = ['#c8ffc8', '#6aa6ff', '#ff5252', '#ff80ff', '#40ff40', '#40ffff', '#ffff40', '#ffffff'];
+// Écran d'époque : phosphore du 3278 (vert) et couleurs du 3279, un peu plus douces.
+const COLORS_VINTAGE = ['#8dffa8', '#5c9cff', '#ff4a3d', '#ff6ad5', '#36e86a', '#3ff0e2', '#ffe84a', '#e8ffe8'];
+const FONT_VINTAGE = '"IBM 3270", "DejaVu Sans Mono", Consolas, monospace';
+const vintage = () => prefs.look === 'vintage';
 const fontSizeInput = $('font-size');
 fontSizeInput.value = String(prefs.fontSize);
 fontSizeInput.addEventListener('input', () => {
@@ -2140,11 +2389,15 @@ function drawScreen() {
   const availW = mon.clientWidth - (full ? 16 : 40);
   const availH = full ? mon.clientHeight - 16 : Math.max(200, innerHeight - box.top - 70);
   let size = full ? 200 : prefs.fontSize;
-  ctx.font = `${size}px ${FONT}`;
+  const old = vintage();
+  const font = old ? FONT_VINTAGE : FONT;
+  const palette = old ? COLORS_VINTAGE : COLORS_DARK;
+  canvas.classList.toggle('vintage', old);
+  ctx.font = `${size}px ${font}`;
   let w = ctx.measureText('M').width;
   const fit = Math.min(availW / (cols * w + 16), availH / (rows * size * 1.25 + 16));
   if (fit < 1 && fit0) size = Math.max(8, Math.floor(size * fit));
-  ctx.font = `${size}px ${FONT}`;
+  ctx.font = `${size}px ${font}`;
   w = ctx.measureText('M').width;
   cellW = w;
   cellH = Math.round(size * 1.25);
@@ -2158,9 +2411,9 @@ function drawScreen() {
     canvas.style.height = `${ph}px`;
   }
   ctx.setTransform(dpr, 0, 0, dpr, 8 * dpr, 8 * dpr);
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = old ? '#020a04' : '#000';
   ctx.fillRect(-8, -8, pw, ph);
-  ctx.font = `${size}px ${FONT}`;
+  ctx.font = `${size}px ${font}`;
   ctx.textBaseline = 'top';
   if (!d) return;
   const cursor = (d[2] << 8) | d[3];
@@ -2171,7 +2424,7 @@ function drawScreen() {
       const ch = d[5 + 2 * p];
       const st = d[6 + 2 * p];
       if (st & 0x40) continue;
-      const color = COLORS_DARK[st & 7];
+      const color = palette[st & 7];
       const hl = (st >> 3) & 3;
       const x = c * cellW;
       const y = r * cellH;
@@ -2186,6 +2439,7 @@ function drawScreen() {
       if (hl === 2) ctx.fillRect(x, y + cellH - 2, cellW, 1);
     }
   }
+  if (old) vintageGlow(ctx, size, dpr);
   // Sélection (copier une partie de l'écran).
   if (sel && sel.addr === a) {
     const b = selBox();
@@ -2199,6 +2453,33 @@ function drawScreen() {
   if (flags & 2) ctx.fillRect(cc * cellW, cr * cellH, cellW, cellH);
   else if (blinkOn || !termFocused()) ctx.fillRect(cc * cellW, cr * cellH + cellH - 3, cellW, 3);
   showTermStatus(d);
+}
+
+/** Écran d'époque : lueur du phosphore (le texte flouté ajouté par-dessus), lignes de
+ *  balayage, bords assombris du tube. Sans `ctx.filter` (fureteurs anciens) : sans lueur. */
+function vintageGlow(ctx, size, dpr) {
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if ('filter' in ctx) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.7;
+    ctx.filter = `blur(${Math.max(1.5, size / 8) * dpr}px)`;
+    ctx.drawImage(canvas, 0, 0);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  const step = Math.max(2, Math.round(3 * dpr));
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  for (let y = 0; y < H; y += step) ctx.fillRect(0, y, W, Math.max(1, Math.round(dpr)));
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+  g.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  g.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
 
 function showTermStatus(d = null) {
@@ -2595,6 +2876,25 @@ autoSuspendBox.addEventListener('change', () => {
   prefs.autoSuspend = autoSuspendBox.checked;
   savePrefs();
 });
+// Horloge remise à l'heure à la reprise (désactivé par défaut : risque pour TSO).
+const resumeClockBox = $('resume-clock');
+resumeClockBox.checked = !!prefs.resumeClock;
+resumeClockBox.addEventListener('change', () => {
+  prefs.resumeClock = resumeClockBox.checked;
+  savePrefs();
+});
+
+// Écran 3270 moderne ou d'époque (menu Affichage).
+const lookList = $('look-list');
+lookList.value = prefs.look === 'vintage' ? 'vintage' : 'modern';
+lookList.addEventListener('change', () => {
+  prefs.look = lookList.value;
+  savePrefs();
+  // La police 3270 se charge à la demande : écran redessiné quand elle est prête.
+  if (vintage()) document.fonts?.load(`16px ${FONT_VINTAGE}`).then(() => drawScreen());
+  drawScreen();
+});
+if (vintage()) document.fonts?.load(`16px ${FONT_VINTAGE}`).then(() => drawScreen());
 
 showKeysBox.checked = showKeys();
 showKeysBox.addEventListener('change', () => {
@@ -2762,6 +3062,26 @@ languageListeners.push(initVolumes({
   },
 }));
 $('vm-button').addEventListener('click', () => openVolumes());
+
+// Bandes (tapes.js) : fichiers du dossier tapes de l'OPFS, montés par le fil de la machine.
+languageListeners.push(initTapes({
+  running: () => running,
+  worker: () => worker,
+  devices: () => machineDevices(),
+  status: showStatus,
+  fmtSize,
+  iconButton,
+  writeFile: (name, stream, dir) => writeVolume(name, stream, null, dir),
+  labeledTape: (volser) => new Promise((resolve, reject) => {
+    const w = new Worker(new URL(`./vol-worker.js${V}`, import.meta.url), { type: 'module' });
+    w.onmessage = ({ data }) => {
+      w.terminate();
+      if (data.ok) resolve(data.result);
+      else reject(new Error(data.error));
+    };
+    w.postMessage({ id: 1, op: 'newtape', volser, owner: 'HERC' });
+  }),
+}));
 
 $('jcl-submit').addEventListener('click', () => {
   if (!running) {

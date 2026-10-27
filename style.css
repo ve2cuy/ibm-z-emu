@@ -1601,6 +1601,9 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
 #vm-edit-info.error { color: var(--error); }
 /* Sortie des travaux : police de l'imprimante IBM 1403 (www/fonts, voir NOTICE). */
 @font-face { font-family: 'IBM 1403'; src: url('fonts/IBM140310Pitch-Regular.otf') format('opentype'); font-display: swap; }
+/* Écran 3270 d'époque : police 3270 (www/fonts, voir NOTICE), coins arrondis du tube. */
+@font-face { font-family: 'IBM 3270'; src: url('fonts/3270-Regular.woff') format('woff'); font-display: swap; }
+.screen3270.vintage { border-radius: 18px; }
 .vm-1403 { font-family: 'IBM 1403', ui-monospace, Consolas, monospace; font-size: 0.9rem; line-height: 1.25; }
 .vm-jobbar { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 0.85rem; }
 .vm-jobbar span { flex: 1; }
@@ -1789,3 +1792,27 @@ main.content, .stage { touch-action: manipulation; }
   font: 600 0.95rem ui-monospace, Consolas, monospace; animation: tap-key 0.6s ease-out forwards;
 }
 @keyframes tap-key { from { opacity: 1; } to { opacity: 0; transform: translate(-50%, -180%); } }
+/* Questions de l'opérateur en attente. */
+.qa-button { border-color: var(--accent); color: var(--accent); }
+.qa-button:not([hidden]) { animation: qa-pulse 1.6s ease-in-out infinite; }
+@keyframes qa-pulse { 50% { box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25); } }
+.dialog.qa { width: min(680px, calc(100vw - 32px)); }
+.qa-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow: auto; }
+.qa-item { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.qa-text { font-family: ui-monospace, Consolas, monospace; font-size: 0.88rem; white-space: pre-wrap; margin-bottom: 6px; }
+.qa-row { gap: 6px; }
+.qa-row input { flex: 1; min-width: 0; }
+/* Recherche dans la console et le journal. */
+.find-box { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.find-box[hidden] { display: none; }
+.find-box input { width: 11rem; padding: 3px 8px; font-size: 0.85rem; }
+.find-count { min-width: 3.2rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
+.find-filter { width: auto; min-width: max-content; padding: 0 8px; font-size: 0.8rem; }
+.find-filter.active { background: var(--accent); color: #000; }
+::highlight(find) { background-color: rgba(255, 196, 0, 0.35); }
+::highlight(find-cur) { background-color: #ff9d00; color: #000; }
+/* Bandes : dérouleurs (bande montée, demande du système, montage). */
+.tape-units { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.tape-unit { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; }
+.tape-unit .row { margin-top: 6px; align-items: center; gap: 6px; }
+.tape-request { color: var(--accent); }
