@@ -303,7 +303,8 @@ fureteur, et la machine est réglée pour lui (z/Architecture, IPL depuis `00C`,
    **Image initiale…** (les fichiers restent dans le fureteur). L'unité d'IPL est `00C`
    (le lecteur).
 3. Paramètres du noyau : `ro locale=C` lance l'installateur (il demande d'abord une
-   interface réseau, pas encore émulée); `ro locale=C init=/bin/sh` donne tout de suite
+   interface réseau : CTC ou OSA en QDIO, pas encore émulées; la carte LCS n'est pas
+   parmi ses choix); `ro locale=C init=/bin/sh` donne tout de suite
    un interpréteur de commandes BusyBox.
 4. Appuyer sur **IPL**. Linux écrit dans l'onglet **Console** (environ une minute); les
    commandes se tapent dans le champ du dessous (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
@@ -328,3 +329,51 @@ Hercules, sous le nom du suivant de sa chaîne (`zares1_2` après `zares1_1`). P
 fichiers dans le dossier des ombres de Hercules : Hercules les prend comme les ombres les
 plus récentes, comme après `sf+`. Puis **Oublier les modifications** dans la page, et
 choisissez de nouveau le dossier.
+
+### Réseau : carte Ethernet
+
+La machine z/Architecture peut avoir une **carte Ethernet LCS** (3088, unités `E20`
+pour la lecture et `E21` pour l'écriture). Un fureteur ne peut pas envoyer de paquets
+sur le réseau : le relais `ibmz-relay`, le même que pour les terminaux TN3270 (voir les
+versions publiées), le fait à sa place avec un petit **réseau NAT**. Vu du système :
+
+- la passerelle `192.168.248.12` est le PC lui-même, et toute autre adresse passe par lui
+  (connexions TCP et UDP sortantes, vers le réseau local et Internet; le ping ne répond
+  que pour la passerelle);
+- le système a l'adresse fixe `192.168.248.78`;
+- les ports **21** (FTP) et **2323** (TN3270 du système) du PC mènent au système.
+
+Pour s'en servir :
+
+1. Lancer `ibmz-relay` sur le PC (options : `--gateway`, `--guest`, `--forward
+   port_du_PC:port_du_système[:ftp]` pour d'autres adresses et d'autres ports).
+2. Menu **Réseau local** : cocher **Carte Ethernet (LCS E20-E21) par le relais**. Une
+   configuration Hercules qui contient `0E20.2 LCS` donne la même carte.
+3. Le système doit se servir de la carte avec ces adresses. Pour z/OS : la procédure
+   `TCPIP` (dans une bibliothèque PROCLIB du système) nomme son profil dans sa ligne
+   `//PROFILE DD`. Le profil doit contenir :
+
+   ```
+    DEVICE LCS1   LCS           E20
+    LINK ETH1  ETHERNET  0  LCS1
+    HOME
+       192.168.248.78    ETH1
+    GATEWAY
+      192.168.248  =        ETH1      576  0
+      defaultnet 192.168.248.12     ETH1   576  0
+    START LCS1
+   ```
+
+   Certaines distributions ont déjà un tel profil à côté de celui par défaut (prévu pour
+   une OSA) : il suffit alors de changer le nom du membre dans la ligne `//PROFILE DD`.
+   Machine arrêtée, le **gestionnaire de volumes** le fait aussi sur les volumes lus sur
+   place : choisir le volume, la bibliothèque PROCLIB, le membre `TCPIP`, **Modifier**,
+   **Enregistrer** (la modification va dans l'ombre de la page; le fichier sur le disque
+   reste intact).
+4. **IPL**. Le menu **Réseau local** dit « Carte … démarrée par le système » quand TCP/IP
+   l'a démarrée.
+5. Depuis le PC : `ftp localhost` (usager et mot de passe de TSO). Les modes actif et
+   passif marchent (le relais récrit les commandes `PORT`/`EPRT` et les réponses
+   `227`/`229`). Un terminal TN3270 à `localhost`, port `2323`, joint le serveur TN3270 du
+   système. Depuis une autre machine du réseau : l'adresse du PC (le relais écoute sur
+   toutes ses cartes; le pare-feu décide qui le joint).

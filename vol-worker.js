@@ -7,13 +7,14 @@
 // text, raw) ou {id, file, op: 'write', wop, dsn, member, text, to, user, changed, stamp}
 // (écriture directe : save, savebin {bin}, delete, rename). Avec {blob} (File choisi sur
 // le disque) : lecture seule, par FileReaderSync, sans copie; {shadows} : ses fichiers
-// d'ombre de Hercules, dans l'ordre de création, posés dessus. Réponse : {id, ok, result} ou
+// d'ombre de Hercules, dans l'ordre de création, posés dessus; {overlay} : l'ombre de la page
+// (dossier shadow de l'OPFS) d'un volume lu sur place, où vont les écritures. Réponse : {id, ok, result} ou
 // {id, ok: false, error} (« code|détail »). {id, op: 'blank', devtype, cyls, volser} : image
 // d'un volume vierge (Uint8Array). {id, op: 'shadow', name} : l'ombre de la page
 // shadow/<name> convertie en ombre de Hercules (Uint8Array). {id, op: 'newtape', volser,
 // owner} : bande vierge avec étiquettes standard (AWS).
 
-import init, { VolumeImage, blank_volume, labeled_tape, overlay_shadow } from './pkg/ibmz_web.js?v=9a5a75f1';
+import init, { VolumeImage, blank_volume, labeled_tape, overlay_shadow } from './pkg/ibmz_web.js?v=c86474da';
 
 const version = new URL(import.meta.url).search; // ?v=… transmis par la page
 let ready = null;
@@ -95,9 +96,19 @@ self.onmessage = async ({ data }) => {
       return;
     }
     if (data.blob) {
-      if (data.op === 'write') throw new Error('readonly|');
+      if (data.op === 'write' && !data.overlay) throw new Error('readonly|');
       vol = new VolumeImage(blobDisk(data.blob));
       for (const s of data.shadows ?? []) vol.push_shadow(blobDisk(s));
+      // Ombre de la page : lue si elle existe; créée pour une écriture.
+      if (data.overlay) {
+        const root = await navigator.storage.getDirectory();
+        const dir = await root.getDirectoryHandle('shadow', { create: true });
+        const fh = await dir.getFileHandle(data.overlay, { create: data.op === 'write' }).catch(() => null);
+        if (fh) {
+          h = await fh.createSyncAccessHandle();
+          vol = vol.with_overlay(opfsDisk(h));
+        }
+      }
     } else {
       const root = await navigator.storage.getDirectory();
       const dir = await root.getDirectoryHandle('dasd');

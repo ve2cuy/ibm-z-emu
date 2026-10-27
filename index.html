@@ -36,7 +36,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=9a5a75f1">
+  <link rel="stylesheet" href="style.css?v=c86474da">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -312,12 +312,15 @@
             <label class="check"><input id="relay-on" type="checkbox"><span data-i18n="net.relay">TN3270 relay (ibmz-relay)</span></label>
             <p id="relay-status" class="hint" role="status"></p>
             <ul id="relay-clients" class="vol-list"></ul>
+            <label class="check"><input id="eth-on" type="checkbox"><span data-i18n="net.eth">Ethernet card (LCS E20-E21) through the relay</span></label>
+            <p id="eth-status" class="hint" role="status"></p>
             <details class="more">
               <summary data-i18n="more">More information</summary>
               <label class="field"><span data-i18n="net.url">Relay address</span>
                 <input id="relay-url" type="url" spellcheck="false" autocomplete="off" class="mono">
               </label>
               <p class="hint" data-i18n-html="net.hint"></p>
+              <p class="hint" data-i18n-html="net.eth.hint"></p>
             </details>
           </div>
         </div>
@@ -802,6 +805,6 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=9a5a75f1"></script>
+  <script type="module" src="main.js?v=c86474da"></script>
 </body>
 </html>

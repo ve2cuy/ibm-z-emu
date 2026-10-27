@@ -19,6 +19,7 @@ const PROPOSALS = {
   IFB010D: 'U',    // raison de l'IPL (LOGREC)
   BPXI078D: 'Y',   // zFS : arrêt
   IKT010D: 'SIC',  // TSO : arrêt avec usagers connectés
+  IKT003D: 'RETRY', // TSO : TCAS démarré avant que VTAM soit prêt (code 0090)
 };
 
 const RE_STAR = /(?:^|\s)[*@](\d{1,4})\s+(\S+)\s*(.*)$/;

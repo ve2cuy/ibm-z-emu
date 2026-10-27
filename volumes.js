@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=9a5a75f1';
+import { t } from './i18n.js?v=c86474da';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=9a5a75f1';
+} from './vol-jobs.js?v=c86474da';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
@@ -19,7 +19,10 @@ let jobs = null;         // JobTracker (MVS en marche)
 const confirmed = new Set(); // volumes déjà acceptés pour l'écriture directe (cette session)
 // Volumes ouverts du disque (File, lecture seule, cette session) :
 // {file: 'ext:…', name, blob, shadows: [File]} (ombres de Hercules dans l'ordre de création).
-// Pas branchés sur la machine : toujours lus par vol-worker.js, sans copie.
+// Pas branchés sur la machine : toujours lus par vol-worker.js, sans copie. Les volumes lus
+// sur place par la machine (configuration de Hercules : ctx.mounted()) ont en plus leur
+// ombre de la page {overlay, mounted} : machine arrêtée, ils sont lus et écrits par
+// vol-worker.js (écritures dans l'ombre); machine en marche, lus par elle.
 const external = [];
 let volWorker = null;
 let callId = 0;
@@ -60,14 +63,17 @@ async function call(op, args = {}) {
   // Écriture directe, machine arrêtée : une session suspendue serait faussée.
   if (op === 'write' && !ctx.running() && !(await ctx.sessionGuard())) throw new Error('suspended|');
   const vol = state.vols.find((v) => v.file === (args.file ?? state.file));
-  const blob = args.blob ?? vol?.blob;
+  const mounted = args.mounted ?? vol?.mounted;
+  // Volume lu sur place, machine en marche : lu par elle (elle tient son ombre).
+  const blob = mounted && ctx.running() ? null : args.blob ?? vol?.blob;
   const id = ++callId;
   const msg = { ...args, id, op, dsn: args.dsn ?? '', member: args.member ?? '', limit: args.limit ?? 0 };
-  delete msg.file;
-  delete msg.addr;
+  for (const k of ['file', 'addr', 'mounted', 'blob', 'shadows', 'overlay']) delete msg[k];
   if (blob) {
     msg.blob = blob;
     msg.shadows = args.shadows ?? vol?.shadows ?? [];
+    const overlay = args.overlay ?? vol?.overlay;
+    if (overlay) msg.overlay = overlay;
   }
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
@@ -243,7 +249,9 @@ function renderSummary() {
   $('vm-summary').textContent = v
     ? t('vm.summary', { volser: v.volser, type: v.devtype, cyls: v.cyls, n: v.datasets, free: v.freeTracks, dscbs: v.freeDscbs })
     : '';
-  $('vm-mode').textContent = t(vol()?.blob ? 'vm.mode.external' : ctx.running() ? 'vm.mode.running' : 'vm.mode.stopped');
+  const cur = vol();
+  const mode = cur?.mounted ? (ctx.running() ? 'vm.mode.mounted.running' : 'vm.mode.mounted') : cur?.blob ? 'vm.mode.external' : ctx.running() ? 'vm.mode.running' : 'vm.mode.stopped';
+  $('vm-mode').textContent = t(mode);
 }
 
 function renderDatasets() {
@@ -299,7 +307,7 @@ function renderViewer() {
   for (const b of document.querySelectorAll('#vm-viewer [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode));
   $('vm-edit').hidden = !editable() || !textual(v.dataset) || v.truncated;
   $('vm-view-import').hidden = !editable() || v.dataset.dsorg !== 'PS' || !textual(v.dataset);
-  $('vm-view-binimport').hidden = ctx.running() || !vol()?.info || !!vol().blob || v.dataset.dsorg !== 'PS' || !v.dataset.recfm.startsWith('F');
+  $('vm-view-binimport').hidden = ctx.running() || !vol()?.info || readOnly() || v.dataset.dsorg !== 'PS' || !v.dataset.recfm.startsWith('F');
   $('vm-view-info').textContent = t(v.truncated ? 'vm.view.truncated' : 'vm.view.info', {
     records: v.records, bytes: v.bytes, recfm: v.dataset.recfm, lrecl: v.dataset.lrecl,
   });
@@ -315,8 +323,13 @@ function textual(d) {
   return /^[FV]/.test(d.recfm) && (d.dsorg === 'PO' || d.dsorg === 'PS');
 }
 
-/** Écriture possible : directe (machine arrêtée) ou par travaux (MVS en marche, volume MVS). */
+/** Image du disque de l'usager sans ombre de la page (ouverte du disque) : lecture seule. */
+const readOnly = () => !!vol()?.blob && !vol().mounted;
+
+/** Écriture possible : directe (machine arrêtée) ou par travaux (MVS en marche, volume MVS).
+ *  Volume lu sur place : machine arrêtée seulement (écritures dans l'ombre de la page). */
 function editable() {
+  if (vol()?.mounted) return !!vol().info && !ctx.running();
   return !!vol()?.info && !vol().blob && (!ctx.running() || !!jobs);
 }
 
@@ -753,7 +766,7 @@ function renderTools() {
   const run = ctx.running();
   $('vm-mem-tools').hidden = !members || !editable();
   $('vm-mem-compress').hidden = !run;
-  $('vm-ds-tools').hidden = !datasets || !vol()?.info || !!vol().blob;
+  $('vm-ds-tools').hidden = !datasets || !vol()?.info || readOnly() || (!!vol().mounted && run);
   $('vm-ds-new').hidden = !run;
   $('vm-ds-catalog').hidden = !run;
   $('vm-ds-hint').hidden = run;
@@ -857,7 +870,17 @@ async function setMode(mode) {
 
 async function fillVolumes() {
   const list = [];
+  const mounted = ctx.mounted?.() ?? [];
+  for (const v of mounted) {
+    try {
+      list.push({ ...v, info: await call('info', { addr: v.addr, blob: v.blob, shadows: v.shadows, overlay: v.overlay, mounted: true }) });
+    } catch {
+      list.push({ ...v, info: null });
+    }
+  }
   for (const v of ctx.volumes()) {
+    // Un volume lu sur place remplace celui de l'OPFS à la même adresse (comme à l'IPL).
+    if (mounted.some((m) => m.addr === v.addr)) continue;
     try {
       const info = await call('info', { file: v.file, addr: v.addr });
       if (!HIDDEN.test(info.volser)) list.push({ ...v, info });
@@ -882,7 +905,7 @@ async function fillVolumes() {
     const label = v.shadows?.length ? `${v.name} ${t('vm.ext.shadows', { n: v.shadows.length })}` : v.name ?? v.file;
     const o = el('option', null, v.info ? `${v.info.volser}  (${label})` : label);
     o.value = v.file;
-    (v.blob ? group : sel).append(o);
+    (v.blob && !v.mounted ? group : sel).append(o);
   }
   if (group) sel.append(group);
   return list;

@@ -2,20 +2,20 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=9a5a75f1';
-import { initMemo } from './memo.js?v=9a5a75f1';
-import { deckText } from './decks.js?v=9a5a75f1';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=9a5a75f1';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=9a5a75f1';
-import { Z_DEVICES } from './herc-conf.js?v=9a5a75f1';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=9a5a75f1';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=9a5a75f1';
-import { Questions } from './questions.js?v=9a5a75f1';
-import { initFind } from './find.js?v=9a5a75f1';
-import { pageCount, splitJobs } from './jobs.js?v=9a5a75f1';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=9a5a75f1';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=c86474da';
+import { initMemo } from './memo.js?v=c86474da';
+import { deckText } from './decks.js?v=c86474da';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=c86474da';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=c86474da';
+import { Z_DEVICES } from './herc-conf.js?v=c86474da';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=c86474da';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=c86474da';
+import { Questions } from './questions.js?v=c86474da';
+import { initFind } from './find.js?v=c86474da';
+import { pageCount, splitJobs } from './jobs.js?v=c86474da';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=c86474da';
 
-const VERSION = '0.1.38';
+const VERSION = '0.1.39';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -68,6 +68,7 @@ const prefs = {
   printerFit: false,      // imprimante : toute la largeur de la feuille à l'écran
   termFit: null,          // terminal ajusté à la fenêtre (null : oui, sauf sur écran tactile)
   relay: false,
+  eth: false,             // carte Ethernet LCS (E20-E21) par le relais, en z/Architecture
   relayUrl: 'ws://127.0.0.1:8370',
   devices: null,          // unités d'une configuration Hercules importée (null : celles de TK5)
   devicesName: null,
@@ -251,6 +252,11 @@ const hex3 = (n) => n.toString(16).toUpperCase().padStart(3, '0');
 
 const opfsOk = !!navigator.storage?.getDirectory;
 let volumes = [];      // [{file, addr, size}]
+// Relais (terminaux TN3270, réseau de la carte Ethernet) : état annoncé par le fil; carte
+// de la machine en marche (fixée à l'IPL) et son état (message eth du fil).
+let relayState = { state: 'off', clients: [] };
+let runEth = false;
+let ethState = '';
 let volBusy = false;
 
 async function volDir() {
@@ -675,7 +681,12 @@ memList.addEventListener('change', () => {
 /** Unités de la machine choisie : la configuration importée, sinon celles de TK5 (S/370) ou
  *  du lecteur, de la perforatrice et de l'imprimante (z/Architecture). */
 function machineDevices() {
-  return isZ() && !prefs.devices?.length ? Z_DEVICES : devices();
+  const list = isZ() && !prefs.devices?.length ? Z_DEVICES : devices();
+  // Carte Ethernet du menu Réseau local (z/Architecture), si la configuration n'en a pas.
+  if (isZ() && prefs.eth && !list.some((d) => d.kind === 'lcs')) {
+    return [...list, { addr: 0xE20, kind: 'lcs', type: 'LCS' }, { addr: 0xE21, kind: 'lcs', type: 'LCS' }];
+  }
+  return list;
 }
 
 /** Unité d'IPL de la machine choisie (trois chiffres hexadécimaux). */
@@ -880,6 +891,7 @@ function showMachine() {
   document.title = name;
   for (const el of document.querySelectorAll('.machine-name')) el.textContent = name;
   consoleHint();
+  showEth();
   $('machine-desc').textContent = t(isZ() ? 'machine.desc.z' : 'machine.desc');
   memLabels();
   $('loadparm-field').hidden = !isZ();
@@ -1024,7 +1036,9 @@ async function ipl() {
     mounts: mounted,
     devices: machineDevices(),
     terminals,
-    relay: prefs.relay ? prefs.relayUrl : null,
+    // Le relais sert aux terminaux TN3270 et à la carte Ethernet.
+    relay: prefs.relay || ethDevice() ? prefs.relayUrl : null,
+    relayTerms: prefs.relay,
   });
   worker.postMessage({ type: 'turbo', on: prefs.turbo });
 }
@@ -1517,6 +1531,9 @@ function onWorkerMessage({ data }) {
     case 'started':
       setLight('lt-load', false);
       setLight('lt-sys', true);
+      runEth = !!data.eth;
+      ethState = '';
+      showEth();
       if (data.resumed) {
         ssBusy = '';
         ssAuto = false;
@@ -1579,6 +1596,10 @@ function onWorkerMessage({ data }) {
       relayState = data;
       showRelay();
       break;
+    case 'eth':
+      ethState = data.status ?? '';
+      showEth();
+      break;
     case 'vol':
       volSettle(data);
       break;
@@ -1627,6 +1648,8 @@ function onWorkerMessage({ data }) {
     case 'stopped': {
       const wasResume = ssBusy === 'resume';
       tapesStopped();
+      runEth = false;
+      ethState = '';
       // Machine arrêtée : plus de question en attente (reprise : relevées de nouveau).
       questions.clear();
       if (data.reason === 'suspended') {
@@ -1669,18 +1692,33 @@ function onWorkerMessage({ data }) {
 
 const relayOn = $('relay-on');
 const relayUrlInput = $('relay-url');
-let relayState = { state: 'off', clients: [] };
 relayOn.checked = prefs.relay;
 relayUrlInput.value = prefs.relayUrl;
 
+/** La machine a une carte Ethernet LCS (configuration, ou case du menu Réseau local). */
+const ethDevice = () => machineDevices().some((d) => d.kind === 'lcs');
+
+/** Relais voulu : terminaux TN3270, ou réseau de la carte Ethernet. */
+function relayWanted() {
+  return prefs.relay || (running ? runEth : ethDevice());
+}
+
 function relayConfig() {
-  worker?.postMessage({ type: 'relay', url: running && prefs.relay ? prefs.relayUrl : null });
+  worker?.postMessage({ type: 'relay', url: running && relayWanted() ? prefs.relayUrl : null, terms: prefs.relay });
 }
 
 relayOn.addEventListener('change', () => {
   prefs.relay = relayOn.checked;
   savePrefs();
   if (running) relayConfig();
+  showRelay();
+});
+
+const ethOn = $('eth-on');
+ethOn.checked = prefs.eth;
+ethOn.addEventListener('change', () => {
+  prefs.eth = ethOn.checked;
+  savePrefs();
   showRelay();
 });
 relayUrlInput.addEventListener('change', () => {
@@ -1704,6 +1742,8 @@ function showRelay() {
   else key = { connecting: 'net.connecting', open: 'net.open', closed: 'net.closed', off: 'net.later' }[relayState.state] ?? 'net.later';
   box.textContent = t(key, { url: prefs.relayUrl, n: relayState.clients?.length ?? 0 });
   box.classList.toggle('error', key === 'net.closed');
+  box.hidden = !prefs.relay && relayWanted();
+  showEth();
   const list = $('relay-clients');
   list.replaceChildren(...(relayState.clients ?? []).map((c) => {
     const li = document.createElement('li');
@@ -1715,6 +1755,22 @@ function showRelay() {
 }
 languageListeners.push(showRelay);
 
+/** État de la carte Ethernet : branchée au prochain IPL, attendue du système, démarrée. */
+function showEth() {
+  const box = $('eth-status');
+  let key = 'net.eth.off';
+  let vals = {};
+  if (running && runEth) {
+    // « adresse|démarrée|émises|reçues|perdues » (Emulator.lcs_status).
+    const [mac, up, tx, rx] = ethState.split('|');
+    if (relayState.state !== 'open') key = 'net.eth.norelay';
+    else key = up === '1' ? 'net.eth.up' : 'net.eth.wait';
+    vals = { mac: mac ?? '', tx: tx ?? 0, rx: rx ?? 0 };
+  } else if (prefs.eth || ethDevice()) {
+    key = isZ() ? (running ? 'net.eth.next' : 'net.eth.later') : 'net.eth.s370';
+  }
+  box.textContent = t(key, vals);
+}
 // ------------------------------------------------------------------ pupitre
 
 const dials = [...document.querySelectorAll('.dial')];
@@ -2464,15 +2520,16 @@ function vintageGlow(ctx, size, dpr) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if ('filter' in ctx) {
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.7;
-    ctx.filter = `blur(${Math.max(1.5, size / 8) * dpr}px)`;
+    // Halo étroit et léger : le texte net reste dessous, lisible.
+    ctx.globalAlpha = 0.35;
+    ctx.filter = `blur(${Math.max(0.8, size / 18) * dpr}px)`;
     ctx.drawImage(canvas, 0, 0);
     ctx.filter = 'none';
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
   const step = Math.max(2, Math.round(3 * dpr));
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
   for (let y = 0; y < H; y += step) ctx.fillRect(0, y, W, Math.max(1, Math.round(dpr)));
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
   g.addColorStop(0, 'rgba(0, 0, 0, 0)');
@@ -3039,6 +3096,10 @@ $('memo-button').addEventListener('click', () => memo.showModal());
 // machine quand elle tourne.
 languageListeners.push(initVolumes({
   volumes: () => volumes,
+  // Volumes lus sur place (configuration de Hercules) et leur ombre de la page.
+  mounted: () => [...mounts.entries()].map(([addr, m]) => ({
+    file: `mnt:${hex3(addr)}`, addr, name: m.file.name, blob: m.file, shadows: m.shadows, overlay: overlayName({ addr, stem: m.stem }), mounted: true,
+  })),
   running: () => running,
   // Écriture directe (machine arrêtée) : la session suspendue serait faussée.
   sessionGuard,

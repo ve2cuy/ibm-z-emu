@@ -10,7 +10,7 @@
 // lecteur; fichiers boot/kernel et boot/initrd de l'OPFS), mounts: [{addr, stem, file,
 // shadows: [File], overlay}] (volumes lus sur place : image et ombres de Hercules choisies
 // sur le disque, en lecture seule; écritures dans l'ombre de la page, shadow/<overlay>)},
-// relay {url} (relais TN3270 : adresse ws://…, ou nul),
+// relay {url, terms} (relais : adresse ws://…, ou nul; terms : clients TN3270 servis),
 // console {text} (ligne de l'opérateur), shutdown (arrêt propre de TK5 : S SHUTDOWN), key {addr, key}, char {addr, text},
 // click {addr, pos}, interrupt, restart, submit {text} (cartes pour le lecteur 00C),
 // turbo {on}, flush, stop, vol {id, addr, op, dsn, member, limit} (gestionnaire de volumes :
@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=9a5a75f1';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=c86474da';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -334,6 +334,10 @@ async function build(cfg) {
   for (const p of PUNCHES) emu.attach_punch(p);
   TAPES = of('tape').map((d) => d.addr);
   for (const d of of('tape')) emu.attach_tape(d.addr, parseInt(d.type, 16) || 0x3420);
+  // Carte Ethernet LCS (z/Architecture) : lecture à l'adresse paire, écriture à la suivante.
+  LCS = arch === 'z' ? (of('lcs').find((d) => d.addr % 2 === 0)?.addr ?? null) : null;
+  if (LCS !== null) emu.attach_lcs(LCS, new Uint8Array());
+  ethSeen = '';
   tapeHandles = new Map();
   tapeSeen = '';
   // Tous les terminaux locaux de la configuration sont branchés (VTAM les attend : 0C0-0C6
@@ -349,10 +353,11 @@ async function build(cfg) {
 function begin(cfg, infos, resumed) {
   emu.set_ns_per_inst(1000 / mips);
   if (arch === 'z' && cfg.ncpu > 1) startThreads(cfg.ncpu);
-  post({ type: 'started', volumes: infos, resumed });
+  post({ type: 'started', volumes: infos, resumed, eth: LCS !== null });
   running = true;
   tapeReport(true);
   relayUrl = cfg.relay || null;
+  relayTerms = cfg.relayTerms !== false;
   openRelay();
   autoShutdown = false;
   zsd = null;
@@ -393,6 +398,7 @@ async function release() {
   closeVolumes();
   try { emu?.free(); } catch { /* rien */ }
   emu = null;
+  LCS = null;
 }
 
 // Mise en veille (session.js) : la machine s'arrête à une limite d'instruction (fils des
@@ -637,6 +643,12 @@ async function resume(cfg, meta, lang, clock = false) {
 let relayUrl = null;
 let relay = null;
 let relayTimer = 0;
+let relayTerms = true;  // clients TN3270 servis (sinon : le relais sert à la carte Ethernet)
+// Carte Ethernet LCS : adresse de lecture (null : pas de carte), dernier état annoncé.
+// Ses trames passent par le relais (genre 4) : il les relie à son réseau NAT.
+let LCS = null;
+let ethSeen = '';
+let ethTime = 0;
 const remotes = new Map(); // connexion -> {addr, ttype}
 
 function relayStatus(state) {
@@ -688,8 +700,13 @@ function openRelay() {
     if (m.length < 5) return;
     const conn = new DataView(m.buffer).getUint32(1);
     const data = m.subarray(5);
+    if (m[0] === 4) {
+      // Trame du réseau pour le système : la lecture en attente reprend aussitôt.
+      if (LCS !== null && emu.lcs_receive(LCS, data) && cpuWorkers.length) emu.io_service();
+      return;
+    }
     if (m[0] === 1) {
-      const addr = freeTerminal();
+      const addr = relayTerms ? freeTerminal() : undefined;
       if (addr === undefined) {
         relayMsg(2, conn, new Uint8Array());
         return;
@@ -723,6 +740,27 @@ function closeRelay() {
   relay = null;
   try { ws?.close(); } catch { /* déjà fermé */ }
   dropRemotes();
+}
+
+/** Trames émises par le système (carte LCS) vers le relais; état de la carte (au plus une
+ *  fois par seconde). */
+function pumpEth() {
+  const out = emu.lcs_outbound(LCS);
+  // Chaque trame précédée de sa longueur (2 octets).
+  for (let i = 0; i + 2 <= out.length;) {
+    const n = (out[i] << 8) | out[i + 1];
+    relayMsg(4, 0, out.subarray(i + 2, i + 2 + n));
+    i += 2 + n;
+  }
+  const now = performance.now();
+  if (now - ethTime >= 1000) {
+    const st = emu.lcs_status(LCS);
+    ethTime = now;
+    if (st !== ethSeen) {
+      ethSeen = st;
+      post({ type: 'eth', status: st });
+    }
+  }
 }
 
 /** Écrans des terminaux distants vers leurs clients. */
@@ -995,6 +1033,7 @@ function autoCmdType(cmd, announce, tries = 10) {
 /** Sorties de la machine : console, écrans changés, imprimantes. */
 function drain() {
   if (remotes.size) sendRemotes();
+  if (LCS !== null) pumpEth();
   const text = emu.console_take(CONSOLE);
   if (text) post({ type: 'console', text });
   autoOperator(text);
@@ -1177,6 +1216,7 @@ self.onmessage = async ({ data }) => {
         break;
       case 'relay':
         relayUrl = data.url || null;
+        relayTerms = data.terms !== false;
         closeRelay();
         if (relayUrl) openRelay();
         else relayStatus('off');

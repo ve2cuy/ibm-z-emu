@@ -284,7 +284,8 @@ browser, and the machine is set for it (z/Architecture, IPL from `00C`, paramete
    **Initial RAM disk…** (the files stay in the browser). The IPL unit is `00C` (the
    reader).
 3. Kernel parameters: `ro locale=C` starts the installer (it asks first for a network
-   device, not emulated yet); `ro locale=C init=/bin/sh` gives a BusyBox shell right away.
+   device: CTC or OSA in QDIO mode, not emulated yet; the LCS card is not among its
+   choices); `ro locale=C init=/bin/sh` gives a BusyBox shell right away.
 4. Click **IPL**. Linux writes on the **Console** tab (about one minute); type the commands
    in the field below it (`uname -a`, `ls /`, `cat /proc/cpuinfo`).
 
@@ -306,3 +307,50 @@ shadows** saves the page's shadow of each changed volume as a Hercules shadow fi
 as the next one of its chain (`zares1_2` after `zares1_1`). Put these files in the Hercules
 shadow folder: Hercules takes them as the newest shadows, as after `sf+`. Then **Forget the
 changes** in the page, and choose the folder again.
+
+### Network: Ethernet card
+
+The z/Architecture machine can have an **LCS Ethernet card** (3088, devices `E20` for
+reading and `E21` for writing). A browser cannot send packets on the network: the
+`ibmz-relay` program, the same as for the TN3270 terminals (see the releases), does it
+instead, with a small **NAT network**. Seen from the system:
+
+- the gateway `192.168.248.12` is the PC itself, and any other address goes through it
+  (outgoing TCP and UDP connections, to the local network and the Internet; ping answers
+  for the gateway only);
+- the system has the fixed address `192.168.248.78`;
+- ports **21** (FTP) and **2323** (TN3270 of the system) of the PC lead to the system.
+
+To use it:
+
+1. Start `ibmz-relay` on the PC (options: `--gateway`, `--guest`, `--forward
+   pc_port:system_port[:ftp]` for other addresses and ports).
+2. **Local network** menu: check **Ethernet card (LCS E20-E21) through the relay**. A
+   Hercules configuration with `0E20.2 LCS` gives the same card.
+3. The system must use the card with these addresses. For z/OS: the `TCPIP` procedure (in
+   a PROCLIB library of the system) names its profile on its `//PROFILE DD` line. The
+   profile must contain:
+
+   ```
+    DEVICE LCS1   LCS           E20
+    LINK ETH1  ETHERNET  0  LCS1
+    HOME
+       192.168.248.78    ETH1
+    GATEWAY
+      192.168.248  =        ETH1      576  0
+      defaultnet 192.168.248.12     ETH1   576  0
+    START LCS1
+   ```
+
+   Some distributions already have such a profile next to the default one (meant for an
+   OSA): then only the member name on the `//PROFILE DD` line needs changing. With the
+   machine stopped, the **volume manager** does it on volumes read in place too: choose the
+   volume, the PROCLIB library, the `TCPIP` member, **Edit**, **Save** (the change goes to
+   the page shadow; the file on the disk stays intact).
+4. **IPL**. The **Local network** menu says "Card … started by the system" once TCP/IP has
+   started it.
+5. From the PC: `ftp localhost` (TSO user and password). Active and passive modes work
+   (the relay rewrites the `PORT`/`EPRT` commands and the `227`/`229` replies). A TN3270
+   terminal to `localhost`, port `2323`, reaches the TN3270 server of the system. From
+   another machine of the network: the address of the PC (the relay listens on all its
+   interfaces; the firewall decides who reaches it).

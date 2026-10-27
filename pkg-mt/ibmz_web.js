@@ -63,6 +63,17 @@ export class Emulator {
         }
     }
     /**
+     * Carte Ethernet LCS : lecture à `addr` (pair), écriture à `addr + 1`. `mac` : 6
+     * octets, ou vide (02-49-42-4D et le numéro de l'unité).
+     * @param {number} addr
+     * @param {Uint8Array} mac
+     */
+    attach_lcs(addr, mac) {
+        const ptr0 = passArray8ToWasm0(mac, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.emulator_attach_lcs(this.__wbg_ptr, addr, ptr0, len0);
+    }
+    /**
      * @param {number} addr
      * @param {number} devtype
      */
@@ -243,6 +254,50 @@ export class Emulator {
         return ret !== 0;
     }
     /**
+     * Trames Ethernet émises par le système depuis le dernier appel, chacune précédée
+     * de sa longueur (2 octets, gros-boutiste); vide s'il n'y en a pas.
+     * @param {number} addr
+     * @returns {Uint8Array}
+     */
+    lcs_outbound(addr) {
+        const ret = wasm.emulator_lcs_outbound(this.__wbg_ptr, addr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Trame Ethernet du réseau pour le système (gardée si elle est pour lui et que le
+     * système a démarré son réseau). Le programme de lecture en attente reprend au
+     * prochain relevé des E-S.
+     * @param {number} addr
+     * @param {Uint8Array} frame
+     * @returns {boolean}
+     */
+    lcs_receive(addr, frame) {
+        const ptr0 = passArray8ToWasm0(frame, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_lcs_receive(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * État de la carte : « adresse de station|réseau démarré (0/1)|émises|reçues|perdues »,
+     * ou vide (pas de carte).
+     * @param {number} addr
+     * @returns {string}
+     */
+    lcs_status(addr) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.emulator_lcs_status(this.__wbg_ptr, addr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Volume lu sur place (fichier du disque de l'usager, lecture seule) : l'image de
      * Hercules d'abord, puis ses ombres dans l'ordre de création (`mount_shadow`), puis
      * l'ombre de la page (`mount_finish`), où vont les écritures.
@@ -363,6 +418,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -373,18 +440,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -844,6 +899,12 @@ if (Symbol.dispose) Emulator.prototype[Symbol.dispose] = Emulator.prototype.free
  * Volume ouvert par la page quand la machine est arrêtée (`www/vol-worker.js`).
  */
 export class VolumeImage {
+    static __wrap(ptr) {
+        const obj = Object.create(VolumeImage.prototype);
+        obj.__wbg_ptr = ptr;
+        VolumeImageFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -926,6 +987,21 @@ export class VolumeImage {
         var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v3;
+    }
+    /**
+     * Pose l'ombre de la page (volume lu sur place, fichier de l'OPFS) : le volume est vu
+     * comme la machine le voit, et les écritures vont dans l'ombre (l'image et ses ombres
+     * de Hercules restent intactes).
+     * @param {any} disk
+     * @returns {VolumeImage}
+     */
+    with_overlay(disk) {
+        const ptr = this.__destroy_into_raw();
+        const ret = wasm.volumeimage_with_overlay(ptr, disk);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return VolumeImage.__wrap(ret[0]);
     }
     /**
      * @param {string} op
@@ -1117,34 +1193,34 @@ function __wbg_get_imports(memory) {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_8a514504c2fcbdf9: function(arg0) {
+        __wbg_flush_a698cbae6d3418c1: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_d9b342b012b14c63: function() {
-            const ret = performance.now();
-            return ret;
-        },
-        __wbg_now_f607bc36bd46a9b6: function() {
+        __wbg_now_096c52fbe66ab2ce: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_0362c0156c30516c: function(arg0, arg1, arg2, arg3) {
+        __wbg_now_64e61d1cb1a5373b: function() {
+            const ret = performance.now();
+            return ret;
+        },
+        __wbg_read_fa11c2d446a7394a: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_c1443b58269f9252: function(arg0) {
+        __wbg_size_2b3b62a71cdfe938: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_static_accessor_TIME_ORIGIN_db1b93317d190ff0: function() {
+        __wbg_static_accessor_TIME_ORIGIN_329c7b5d6408ae0f: function() {
             const ret = performance.timeOrigin;
             return ret;
         },
-        __wbg_truncate_8eff21cd272b1d43: function(arg0, arg1) {
+        __wbg_truncate_ced959485668ddd8: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_6a63a9613765ed88: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_71befcacea2931c3: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
