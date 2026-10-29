@@ -14,7 +14,7 @@
 // shadow/<name> convertie en ombre de Hercules (Uint8Array). {id, op: 'newtape', volser,
 // owner} : bande vierge avec étiquettes standard (AWS).
 
-import init, { VolumeImage, blank_volume, labeled_tape, overlay_shadow } from './pkg/ibmz_web.js?v=a65575b4';
+import init, { VolumeImage, blank_volume, labeled_tape, overlay_shadow } from './pkg/ibmz_web.js?v=83f73205';
 
 const version = new URL(import.meta.url).search; // ?v=… transmis par la page
 let ready = null;
