@@ -4,8 +4,8 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=0e6dd06a';
-import { deckText } from './decks.js?v=0e6dd06a';
+import { t } from './i18n.js?v=a65575b4';
+import { deckText } from './decks.js?v=a65575b4';
 
 const COBOL_JOB = deckText('cobdemo');
 
@@ -89,6 +89,7 @@ const SECTIONS = [
           ['$DQ', { k: 'memo.c.jdq' }],
           ['$DU,PRT1', { k: 'memo.c.jdu' }],
           ['C name', { k: 'memo.c.cancel' }],
+          ['C U=HERC01', { k: 'memo.c.cancelu' }],
           ['$PJnnn', { k: 'memo.c.purge' }],
           ['S SHUTDOWN', { k: 'memo.c.shutdown' }],
         ],

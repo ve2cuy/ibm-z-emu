@@ -15,8 +15,8 @@
 // à l'un de ses parents, comme sous Hercules lancé du dossier choisi). L'accès au dossier
 // est gardé (IndexedDB) et redemandé d'un clic à la visite suivante.
 
-import { t } from './i18n.js?v=0e6dd06a';
-import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=0e6dd06a';
+import { t } from './i18n.js?v=a65575b4';
+import { TK5_DEVICES, Z_DEVICES, buildConfig, parseConfig, volumeStem } from './herc-conf.js?v=a65575b4';
 
 let ctx = null; // { prefs, savePrefs, volumes(), running(), volDir(), writeVolume(), renderVolumes(), version, status(), sessionGuard() }
 let plan = null;

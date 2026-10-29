@@ -1753,6 +1753,9 @@ textarea.jcl { width: 100%; resize: vertical; padding: 8px; border: 1px solid va
   flex: 1;
   margin: 0;
   padding: 10px 12px;
+  /* Fond noir dans les deux thèmes (comme le Journal) : couleurs faites pour lui. */
+  border-radius: 6px;
+  background: #000;
   color: #c8d8f0;
   font: calc(var(--term-font-size, 16px) * 0.85)/1.4 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
   /* Un événement par ligne; les longues lignes défilent à l'horizontale. Hauteur bornée
