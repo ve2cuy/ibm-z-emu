@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=474b13ea';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=a613348a';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -704,13 +704,21 @@ function openRelay() {
     return;
   }
   ws.binaryType = 'arraybuffer';
-  ws.onopen = () => relayStatus('open');
+  ws.onopen = () => {
+    emu?.tcpip_reset?.();
+    relayStatus('open');
+  };
   ws.onmessage = (e) => {
     if (!emu || !(e.data instanceof ArrayBuffer)) return;
     const m = new Uint8Array(e.data);
     if (m.length < 5) return;
     const conn = new DataView(m.buffer).getUint32(1);
     const data = m.subarray(5);
+    if (m[0] === 5) {
+      // Événement des sockets de l'instruction TCPIP.
+      emu.tcpip_event?.(data);
+      return;
+    }
     if (m[0] === 4) {
       // Trame du réseau pour le système : la lecture en attente reprend aussitôt.
       if (LCS !== null && emu.lcs_receive(LCS, data) && cpuWorkers.length) emu.io_service();
@@ -739,6 +747,7 @@ function openRelay() {
     if (relay !== ws) return;
     relay = null;
     dropRemotes();
+    emu?.tcpip_reset?.();
     relayStatus('closed');
     if (running && relayUrl) relayTimer = setTimeout(openRelay, 5000);
   };
@@ -771,6 +780,16 @@ function pumpEth() {
       ethSeen = st;
       post({ type: 'eth', status: st });
     }
+  }
+}
+
+/** Sockets de l'instruction TCPIP (X'75', FTPD de TK5) : commandes vers le relais, qui
+ *  les ouvre sur ce PC (genre 5); sans relais, elles sont perdues. */
+function pumpSockets() {
+  if (!emu.tcpip_take) return;
+  const open = relay?.readyState === WebSocket.OPEN;
+  for (let c = emu.tcpip_take(); c.length; c = emu.tcpip_take()) {
+    if (open) relayMsg(5, 0, c);
   }
 }
 
@@ -1045,6 +1064,7 @@ function autoCmdType(cmd, announce, tries = 10) {
 function drain() {
   if (remotes.size) sendRemotes();
   if (LCS !== null) pumpEth();
+  pumpSockets();
   const text = emu.console_take(CONSOLE);
   if (text) post({ type: 'console', text });
   autoOperator(text);

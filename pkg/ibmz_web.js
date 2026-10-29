@@ -675,6 +675,32 @@ export class Emulator {
         wasm.emulator_tape_unmount(this.__wbg_ptr, addr);
     }
     /**
+     * Événement du relais pour les sockets de l'instruction TCPIP.
+     * @param {Uint8Array} data
+     */
+    tcpip_event(data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.emulator_tcpip_event(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * Relais branché ou perdu : les sockets de l'instruction TCPIP sont perdues.
+     */
+    tcpip_reset() {
+        wasm.emulator_tcpip_reset(this.__wbg_ptr);
+    }
+    /**
+     * Prochaine commande des sockets de l'instruction TCPIP (X'75') pour le relais
+     * (message de genre 5); vide s'il n'y en a pas.
+     * @returns {Uint8Array}
+     */
+    tcpip_take() {
+        const ret = wasm.emulator_tcpip_take(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
      * Caractère tapé. Faux s'il est refusé (champ protégé, clavier verrouillé).
      * @param {number} addr
      * @param {string} ch
@@ -1205,26 +1231,26 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_a340a892ecebf30e: function(arg0) {
+        __wbg_flush_8b39f5de27b7904a: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_35e8774c46dadf1f: function() {
+        __wbg_now_3bf7cd63d1cf1e2c: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_f1d3cd1edc069231: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_0ca7cd3c4026ae7a: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_d21ff57402d8c4a6: function(arg0) {
+        __wbg_size_e94465b1cf722bc4: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_truncate_903586d2d8a56ed6: function(arg0, arg1) {
+        __wbg_truncate_96a12dfd4e5bdb3b: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_2e6c4a53a5c5191c: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_8d183b8c0728e23c: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

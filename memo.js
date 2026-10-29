@@ -4,8 +4,8 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=474b13ea';
-import { deckText } from './decks.js?v=474b13ea';
+import { t } from './i18n.js?v=a613348a';
+import { deckText } from './decks.js?v=a613348a';
 
 const COBOL_JOB = deckText('cobdemo');
 
@@ -261,6 +261,15 @@ const SECTIONS = [
       },
       { p: 'memo.net.ping.p' },
       { code: NET_PING },
+      { h: 'memo.net.tk5.h' },
+      { p: 'memo.net.tk5.p' },
+      {
+        table: ['memo.col.cmd', 'memo.col.effect'],
+        rows: [
+          ['S FTPD', { k: 'memo.net.t.start' }],
+          ['ftp localhost 2121', { k: 'memo.net.t.client' }],
+        ],
+      },
     ],
   },
 ];
