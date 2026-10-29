@@ -5,10 +5,10 @@
 // tourne, car lui seul tient alors les images. Écriture : directe machine arrêtée
 // (vol-worker.js), par des travaux que MVS exécute quand il tourne (vol-jobs.js).
 
-import { t } from './i18n.js?v=83f73205';
+import { t } from './i18n.js?v=82ac151a';
 import {
   JobTracker, compressJcl, createJcl, deleteJcl, jobName, listcatJcl, memberJcl, renameJcl, saveJcl,
-} from './vol-jobs.js?v=83f73205';
+} from './vol-jobs.js?v=82ac151a';
 
 const TEXT_MAX = 8 * 1024 * 1024;  // octets lus pour l'affichage en texte
 const HEX_MAX = 64 * 1024;         // octets montrés en hexadécimal
