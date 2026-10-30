@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=a613348a';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=28dacfc5';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -650,7 +650,9 @@ async function resume(cfg, meta, lang, clock = false) {
 
 // Relais TN3270 (ibmz-relay sur ce PC) : les clients TN3270 du réseau local prennent un
 // terminal libre. Messages binaires : genre, connexion (4 octets), données; genres :
-// 1 nouveau client (type de terminal), 2 client parti, 3 enregistrement.
+// 1 nouveau client (type de terminal), 2 client parti, 3 enregistrement, 6 nouveau client
+// de la console de l'opérateur (port --console du relais : la console en écran 3270,
+// `cons_*` du module; « .shutdown » y fait l'arrêt propre, comme le bouton Arrêter).
 let relayUrl = null;
 let relay = null;
 let relayTimer = 0;
@@ -661,13 +663,17 @@ let LCS = null;
 let ethSeen = '';
 let ethTime = 0;
 const remotes = new Map(); // connexion -> {addr, ttype}
+const consoles = new Map(); // connexion -> type de terminal (clients de la console)
 
 function relayStatus(state) {
   post({
     type: 'relay',
     state,
     url: relayUrl,
-    clients: [...remotes.values()].map((r) => ({ addr: r.addr, ttype: r.ttype })),
+    clients: [
+      ...[...remotes.values()].map((r) => ({ addr: r.addr, ttype: r.ttype })),
+      ...[...consoles.values()].map((ttype) => ({ console: true, ttype })),
+    ],
   });
 }
 
@@ -690,6 +696,8 @@ function freeTerminal() {
 function dropRemotes() {
   for (const r of remotes.values()) emu?.term_disconnect(r.addr);
   remotes.clear();
+  for (const conn of consoles.keys()) emu?.cons_disconnect(conn);
+  consoles.clear();
 }
 
 function openRelay() {
@@ -724,7 +732,12 @@ function openRelay() {
       if (LCS !== null && emu.lcs_receive(LCS, data) && cpuWorkers.length) emu.io_service();
       return;
     }
-    if (m[0] === 1) {
+    if (m[0] === 6) {
+      // Client de la console de l'opérateur.
+      consoles.set(conn, new TextDecoder().decode(data));
+      relayMsg(3, conn, emu.cons_connect(conn));
+      relayStatus('open');
+    } else if (m[0] === 1) {
       const addr = relayTerms ? freeTerminal() : undefined;
       if (addr === undefined) {
         relayMsg(2, conn, new Uint8Array());
@@ -737,10 +750,13 @@ function openRelay() {
       const r = remotes.get(conn);
       if (r) emu.term_disconnect(r.addr);
       remotes.delete(conn);
+      if (consoles.delete(conn)) emu.cons_disconnect(conn);
       relayStatus('open');
     } else if (m[0] === 3) {
       const r = remotes.get(conn);
       if (r) emu.term_input(r.addr, data);
+      else if (consoles.has(conn)) consoleCommand(emu.cons_input(conn, data));
+      sendConsoles();
     }
   };
   ws.onclose = () => {
@@ -790,6 +806,41 @@ function pumpSockets() {
   const open = relay?.readyState === WebSocket.OPEN;
   for (let c = emu.tcpip_take(); c.length; c = emu.tcpip_take()) {
     if (open) relayMsg(5, 0, c);
+  }
+}
+
+/** Commande tapée sur la console par un client du relais. */
+function consoleCommand(cmd) {
+  if (!cmd) return;
+  if (cmd.toLowerCase() === '.shutdown') {
+    requestShutdown();
+    return;
+  }
+  // Console du système pas encore prête (z/Architecture) : un peu plus tard.
+  const send = (tries) => {
+    if (emu && running && !emu.console_type(CONSOLE, cmd) && tries > 0) setTimeout(() => send(tries - 1), 1000);
+  };
+  send(10);
+}
+
+/** Écrans de la console vers ses clients du relais. */
+function sendConsoles() {
+  for (const conn of consoles.keys()) {
+    for (let rec = emu.cons_outbound(conn); rec.length; rec = emu.cons_outbound(conn)) {
+      relayMsg(3, conn, rec);
+    }
+  }
+}
+
+/** Arrêt propre : bouton Arrêter de la page, ou « .shutdown » sur la console du relais. */
+function requestShutdown() {
+  if (!emu) return;
+  // z/Architecture : l'opérateur automatique (console du système).
+  if (arch === 'z') zsdStart();
+  // TK5 : la procédure SHUTDOWN de MVS.
+  else {
+    shutdownWanted = true;
+    if (initDone) emu.console_type(CONSOLE, 'S SHUTDOWN');
   }
 }
 
@@ -1067,6 +1118,7 @@ function drain() {
   pumpSockets();
   const text = emu.console_take(CONSOLE);
   if (text) post({ type: 'console', text });
+  if (consoles.size) sendConsoles();
   autoOperator(text);
   zsdFeed(text);
   for (const a of terminals) {
@@ -1213,13 +1265,7 @@ self.onmessage = async ({ data }) => {
         if (emu && !emu.console_type(CONSOLE, data.text)) post({ type: 'console-refused' });
         break;
       case 'shutdown':
-        // Arrêt propre (z/Architecture) : l'opérateur automatique (console du système).
-        if (emu && arch === 'z') zsdStart();
-        // Arrêt propre de TK5 : la procédure SHUTDOWN de MVS.
-        else if (emu) {
-          shutdownWanted = true;
-          if (initDone) emu.console_type(CONSOLE, 'S SHUTDOWN');
-        }
+        requestShutdown();
         break;
       case 'key':
         emu?.term_key(data.addr, data.key);

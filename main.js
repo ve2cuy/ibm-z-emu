@@ -2,20 +2,20 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=a613348a';
-import { initMemo } from './memo.js?v=a613348a';
-import { deckText } from './decks.js?v=a613348a';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=a613348a';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=a613348a';
-import { Z_DEVICES } from './herc-conf.js?v=a613348a';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=a613348a';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=a613348a';
-import { Questions } from './questions.js?v=a613348a';
-import { initFind } from './find.js?v=a613348a';
-import { pageCount, splitJobs } from './jobs.js?v=a613348a';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=a613348a';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=28dacfc5';
+import { initMemo } from './memo.js?v=28dacfc5';
+import { deckText } from './decks.js?v=28dacfc5';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=28dacfc5';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=28dacfc5';
+import { Z_DEVICES } from './herc-conf.js?v=28dacfc5';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=28dacfc5';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=28dacfc5';
+import { Questions } from './questions.js?v=28dacfc5';
+import { initFind } from './find.js?v=28dacfc5';
+import { pageCount, splitJobs } from './jobs.js?v=28dacfc5';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=28dacfc5';
 
-const VERSION = '0.1.47';
+const VERSION = '0.1.48';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1757,7 +1757,7 @@ function showRelay() {
   list.replaceChildren(...(relayState.clients ?? []).map((c) => {
     const li = document.createElement('li');
     li.className = 'mono';
-    li.textContent = `${hex3(c.addr)}  ${c.ttype}`;
+    li.textContent = `${c.console ? t('net.console') : hex3(c.addr)}  ${c.ttype}`;
     return li;
   }));
   showTermStatus();

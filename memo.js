@@ -4,8 +4,8 @@
 // memo.*); les commandes et les travaux, identiques dans toutes les langues, sont ici. Chaque travail a été essayé sur TK5
 // (mise à jour 5) dans l'émulateur.
 
-import { t } from './i18n.js?v=a613348a';
-import { deckText } from './decks.js?v=a613348a';
+import { t } from './i18n.js?v=28dacfc5';
+import { deckText } from './decks.js?v=28dacfc5';
 
 const COBOL_JOB = deckText('cobdemo');
 
@@ -237,6 +237,7 @@ const SECTIONS = [
           ['ibmz-relay --forward 8080:80', { k: 'memo.net.r.fwd' }],
           ['ibmz-relay --interfaces', { k: 'memo.net.r.list' }],
           ['ibmz-relay --bridge 192.168.2.111', { k: 'memo.net.r.bridge' }],
+          ['ibmz-relay --console 3271', { k: 'memo.net.r.console' }],
         ],
       },
       { h: 'memo.net.prof.h' },
