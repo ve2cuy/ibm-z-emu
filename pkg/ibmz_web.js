@@ -481,6 +481,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -491,18 +503,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -604,14 +604,6 @@ export class Emulator {
         return v1;
     }
     /**
-     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
-     * @returns {number}
-     */
-    snap_mem_count() {
-        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
      * Bloc de mémoire `i` à écrire (vide s'il est nul).
      * @param {number} i
      * @returns {Uint8Array}
@@ -621,6 +613,14 @@ export class Emulator {
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
+    }
+    /**
+     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
+     * @returns {number}
+     */
+    snap_mem_count() {
+        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * Un fil par processeur (z/Architecture, plusieurs processeurs, après l'IPL) : rend
@@ -1282,26 +1282,26 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_86682385a205a8f4: function(arg0) {
+        __wbg_flush_7adee9442bc0f75e: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_b715aabd35f4fcfb: function() {
+        __wbg_now_40e71cc6935cd28e: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_5ccf6a9c0fa33f90: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_7b7928660b9b96ee: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_40a4b841b0a7f179: function(arg0) {
+        __wbg_size_b0893f7b4ec43b24: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_truncate_fd8e13209d96aeb3: function(arg0, arg1) {
+        __wbg_truncate_8997896632a1c56e: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_766c13074e06599b: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_4b9c1d910ed666fc: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },

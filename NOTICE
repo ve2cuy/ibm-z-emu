@@ -71,3 +71,12 @@ Copyright (c) 1999 Software in the Public Interest, Inc., under the Creative
 Commons Attribution-ShareAlike 3.0 Unported License (or the GNU Lesser General
 Public License, version 3 or later). Ubuntu, the Ubuntu logo and the Circle of
 Friends symbol are registered trademarks of Canonical Ltd.
+
+-------------------------------------------------------------------------------
+The TLS of the relay and of the server (crates/tls) uses, without changes:
+- rustls (https://github.com/rustls/rustls), Apache-2.0, ISC or MIT licence;
+- ring (https://github.com/briansmith/ring), Apache-2.0 and ISC licences (parts from
+  BoringSSL and OpenSSL);
+- rcgen (https://github.com/rustls/rcgen), MIT or Apache-2.0 licence;
+and the crates they depend on (rustls-pki-types, rustls-webpki, untrusted, zeroize,
+time, pem, yasna…), each under the MIT, Apache-2.0 or ISC licence.
