@@ -2,18 +2,18 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=1b993921';
-import { initMemo } from './memo.js?v=1b993921';
-import { deckText } from './decks.js?v=1b993921';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=1b993921';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=1b993921';
-import { Z_DEVICES } from './herc-conf.js?v=1b993921';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=1b993921';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=1b993921';
-import { Questions } from './questions.js?v=1b993921';
-import { initFind } from './find.js?v=1b993921';
-import { pageCount, splitJobs } from './jobs.js?v=1b993921';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=1b993921';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=3a73ae48';
+import { initMemo } from './memo.js?v=3a73ae48';
+import { deckText } from './decks.js?v=3a73ae48';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=3a73ae48';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=3a73ae48';
+import { Z_DEVICES } from './herc-conf.js?v=3a73ae48';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=3a73ae48';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=3a73ae48';
+import { Questions } from './questions.js?v=3a73ae48';
+import { initFind } from './find.js?v=3a73ae48';
+import { pageCount, splitJobs } from './jobs.js?v=3a73ae48';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=3a73ae48';
 
 const VERSION = '0.1.49';
 const V = new URL(import.meta.url).search;
