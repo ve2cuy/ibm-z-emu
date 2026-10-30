@@ -8,7 +8,7 @@
 // système, puis l'écran rendu). Connexion : mot de passe de la console demandé si le serveur
 // en a un (sinon lecture seule); reprise automatique après une coupure.
 
-import { t } from './i18n.js?v=3cf604e7';
+import { t } from './i18n.js?v=9822bf6c';
 
 export const REMOTE = !!document.querySelector('meta[name="ibmz-remote"]');
 
@@ -213,16 +213,17 @@ export function renderMachine() {
     ['rm.model', info.cpu.model],
     ['rm.serial', info.cpu.serial],
     ['rm.cpus', String(info.cpu.count)],
-    ['rm.arch', 'System/370'],
+    ['rm.arch', info.arch === 'z' ? 'z/Architecture' : 'System/370'],
     ['rm.ext', ext.join(', ') || '—'],
     ['rm.mem', t('rm.mb', { n: info.mem })],
-    ['rm.speed', t('rm.mips', { n: fmt(Math.round(1000 / info.nsPerInst)) })],
+    ['rm.speed', info.nsPerInst ? t('rm.mips', { n: fmt(Math.round(1000 / info.nsPerInst)) }) : t('rm.realtime')],
   ])));
   cards.append(card('rm.activity', el('div'), 'rm-activity'));
   const iplVol = info.volumes.find((v) => v.addr === info.ipl);
   const lang = document.documentElement.lang || 'en';
   cards.append(card('rm.ipl', facts([
     ['rm.unit', info.ipl],
+    ...(info.loadparm != null ? [['rm.loadparm', info.loadparm]] : []),
     ['rm.volume', iplVol?.volser],
     ['rm.file', iplVol?.file],
     ['rm.started', new Date(info.started * 1000).toLocaleString(lang === 'zh' ? 'zh-CN' : lang, { dateStyle: 'long', timeStyle: 'medium' })],
@@ -259,7 +260,7 @@ export function renderMachine() {
   };
   head.append(copy);
   box.append(head);
-  box.append(el('p', 'hint', t('rm.config.note')));
+  box.append(el('p', 'hint', info.configFile ? t('rm.config.file', { file: info.configFile }) : t('rm.config.note')));
   box.append(el('pre', 'rm-config', info.config));
   renderActivity();
 }

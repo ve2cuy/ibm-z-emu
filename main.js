@@ -2,21 +2,21 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=3cf604e7';
-import { initMemo } from './memo.js?v=3cf604e7';
-import { deckText } from './decks.js?v=3cf604e7';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=3cf604e7';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=3cf604e7';
-import { Z_DEVICES } from './herc-conf.js?v=3cf604e7';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=3cf604e7';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=3cf604e7';
-import { Questions } from './questions.js?v=3cf604e7';
-import { initFind } from './find.js?v=3cf604e7';
-import { pageCount, splitJobs } from './jobs.js?v=3cf604e7';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=3cf604e7';
-import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=3cf604e7';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=9822bf6c';
+import { initMemo } from './memo.js?v=9822bf6c';
+import { deckText } from './decks.js?v=9822bf6c';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=9822bf6c';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=9822bf6c';
+import { Z_DEVICES } from './herc-conf.js?v=9822bf6c';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=9822bf6c';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=9822bf6c';
+import { Questions } from './questions.js?v=9822bf6c';
+import { initFind } from './find.js?v=9822bf6c';
+import { pageCount, splitJobs } from './jobs.js?v=9822bf6c';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=9822bf6c';
+import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=9822bf6c';
 
-const VERSION = '0.1.53';
+const VERSION = '0.1.54';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -1181,6 +1181,11 @@ $('sd-close').addEventListener('click', () => sd.close());
 
 function stopMachine() {
   if (!running) return;
+  // Machine z/Architecture du serveur : pas encore d'arrêt propre automatique.
+  if (REMOTE && runArch === 'z') {
+    if (confirm(t('remote.z.stop'))) worker.postMessage({ type: 'stop' });
+    return;
+  }
   // Arrêt propre : procédure SHUTDOWN de TK5 (MVS 3.8j), ou opérateur automatique
   // (z/Architecture, système chargé d'un disque).
   if (!shuttingDown && runArch === 's370') {
@@ -3309,7 +3314,11 @@ function remoteMain() {
 
 /** Machine du serveur (dés)reliée : comme au début d'un IPL d'ici, sans le lancer. */
 function remoteStarted(data) {
-  runArch = 's370';
+  runArch = data.arch === 'z' ? 'z' : 's370';
+  // Nom de la machine du serveur (titre, en-tête).
+  const name = runArch === 'z' ? 'IBM z/Architecture' : 'IBM System/370';
+  document.title = name;
+  for (const el of document.querySelectorAll('.machine-name')) el.textContent = name;
   // Terminaux que le serveur montre aux pages (--web-terminals; 0C0-0C1 par défaut).
   terminals = data.terminals ?? [0x0c0, 0x0c1];
   remotePageTerms(terminals);
