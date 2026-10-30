@@ -2,20 +2,21 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=9201050c';
-import { initMemo } from './memo.js?v=9201050c';
-import { deckText } from './decks.js?v=9201050c';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=9201050c';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=9201050c';
-import { Z_DEVICES } from './herc-conf.js?v=9201050c';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=9201050c';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=9201050c';
-import { Questions } from './questions.js?v=9201050c';
-import { initFind } from './find.js?v=9201050c';
-import { pageCount, splitJobs } from './jobs.js?v=9201050c';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=9201050c';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=16c1386c';
+import { initMemo } from './memo.js?v=16c1386c';
+import { deckText } from './decks.js?v=16c1386c';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=16c1386c';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=16c1386c';
+import { Z_DEVICES } from './herc-conf.js?v=16c1386c';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=16c1386c';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=16c1386c';
+import { Questions } from './questions.js?v=16c1386c';
+import { initFind } from './find.js?v=16c1386c';
+import { pageCount, splitJobs } from './jobs.js?v=16c1386c';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=16c1386c';
+import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=16c1386c';
 
-const VERSION = '0.1.50';
+const VERSION = '0.1.51';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +31,7 @@ const speed = $('speed');
 const ssDialog = $('ss');
 const suspendButton = $('suspend');
 let suspended = null;   // description de la session suspendue (meta.json), ou null
+let remoteAccess = '';  // mode « machine distante » : accès donné par le serveur (auth, guest)
 let ssBusy = '';        // mise en veille ('suspend') ou reprise ('resume') en cours
 let ssForce = false;    // reprendre malgré des volumes changés (après avertissement)
 let ssAuto = false;     // mise en veille automatique (arrière-plan) : reprise automatique
@@ -926,6 +928,20 @@ let terminals = [];
 const canIpl = () => volumes.length > 0 || (prefs.mounts?.length ?? 0) > 0 || (isZ() && zbootReady());
 
 function updateButtons() {
+  if (REMOTE) {
+    // Machine du serveur : pas d'IPL ni de mise en veille d'ici; Arrêter si l'accès est complet.
+    powerButton.disabled = !running || remoteAccess !== 'auth';
+    powerLabel.textContent = t('power.stop');
+    $('btn-load').disabled = true;
+    suspendButton.hidden = true;
+    $('btn-interrupt').disabled = !running || remoteAccess !== 'auth';
+    $('btn-restart').disabled = !running || remoteAccess !== 'auth';
+    $('turbo').disabled = !running || remoteAccess !== 'auth';
+    $('console-input').disabled = remoteAccess !== 'auth';
+    overlay.hidden = !errorBox.textContent;
+    setLight('lt-man', !running);
+    return;
+  }
   powerButton.disabled = !worker || !!ssBusy || (!running && !canIpl());
   powerLabel.textContent = t(running ? 'power.stop' : 'power.ipl');
   $('btn-load').disabled = running || !!ssBusy || !canIpl();
@@ -957,6 +973,12 @@ function showOverlay() {
 }
 
 function startWorker() {
+  // Mode « machine distante » : la machine du serveur (remote.js) au lieu de worker.js.
+  if (REMOTE) {
+    worker = new RemoteWorker();
+    worker.onmessage = onWorkerMessage;
+    return;
+  }
   worker = new Worker(new URL(`./worker.js${V}`, import.meta.url), { type: 'module' });
   worker.onmessage = onWorkerMessage;
   worker.onerror = (e) => showStatus('error', { msg: `${e.message || 'worker'}${where(e.filename, e.lineno) || ' (worker.js)'}` });
@@ -1191,11 +1213,18 @@ $('btn-interrupt').addEventListener('click', () => worker?.postMessage({ type: '
 $('btn-restart').addEventListener('click', () => worker?.postMessage({ type: 'restart' }));
 
 const turboButton = $('turbo');
+// Mode « machine distante » : le turbo est celui de la machine du serveur (toutes les pages).
+let remoteTurbo = false;
 function showTurbo() {
-  turboButton.setAttribute('aria-pressed', String(prefs.turbo));
-  turboButton.classList.toggle('active', prefs.turbo);
+  const on = REMOTE ? remoteTurbo : prefs.turbo;
+  turboButton.setAttribute('aria-pressed', String(on));
+  turboButton.classList.toggle('active', on);
 }
 turboButton.addEventListener('click', () => {
+  if (REMOTE) {
+    worker?.postMessage({ type: 'turbo', on: !remoteTurbo });
+    return;
+  }
   prefs.turbo = !prefs.turbo;
   savePrefs();
   showTurbo();
@@ -1538,6 +1567,10 @@ function onWorkerMessage({ data }) {
       updateButtons();
       break;
     case 'started':
+      if (data.remote) {
+        remoteStarted(data);
+        break;
+      }
       setLight('lt-load', false);
       setLight('lt-sys', true);
       runEth = !!data.eth;
@@ -1590,6 +1623,7 @@ function onWorkerMessage({ data }) {
       else markTab('printer');
       break;
     case 'stats':
+      if (REMOTE) remoteStats(data);
       speed.textContent = t('speed', { mips: data.mips.toFixed(1) });
       speed.dataset.dbg = data.dbg ?? '';
       $('psw').textContent = data.psw;
@@ -1603,7 +1637,33 @@ function onWorkerMessage({ data }) {
       break;
     case 'relay':
       relayState = data;
-      showRelay();
+      if (REMOTE) {
+        remoteTermsSet(remoteTerms());
+        renderMachine();
+      } else showRelay();
+      break;
+    case 'turbo':
+      remoteTurbo = !!data.on;
+      showTurbo();
+      break;
+    case 'who':
+      remoteAccess = data.access;
+      updateButtons();
+      break;
+    case 'remote':
+      remoteInfo(data);
+      break;
+    case 'remote-lost':
+      // Serveur parti (machine arrêtée, réseau) : la page attend son retour.
+      if (running) {
+        running = false;
+        shuttingDown = false;
+        setLight('lt-sys', false);
+        setLight('lt-wait', false);
+        speed.textContent = '';
+        showStatus('remote.lost');
+        updateButtons();
+      }
       break;
     case 'eth':
       ethState = data.status ?? '';
@@ -1889,6 +1949,8 @@ function selectTab(name) {
   eventsOut.hidden = name !== 'events';
   if (name === 'events') eventsOut.scrollTop = eventsOut.scrollHeight;
   journalOut.hidden = name !== 'journal';
+  $('remote-machine').hidden = name !== 'machine';
+  if (name === 'machine') renderMachine();
   $('journal-clear').hidden = name !== 'journal';
   if (name === 'journal') journalOut.scrollTop = journalOut.scrollHeight;
   $('key-bar').hidden = !(name.startsWith('t') && showKeys());
@@ -3172,6 +3234,7 @@ $('jcl-submit').addEventListener('click', () => {
 // défaut sur iPad et iPhone) : la machine est suspendue dès que la page est cachée, et
 // reprise au retour, ou au rechargement si la page a été supprimée.
 function backgrounded() {
+  if (REMOTE) return;
   worker?.postMessage({ type: 'flush' });
   if (autoSuspend() && running && !shuttingDown && !ssBusy) suspendMachine(true);
 }
@@ -3181,13 +3244,17 @@ document.addEventListener('visibilitychange', () => {
   else if (ssAuto && !ssBusy && suspended && !running) resumeSession();
 });
 window.addEventListener('beforeunload', (e) => {
-  if (running) {
+  if (running && !REMOTE) {
     worker?.postMessage({ type: 'flush' });
     e.preventDefault();
   }
 });
 
 async function main() {
+  if (REMOTE) {
+    remoteMain();
+    return;
+  }
   if (!opfsOk) {
     errorBox.textContent = t('opfs.missing');
   }
@@ -3210,6 +3277,45 @@ async function main() {
     ssAuto = true;
     resumeSession();
   } else if (suspended) ssShow({ title: 'ss.title', text: ssDescribe(suspended), buttons: ['drop', 'later', 'resume'] });
+}
+
+/** Mode « machine distante » : menus de la machine du fureteur cachés (configuration,
+ *  disques, bandes, dépôt, réseau local), onglet Machine, relié au serveur. */
+function remoteMain() {
+  for (const name of ['machine', 'volumes', 'tapes', 'depot', 'net']) {
+    const item = navItems.find((i) => i.getAttribute('aria-controls') === `panel-${name}`);
+    const group = item?.closest('.nav-group');
+    if (group) group.hidden = true;
+  }
+  for (const id of ['btn-load', 'suspend']) if ($(id)) $(id).hidden = true;
+  tabsBox.querySelector('[data-tab="machine"]').hidden = false;
+  languageListeners.push(renderMachine);
+  startWorker();
+  selectTab('console');
+  updateButtons();
+  document.documentElement.classList.replace('js-loading', 'js-ready');
+}
+
+/** Machine du serveur (dés)reliée : comme au début d'un IPL d'ici, sans le lancer. */
+function remoteStarted(data) {
+  runArch = 's370';
+  // Terminaux que le serveur montre aux pages (--web-terminals; 0C0-0C1 par défaut).
+  terminals = data.terminals ?? [0x0c0, 0x0c1];
+  remotePageTerms(terminals);
+  buildTabs();
+  consoleText = '';
+  consoleOut.textContent = '';
+  questions.clear();
+  for (const k of Object.keys(printers)) delete printers[k];
+  showPrinter();
+  running = true;
+  shuttingDown = false;
+  consoleHint();
+  punchMachineChanged();
+  updateButtons();
+  setLight('lt-load', false);
+  setLight('lt-sys', true);
+  showStatus(remoteAccess === 'guest' ? 'remote.guest' : 'remote.connected', { n: data.volumes });
 }
 
 main();

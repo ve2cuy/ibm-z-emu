@@ -14,7 +14,9 @@
     document.documentElement.classList.replace('no-js', 'js-loading');
     // Isolement de la page (coi-sw.js : en-têtes COOP et COEP) : la première fois, le
     // service worker s'installe et la page se recharge une fois.
-    if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in navigator) {
+    // Mode « machine distante » (page servie par ibmz-server) : ni module ni isolement.
+    const remotePage = !!document.querySelector('meta[name="ibmz-remote"]');
+    if (!remotePage && !window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('coi-sw.js').then(() => navigator.serviceWorker.ready).then(() => {
         try {
           // Le document chargé avant le service worker n'a pas les en-têtes : une seule
@@ -36,7 +38,7 @@
       if ([...blocks].some((p) => p.lang === lang)) blocks.forEach((p) => { p.hidden = p.lang !== lang; });
     }, 12000);
   </script>
-  <link rel="stylesheet" href="style.css?v=9201050c">
+  <link rel="stylesheet" href="style.css?v=16c1386c">
 </head>
 <body>
   <!-- Icônes (traits de 24 × 24, couleur du texte) -->
@@ -459,6 +461,7 @@
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="printer" data-i18n="tab.printer">Printer</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="events" data-i18n="tab.events">Monitor</button>
           <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="journal" data-i18n="tab.journal">Log</button>
+          <button type="button" class="term-tab" role="tab" aria-selected="false" data-tab="machine" data-i18n="tab.machine" hidden>Machine</button>
           <button id="journal-clear" type="button" class="icon-button small" title="Clear the log" data-i18n-title="journal.clear" aria-label="Clear the log" data-i18n-aria="journal.clear" hidden>
             <svg class="icon"><use href="#i-trash"/></svg></button>
           <button id="printer-txt" type="button" class="icon-button small prt-save" title="Save as text" data-i18n-title="prt.save.txt" aria-label="Save as text" data-i18n-aria="prt.save.txt" hidden>
@@ -500,6 +503,7 @@
           <div id="printer-out" class="printer-out" hidden></div>
           <div id="events-out" class="events-out" role="log" hidden></div>
           <pre id="journal-out" class="journal-out" hidden></pre>
+          <div id="remote-machine" class="remote-machine" hidden></div>
           <div id="overlay" class="overlay">
             <div class="js-required" role="alert">
               <p lang="en"><strong>The emulator cannot start: this browser blocks the page's scripts.</strong>
@@ -811,6 +815,19 @@
     <div class="memo-tabs" role="tablist"></div>
     <div class="memo-body"></div>
   </dialog>
-  <script type="module" src="main.js?v=9201050c"></script>
+  <script type="module" src="main.js?v=16c1386c"></script>
+  <!-- Mode « machine distante » : mot de passe de la console du serveur (remote.js) -->
+  <dialog id="remote-login" class="dialog remote-login" aria-labelledby="remote-login-title">
+    <form id="remote-login-form">
+      <h2 id="remote-login-title" data-i18n="remote.login.title">Operator console</h2>
+      <p class="hint" data-i18n="remote.login.note">This page drives the machine that runs on the server. Password of the operator console:</p>
+      <input id="remote-login-pw" type="password" autocomplete="current-password" required>
+      <p id="remote-login-error" class="error" role="alert"></p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="submit" data-i18n="remote.login.submit">Sign in</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

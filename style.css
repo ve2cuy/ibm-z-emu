@@ -244,6 +244,9 @@ svg.icon, svg.chev {
 
 /* Menu réduit à une colonne d'icônes, avec une infobulle au survol. */
 .collapsed .sb-header { justify-content: center; padding-inline: 0; }
+/* Version, en bas du menu : alignée sur l'en-tête (pas collée au bord). */
+.sb-version { margin: 0; padding: 8px 16px 12px; color: var(--muted); font-size: 0.8rem; }
+.collapsed .sb-version { padding-inline: 0; text-align: center; }
 .collapsed .sb-title,
 .collapsed .nav-item .label,
 .collapsed .nav-item .chev,
@@ -1819,3 +1822,44 @@ main.content, .stage { touch-action: manipulation; }
 .tape-unit { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; }
 .tape-unit .row { margin-top: 6px; align-items: center; gap: 6px; }
 .tape-request { color: var(--accent); }
+
+/* Mode « machine distante » (remote.js) : fenêtre du mot de passe, onglet Machine. */
+.dialog.remote-login { width: min(420px, 94vw); }
+.remote-login input { width: 100%; }
+.remote-machine {
+  height: min(70dvh, 46rem);
+  overflow: auto;
+  padding: 2px 2px 12px;
+  font-size: 0.9rem;
+}
+.rm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rm-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.rm-card h3, .remote-machine .rm-h { margin: 0 0 8px; font-size: 0.95rem; }
+.remote-machine .rm-h { margin: 18px 0 8px; }
+.rm-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 14px; margin: 0; }
+.rm-facts dt { color: var(--muted); }
+.rm-facts dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.rm-run { color: #2e9d57; }
+.rm-wait { color: #c98a0a; }
+.rm-table { border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rm-table th, .rm-table td { padding: 4px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.rm-table th { color: var(--muted); font-weight: 600; background: var(--surface-2); }
+.rm-table tr:last-child td { border-bottom: 0; }
+.rm-table td:first-child, .rm-vols td:nth-child(4) { font-family: "DejaVu Sans Mono", Consolas, monospace; }
+.rm-devs td:last-child { white-space: normal; overflow-wrap: anywhere; color: var(--muted); }
+.rm-row { display: flex; align-items: baseline; gap: 12px; }
+.rm-row .rm-h { flex: 1; }
+.rm-config {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #000;
+  color: #9ef0a0;
+  font: 0.85rem/1.35 "DejaVu Sans Mono", "Cascadia Mono", Consolas, monospace;
+  white-space: pre;
+  overflow: auto;
+  user-select: text;
+}
+@media (max-width: 700px) {
+  .rm-table { display: block; overflow-x: auto; }
+}
