@@ -481,6 +481,18 @@ export class Emulator {
         return ret >>> 0;
     }
     /**
+     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
+     * @param {number} addr
+     * @param {string} text
+     * @returns {boolean}
+     */
+    reader_load(addr, text) {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Dépose un fichier binaire (cartes de 80 octets, puis une fin de fichier) : noyau,
      * paramètres et image initiale de Linux, chargés par l'IPL du lecteur.
      * @param {number} addr
@@ -491,18 +503,6 @@ export class Emulator {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.emulator_reader_load_binary(this.__wbg_ptr, addr, ptr0, len0);
-        return ret !== 0;
-    }
-    /**
-     * Dépose un paquet de cartes (texte, une carte par ligne) dans le lecteur.
-     * @param {number} addr
-     * @param {string} text
-     * @returns {boolean}
-     */
-    reader_load(addr, text) {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.emulator_reader_load(this.__wbg_ptr, addr, ptr0, len0);
         return ret !== 0;
     }
     /**
@@ -604,14 +604,6 @@ export class Emulator {
         return v1;
     }
     /**
-     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
-     * @returns {number}
-     */
-    snap_mem_count() {
-        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
      * Bloc de mémoire `i` à écrire (vide s'il est nul).
      * @param {number} i
      * @returns {Uint8Array}
@@ -621,6 +613,14 @@ export class Emulator {
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
+    }
+    /**
+     * Nombre de blocs de mémoire (1 Mo) : `snap_mem(0)` à `snap_mem(n - 1)`.
+     * @returns {number}
+     */
+    snap_mem_count() {
+        const ret = wasm.emulator_snap_mem_count(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * Un fil par processeur (z/Architecture, plusieurs processeurs, après l'IPL) : rend
@@ -1282,34 +1282,34 @@ function __wbg_get_imports(memory) {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_16446535d6ef518e: function(arg0) {
+        __wbg_flush_0b1279c7d43eeef1: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_1e3096ef180c31f8: function() {
-            const ret = Date.now();
-            return ret;
-        },
-        __wbg_now_5d8c1afdd178aa2e: function() {
+        __wbg_now_079f91af69c97832: function() {
             const ret = performance.now();
             return ret;
         },
-        __wbg_read_8e27ab9277ef970a: function(arg0, arg1, arg2, arg3) {
+        __wbg_now_8a8f8538ee538326: function() {
+            const ret = Date.now();
+            return ret;
+        },
+        __wbg_read_39da293d7fafe29b: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_fa1204d656ea2ec7: function(arg0) {
+        __wbg_size_62f374527c9ad748: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_static_accessor_TIME_ORIGIN_ce7591af668ada89: function() {
+        __wbg_static_accessor_TIME_ORIGIN_72f4365fea82bd84: function() {
             const ret = performance.timeOrigin;
             return ret;
         },
-        __wbg_truncate_c1db68426f9c49a8: function(arg0, arg1) {
+        __wbg_truncate_016763c10f9e1078: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_d21362d2c0865a23: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_27817defe529e884: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
