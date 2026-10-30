@@ -2,21 +2,21 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=16c1386c';
-import { initMemo } from './memo.js?v=16c1386c';
-import { deckText } from './decks.js?v=16c1386c';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=16c1386c';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=16c1386c';
-import { Z_DEVICES } from './herc-conf.js?v=16c1386c';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=16c1386c';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=16c1386c';
-import { Questions } from './questions.js?v=16c1386c';
-import { initFind } from './find.js?v=16c1386c';
-import { pageCount, splitJobs } from './jobs.js?v=16c1386c';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=16c1386c';
-import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=16c1386c';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=d2fe7d5e';
+import { initMemo } from './memo.js?v=d2fe7d5e';
+import { deckText } from './decks.js?v=d2fe7d5e';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=d2fe7d5e';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=d2fe7d5e';
+import { Z_DEVICES } from './herc-conf.js?v=d2fe7d5e';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=d2fe7d5e';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=d2fe7d5e';
+import { Questions } from './questions.js?v=d2fe7d5e';
+import { initFind } from './find.js?v=d2fe7d5e';
+import { pageCount, splitJobs } from './jobs.js?v=d2fe7d5e';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=d2fe7d5e';
+import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=d2fe7d5e';
 
-const VERSION = '0.1.51';
+const VERSION = '0.1.52';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
@@ -3132,7 +3132,14 @@ jcl.value = localStorage.getItem('ibmz-jcl') ?? SAMPLE_JCL;
 jcl.addEventListener('input', () => {
   try { localStorage.setItem('ibmz-jcl', jcl.value); } catch { /* rien */ }
 });
-$('jcl-sample').addEventListener('click', () => { jcl.value = SAMPLE_JCL; });
+// Exemple : remis dans la zone (texte gardé oublié : l'exemple suit les nouvelles versions).
+$('jcl-sample').addEventListener('click', () => {
+  jcl.value = SAMPLE_JCL;
+  try { localStorage.removeItem('ibmz-jcl'); } catch { /* rien */ }
+  jcl.scrollTop = 0;
+  jcl.focus();
+  $('cards-status').textContent = t('cards.sample.done');
+});
 $('jcl-file').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   e.target.value = '';
@@ -3289,6 +3296,10 @@ function remoteMain() {
   }
   for (const id of ['btn-load', 'suspend']) if ($(id)) $(id).hidden = true;
   tabsBox.querySelector('[data-tab="machine"]').hidden = false;
+  // À propos : le texte de la machine du serveur (gardé au changement de langue).
+  const about = document.querySelector('#panel-about [data-i18n-html="about.text"]');
+  about.dataset.i18nHtml = 'about.text.remote';
+  about.innerHTML = t('about.text.remote');
   languageListeners.push(renderMachine);
   startWorker();
   selectTab('console');

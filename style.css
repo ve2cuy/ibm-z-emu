@@ -244,8 +244,8 @@ svg.icon, svg.chev {
 
 /* Menu réduit à une colonne d'icônes, avec une infobulle au survol. */
 .collapsed .sb-header { justify-content: center; padding-inline: 0; }
-/* Version, en bas du menu : alignée sur l'en-tête (pas collée au bord). */
-.sb-version { margin: 0; padding: 8px 16px 12px; color: var(--muted); font-size: 0.8rem; }
+/* Version, en bas du menu : alignée sur la colonne des icônes du menu (48 px du bord). */
+.sb-version { margin: 0; padding: 8px 16px 14px 48px; color: var(--muted); font-size: 0.8rem; }
 .collapsed .sb-version { padding-inline: 0; text-align: center; }
 .collapsed .sb-title,
 .collapsed .nav-item .label,

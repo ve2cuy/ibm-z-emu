@@ -6,7 +6,9 @@
 export const DECKS = [
   { id: 'hello', lang: 'ASM', text: `//HELLO    JOB (ACCT),'HELLO WORLD',CLASS=A,MSGCLASS=A,
 //             MSGLEVEL=(1,1),USER=HERC01,PASSWORD=CUL8TR
-//* Compile, link and run a small assembler program.
+//* Compile, link and run a small assembler program: a message on
+//* the console, and the first 10 prime numbers on printer 1
+//* (SYSOUT class A, unit 00E).
 //STEP1    EXEC ASMFCLG
 //ASM.SYSPUNCH DD DUMMY
 //ASM.SYSIN DD *
@@ -14,12 +16,61 @@ HELLO    CSECT
          STM   14,12,12(13)
          BALR  12,0
          USING *,12
+         ST    13,SAVE+4          Chain the save areas
+         LA    13,SAVE
          WTO   'HELLO FROM THE S/370 EMULATOR IN YOUR BROWSER'
+* The first 10 prime numbers, on the printer (SYSPRINT)
+         OPEN  (PRINT,OUTPUT)
+         MVC   TEXT(L'TITLE),TITLE
+         PUT   PRINT,LINE
+         MVI   CC,C'0'            Blank line before the list
+         LA    2,2                N: number to test
+         SR    3,3                Primes found
+NEXTN    LA    6,2                D: divisor
+TESTD    LR    5,6
+         MR    4,6                R4-R5 = D * D
+         CR    5,2
+         BH    PRIME              D * D > N: N is prime
+         SR    4,4
+         LR    5,2
+         DR    4,6                R4 = N modulo D
+         LTR   4,4
+         BZ    NOTPRIME
+         LA    6,1(6)
+         B     TESTD
+PRIME    LA    3,1(3)
+         MVC   TEXT,BLANKS
+         CVD   3,DW
+         MVC   TEXT(4),PAT
+         ED    TEXT(4),DW+6
+         MVI   TEXT+4,C'.'
+         CVD   2,DW
+         MVC   TEXT+5(4),PAT
+         ED    TEXT+5(4),DW+6
+         PUT   PRINT,LINE
+         MVI   CC,C' '
+         C     3,=F'10'
+         BNL   DONE
+NOTPRIME LA    2,1(2)
+         B     NEXTN
+DONE     CLOSE (PRINT)
+         L     13,SAVE+4
          LM    14,12,12(13)
          SR    15,15
          BR    14
+SAVE     DS    18F
+DW       DS    D
+PRINT    DCB   DSORG=PS,MACRF=PM,DDNAME=SYSPRINT,RECFM=FA,BLKSIZE=133
+LINE     DS    0CL133
+CC       DC    C' '
+TEXT     DC    CL132' '
+BLANKS   DC    CL132' '
+TITLE    DC    C'THE FIRST 10 PRIME NUMBERS'
+PAT      DC    X'40202120'
+         LTORG
          END   HELLO
 /*
+//GO.SYSPRINT DD SYSOUT=A
 //` },
   { id: 'cobdemo', lang: 'COBOL', text: `//COBDEMO  JOB (ACCT),'COBOL DEMO',CLASS=A,MSGCLASS=A,MSGLEVEL=(1,1)
 //*
