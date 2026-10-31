@@ -1282,26 +1282,26 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_flush_52aa880691b208ef: function(arg0) {
+        __wbg_flush_9c7296115fbeed46: function(arg0) {
             arg0.flush();
         },
-        __wbg_now_6fa4adca852ed12f: function() {
+        __wbg_now_16410f783d0bc832: function() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_read_78c28dde7a358389: function(arg0, arg1, arg2, arg3) {
+        __wbg_read_02310d74276b4b6a: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.read(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
-        __wbg_size_607194110f4e8481: function(arg0) {
+        __wbg_size_a8bfa46f7b731710: function(arg0) {
             const ret = arg0.size();
             return ret;
         },
-        __wbg_truncate_02b07125a338cc0c: function(arg0, arg1) {
+        __wbg_truncate_89d7218953921e4e: function(arg0, arg1) {
             const ret = arg0.truncate(arg1);
             return ret;
         },
-        __wbg_write_d761af800de8dab4: function(arg0, arg1, arg2, arg3) {
+        __wbg_write_de14f4a48434d88c: function(arg0, arg1, arg2, arg3) {
             const ret = arg0.write(arg1, getArrayU8FromWasm0(arg2, arg3));
             return ret;
         },
