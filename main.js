@@ -2,21 +2,21 @@
 // fichiers, fil de la machine (worker.js), console de l'opérateur, terminaux 3270, pupitre,
 // lecteur de cartes et imprimantes.
 
-import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=75ddda2f';
-import { initMemo } from './memo.js?v=75ddda2f';
-import { deckText } from './decks.js?v=75ddda2f';
-import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=75ddda2f';
-import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=75ddda2f';
-import { Z_DEVICES } from './herc-conf.js?v=75ddda2f';
-import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=75ddda2f';
-import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=75ddda2f';
-import { Questions } from './questions.js?v=75ddda2f';
-import { initFind } from './find.js?v=75ddda2f';
-import { pageCount, splitJobs } from './jobs.js?v=75ddda2f';
-import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=75ddda2f';
-import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=75ddda2f';
+import { LANGUAGES, browserLanguage, getLanguage, setLanguage, t } from './i18n.js?v=484b1e75';
+import { initMemo } from './memo.js?v=484b1e75';
+import { deckText } from './decks.js?v=484b1e75';
+import { initVolumes, openVolumes, volConsole, volMachineChanged, volPrinter, volSettle } from './volumes.js?v=484b1e75';
+import { devices, initHerc, mounts, mountsMissing, overlayName, remountFromDir } from './herc-ui.js?v=484b1e75';
+import { Z_DEVICES } from './herc-conf.js?v=484b1e75';
+import { initPunch, openPunch, punchMachineChanged, savedDeckCount } from './punch.js?v=484b1e75';
+import { dropSession, importSessionFile, readSession, sessionFile, sessionFileHead } from './session.js?v=484b1e75';
+import { Questions } from './questions.js?v=484b1e75';
+import { initFind } from './find.js?v=484b1e75';
+import { pageCount, splitJobs } from './jobs.js?v=484b1e75';
+import { initTapes, renderTapes, tapesConsole, tapesState, tapesStopped } from './tapes.js?v=484b1e75';
+import { REMOTE, RemoteWorker, remoteInfo, remotePageTerms, remoteStats, remoteTerms as remoteTermsSet, renderMachine } from './remote.js?v=484b1e75';
 
-const VERSION = '0.1.57';
+const VERSION = '0.1.58';
 const V = new URL(import.meta.url).search;
 
 const $ = (id) => document.getElementById(id);
