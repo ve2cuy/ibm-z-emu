@@ -23,7 +23,7 @@
 // monitor {key, vals} (onglet Moniteur : clé de i18n.js « mon.<key> » et ses valeurs; les
 // événements de la machine arrivent en « r.<clé> » avec les valeurs a, b, c, d).
 
-import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=60dae593';
+import { TK5_DEVICES, Z_DEVICES } from './herc-conf.js?v=85996d40';
 
 const version = new URL(import.meta.url).search;
 // Module WebAssembly : celui à mémoire partagée (pkg-mt) dans une page isolée, pour un fil
@@ -371,6 +371,8 @@ function begin(cfg, infos, resumed) {
   relayTerms = cfg.relayTerms !== false;
   openRelay();
   autoShutdown = false;
+  autoTasks.clear();
+  autoLine = '';
   zsd = null;
   // Commandes après l'IPL : déjà tapées dans une session reprise.
   autoCmds = !resumed && arch === 'z' && cfg.autoCmds?.length ? { cmds: cfg.autoCmds, started: false } : null;
@@ -857,8 +859,12 @@ function sendRemotes() {
 // procédure SHUTDOWN de MVS demande « script scripts/shutdown » par DIAGNOSE X'008'. Le
 // script de TK5 attend alors 30 s pour laisser les usagers de TSO se déconnecter; ici,
 // D TS,L compte d'abord les usagers connectés : sans usager, pas d'attente. Chaque étape
-// est annoncée à la page (message shutdown {phase}).
+// est annoncée à la page (message shutdown {phase}). Les tâches que le script de TK5
+// n'arrête pas (FTPD, HTTPD) reçoivent P au début : sinon JES2 les attend ($HASP099).
 let autoShutdown = false;
+const AUTO_STOPPABLE = ['FTPD', 'FTPDPARM', 'HTTPD'];
+const autoTasks = new Set(); // tâches de AUTO_STOPPABLE en marche
+let autoLine = '';           // ligne de la console en cours
 let autoSeen = '';
 const AUTO_RULES = [['$HASP099', '$PJES2', 'jes2'], ['$HASP085', 'Z EOD', 'eod'], ['IEE334I', 'QUIESCE', 'quiesce']];
 let autoDone = new Set();
@@ -877,6 +883,16 @@ function operatorLater(cmd, ms) {
 }
 
 function autoOperator(text) {
+  if (text) {
+    const lines = (autoLine + text).split('\n');
+    autoLine = lines.pop();
+    for (const l of lines) {
+      const m = /\$HASP(373|395) +(\S+)/.exec(l);
+      if (m && AUTO_STOPPABLE.includes(m[2])) {
+        if (m[1] === '373') autoTasks.add(m[2]); else autoTasks.delete(m[2]);
+      }
+    }
+  }
   if (!initDone && text && (autoSeen + text).includes('MVS038J')) {
     initDone = true;
     if (shutdownWanted) operatorLater('S SHUTDOWN', 1000);
@@ -891,6 +907,7 @@ function autoOperator(text) {
       tsoUsers = null;
       post({ type: 'shutdown', phase: 'started' });
       operatorLater('D TS,L', 500);
+      for (const t of autoTasks) operatorLater(`P ${t}`, 500);
       // Pas de réponse : l'attente de TK5 (30 s) est gardée.
       tsoTimer = setTimeout(() => shutnow(-1), 8000);
     }

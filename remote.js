@@ -8,7 +8,7 @@
 // système, puis l'écran rendu). Connexion : mot de passe de la console demandé si le serveur
 // en a un (sinon lecture seule); reprise automatique après une coupure.
 
-import { t } from './i18n.js?v=60dae593';
+import { t } from './i18n.js?v=85996d40';
 
 export const REMOTE = !!document.querySelector('meta[name="ibmz-remote"]');
 
